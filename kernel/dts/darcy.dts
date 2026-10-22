@@ -140,6 +140,69 @@
 /delete-node/ &pd_sor;
 
 /*
+ * USB: the port near HDMI as a host, wired as in the stock darcy device tree
+ * (USB 2 lane 2, with UPHY lane pcie-5 for SuperSpeed as usb3-1), with the
+ * supplies NVIDIA's darcy power tree names
+ * (tegra210-darcy-power-tree-p2894-0000-a00.dtsi). The port far from HDMI
+ * (usb2-0/usb3-0, OTG) carries the fastboot link to the laptop, which powers
+ * that cable, so Linux leaves it alone for now.
+ */
+&padctl {
+	avdd-pll-utmip-supply = <&max77620_sd3>;
+	avdd-pll-uerefe-supply = <&max77620_ldo7>;
+	dvdd-pex-pll-supply = <&max77620_ldo1>;
+	hvdd-pex-pll-e-supply = <&max77620_sd3>;
+	status = "okay";
+
+	pads {
+		usb2 {
+			status = "okay";
+
+			lanes {
+				usb2-2 {
+					nvidia,function = "xusb";
+					status = "okay";
+				};
+			};
+		};
+
+		pcie {
+			status = "okay";
+
+			lanes {
+				pcie-5 {
+					nvidia,function = "usb3-ss";
+					status = "okay";
+				};
+			};
+		};
+	};
+
+	ports {
+		usb2-2 {
+			mode = "host";
+			vbus-supply = <&usb_vbus2>;
+			status = "okay";
+		};
+
+		usb3-1 {
+			nvidia,usb2-companion = <2>;
+			status = "okay";
+		};
+	};
+};
+
+&{/usb@70090000} {
+	phys = <&{/padctl@7009f000/pads/usb2/lanes/usb2-2}>,
+	       <&{/padctl@7009f000/pads/pcie/lanes/pcie-5}>;
+	phy-names = "usb2-2", "usb3-1";
+	dvddio-pex-supply = <&max77620_ldo1>;
+	hvddio-pex-supply = <&max77620_sd3>;
+	avdd-usb-supply = <&vdd_3v3>;
+	status = "okay";
+};
+
+/*
  * The PMC is secure-only on the SHIELD. Linux needs no property for that:
  * on Tegra210 it probes for it and goes through the secure monitor
  * (maybe_tz_only in drivers/soc/tegra/pmc.c).

@@ -54,6 +54,17 @@ SOURCES=(
   "omarchy-arm|https://github.com/alexisraitano-myffu/omarchy-arm|579f15c699dab01e2b3b12e2c4d2503873359be9"
 )
 
+# Firmware files the payload's kernel loads, from linux-firmware at a pinned
+# commit. scripts/12 fetches them into vendor/linux-firmware/ and puts them in
+# the initramfs under /lib/firmware.
+# Format: path in linux-firmware|sha256
+LINUX_FIRMWARE_URL=https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git
+LINUX_FIRMWARE_COMMIT=2627913c0f298b6b2f4206e3bdabec5ed90c9a52
+FIRMWARE=(
+  # Microcode of the XUSB (USB host) controller
+  "nvidia/tegra210/xusb.bin|941873a6a70993b5c40a608cedc4608c281458c11949092d4bce125b96a92025"
+)
+
 # Host packages (Arch Linux / Omarchy, x86_64)
 HOST_PACKAGES=(
   base-devel git curl avahi bc swig python-pyelftools python-setuptools

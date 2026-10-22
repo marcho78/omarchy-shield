@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/klog.h>
 #include <sys/mman.h>
@@ -31,6 +32,11 @@
  * clears the RAM the log is kept in.
  */
 #define REBOOT_INTO		"recovery"
+/*
+ * Freeze instead of rebooting, to prove the watchdog U-Boot arms
+ * (darcy_watchdog) resets a kernel that hangs without a panic.
+ */
+#define WATCHDOG_TEST		1
 #define HIGHLIGHTS		20	/* kernel messages repeated at the end */
 #define SYSLOG_ACTION_READ_ALL	3
 
@@ -282,18 +288,95 @@ static void show_clks(void)
 	say("clock framework: %s", out[1]);
 }
 
-static void read_attr(const char *dev, const char *attr, char *buf, int len)
+static void read_line(const char *path, char *buf, int len)
 {
-	char path[300];
-	FILE *f;
+	FILE *f = fopen(path, "r");
 
-	snprintf(path, sizeof(path), "/sys/class/regulator/%s/%s", dev, attr);
-	f = fopen(path, "r");
 	if (!f || !fgets(buf, len, f))
 		snprintf(buf, len, "-");
 	if (f)
 		fclose(f);
 	buf[strcspn(buf, "\n")] = 0;
+}
+
+static void read_attr(const char *dev, const char *attr, char *buf, int len)
+{
+	char path[300];
+
+	snprintf(path, sizeof(path), "/sys/class/regulator/%s/%s", dev, attr);
+	read_line(path, buf, len);
+}
+
+/* USB devices (not their interfaces): port, vendor:product, name */
+static void show_usb(void)
+{
+	char path[300], vid[8], pid[8], product[64];
+	DIR *d = opendir("/sys/bus/usb/devices");
+	struct dirent *e;
+	int n = 0;
+
+	while (d && (e = readdir(d))) {
+		if (e->d_name[0] == '.' || strchr(e->d_name, ':'))
+			continue;
+		snprintf(path, sizeof(path), "/sys/bus/usb/devices/%s/idVendor", e->d_name);
+		read_line(path, vid, sizeof(vid));
+		snprintf(path, sizeof(path), "/sys/bus/usb/devices/%s/idProduct", e->d_name);
+		read_line(path, pid, sizeof(pid));
+		snprintf(path, sizeof(path), "/sys/bus/usb/devices/%s/product", e->d_name);
+		read_line(path, product, sizeof(product));
+		say("usb %s: %s:%s %s", e->d_name, vid, pid, product);
+		n++;
+	}
+	if (d)
+		closedir(d);
+	if (!n)
+		say("usb: no devices");
+}
+
+/* Input devices by name, which shows a USB keyboard */
+static void show_inputs(void)
+{
+	char line[256], names[400] = "";
+	FILE *f = fopen("/proc/bus/input/devices", "r");
+	size_t len;
+
+	while (f && fgets(line, sizeof(line), f)) {
+		if (strncmp(line, "N: Name=", 8))
+			continue;
+		line[strcspn(line, "\n")] = 0;
+		len = strlen(names);
+		snprintf(names + len, sizeof(names) - len, "%s ", line + 8);
+	}
+	if (f)
+		fclose(f);
+	say("input devices: %s", names[0] ? names : "none");
+}
+
+/* Disks other than the eMMC, as a USB drive appears */
+static void show_disks(void)
+{
+	char path[300], vendor[32], model[64], size[32];
+	DIR *d = opendir("/sys/block");
+	struct dirent *e;
+	int n = 0;
+
+	while (d && (e = readdir(d))) {
+		if (strncmp(e->d_name, "sd", 2))
+			continue;
+		snprintf(path, sizeof(path), "/sys/block/%s/device/vendor", e->d_name);
+		read_line(path, vendor, sizeof(vendor));
+		snprintf(path, sizeof(path), "/sys/block/%s/device/model", e->d_name);
+		read_line(path, model, sizeof(model));
+		snprintf(path, sizeof(path), "/sys/block/%s/size", e->d_name);
+		read_line(path, size, sizeof(size));
+		say("disk %s: %s %s, %.1f GB", e->d_name, vendor, model,
+		    atof(size) * 512 / 1e9);
+		n++;
+	}
+	if (d)
+		closedir(d);
+	if (!n)
+		say("disks: none besides the eMMC");
 }
 
 /* Every regulator's voltage and state, four to a line */
@@ -331,7 +414,8 @@ static void show_regulators(void)
 static const char *const keys[] = {
 	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
 	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
-	"pmc", "powergate", "smmu", "reserved mem", "bringing",
+	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
+	"padctl", "firmware",
 };
 
 static bool highlight(const char *line)
@@ -397,8 +481,8 @@ int main(void)
 	show_dir("crash logs kept from the previous boot", "/sys/fs/pstore");
 
 	while ((up = uptime()) < REBOOT_AT) {
-		say("uptime %.0f s; 'reboot %s' at %d s", up, REBOOT_INTO,
-		    REBOOT_AT);
+		say("uptime %.0f s; at %d s: report, then %s", up, REBOOT_AT,
+		    WATCHDOG_TEST ? "freeze (watchdog test)" : "'reboot " REBOOT_INTO "'");
 		sleep(up + 15 < REBOOT_AT ? 15 : (unsigned int)(REBOOT_AT - up) + 1);
 	}
 
@@ -406,8 +490,16 @@ int main(void)
 	show_highlights();
 	show_clks();
 	show_genpd();
+	show_usb();
+	show_inputs();
+	show_disks();
 	show_display();
 	show_display_hw();
+	if (WATCHDOG_TEST) {
+		say("freezing on purpose: the watchdog should reset the board 150 s after U-Boot started Linux");
+		for (;;)
+			pause();
+	}
 	say("'reboot %s'; U-Boot shows this log after the reboot", REBOOT_INTO);
 	sync();
 	syscall(SYS_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,

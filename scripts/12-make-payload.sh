@@ -2,14 +2,15 @@
 # Build the FIT payload for the SHIELD TV 2017 and wrap it with U-Boot:
 #   - the kernel from scripts/11
 #   - our device tree, kernel/dts/darcy.dts on top of mainline's darcy board
-#   - an initramfs whose /init is tools/darcy-init.c
+#   - an initramfs whose /init is tools/darcy-init.c, with the firmware
+#     pinned in config.sh (FIRMWARE) under /lib/firmware
 #
 # Output: build/payload/darcy.itb and build/boot-uboot-darcy.img, the image
 # to write with scripts/09-boot-via-recovery.sh.
 #
 # Usage: scripts/12-make-payload.sh
 source "$(dirname "$0")/lib.sh"
-need cpp dtc gcc mkimage aarch64-linux-gnu-gcc gzip
+need cpp dtc gcc mkimage aarch64-linux-gnu-gcc gzip curl sha256sum
 
 src="$ROOT/vendor/linux"
 kbuild="$ROOT/build/linux"
@@ -23,16 +24,39 @@ cpp -nostdinc -undef -x assembler-with-cpp -D__DTS__ \
   -o "$out/darcy.dts.pre" "$ROOT/kernel/dts/darcy.dts"
 dtc -q -I dts -O dtb -o "$out/darcy.dtb" "$out/darcy.dts.pre"
 
+log "firmware from linux-firmware ${LINUX_FIRMWARE_COMMIT:0:12}"
+fw_dirs=() fw_files=()
+for entry in "${FIRMWARE[@]}"; do
+  path=${entry%%|*} sum=${entry##*|}
+  file="$ROOT/vendor/linux-firmware/$path"
+  if ! echo "$sum  $file" | sha256sum -c --status 2>/dev/null; then
+    mkdir -p "$(dirname "$file")"
+    curl -fsSL -o "$file" "$LINUX_FIRMWARE_URL/plain/$path?id=$LINUX_FIRMWARE_COMMIT"
+    echo "$sum  $file" | sha256sum -c --status || die "checksum mismatch for $path"
+  fi
+  fw_files+=("file /lib/firmware/$path $file 0644 0 0")
+  # gen_init_cpio needs every parent directory listed
+  d=$(dirname "/lib/firmware/$path")
+  while [[ $d != / ]]; do
+    fw_dirs+=("$d")
+    d=$(dirname "$d")
+  done
+done
+
 log "initramfs with tools/darcy-init.c as /init"
 aarch64-linux-gnu-gcc -static -Os -Wall -o "$out/init" "$ROOT/tools/darcy-init.c"
 gcc -O2 -o "$out/gen_init_cpio" "$src/usr/gen_init_cpio.c"
-cat > "$out/initramfs.list" <<EOF
+{
+  cat <<EOF
 dir /dev 0755 0 0
 nod /dev/console 0600 0 0 c 5 1
 dir /proc 0755 0 0
 dir /sys 0755 0 0
 file /init $out/init 0755 0 0
 EOF
+  printf '%s\n' "${fw_dirs[@]}" | sort -u | sed 's|.*|dir & 0755 0 0|'
+  printf '%s\n' "${fw_files[@]}"
+} > "$out/initramfs.list"
 "$out/gen_init_cpio" -t 0 "$out/initramfs.list" | gzip -9 -n > "$out/initramfs.cpio.gz"
 
 log "FIT image"
