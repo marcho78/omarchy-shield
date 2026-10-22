@@ -646,6 +646,23 @@ darcy-init no longer reads that file. The oops killed init, and the panic
 proved the other return path: `panic=10`, then the reset, then U-Boot's
 recovery reboot reason, then the log screen.
 
+**Decision (2026-10-22): the root filesystem goes on the internal eMMC.**
+- **The goal** is a stripped-down media center, which fits in the 11–13
+  GiB a reused `userdata` (plus `system`, `cache`) gives.
+- **A USB SSD doesn't fit the hardware.** It would need a hub on the SHIELD:
+  of its two USB-A ports, one is the A-to-A link to the laptop and the
+  other the keyboard, and the user's hubs are USB-C.
+- **The order matters:** Android goes only after Linux can reach fastboot by
+  itself, through `reboot bootloader` and U-Boot's fallback.
+- **The partition table and the bootloader partitions stay untouched.**
+
+Media-center expectations with mainline:
+- No T210 NVDEC support, so video is decoded on the CPU. 1080p H.264 is
+  fine; HEVC/VP9 is borderline; 4K is not realistic. CPU DFLL scaling
+  helps.
+- HDMI audio (`hda-tegra`) and HDMI-CEC (`tegra-cec`, for the TV's remote)
+  have mainline drivers.
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way
