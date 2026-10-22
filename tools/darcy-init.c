@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 /*
  * The first init on the SHIELD TV 2017: report that Linux runs and what it
- * sees, then reboot into the recovery slot after a minute. Everything goes
- * into the kernel log, which reaches the HDMI console and ramoops; after the
- * reboot U-Boot shows the end of the log on the TV, so the report survives
- * a kernel that could not keep the screen. It is the whole userspace of the
- * first payload (scripts/12); a real root filesystem comes later.
+ * sees, then reboot after a minute, by default into the bootloader menu
+ * (fastboot), ready for the next image. Everything goes into the kernel log,
+ * which reaches the HDMI console and ramoops; the next time the recovery
+ * slot boots, U-Boot shows the end of the log on the TV, so the report
+ * survives a kernel that could not keep the screen. It is the whole
+ * userspace of the first payload (scripts/12); a real root filesystem comes
+ * later.
  */
 #define _GNU_SOURCE
 #include <dirent.h>
@@ -23,6 +25,11 @@
 #include <unistd.h>
 
 #define REBOOT_AT		60	/* seconds of uptime */
+/*
+ * The reboot command: "bootloader" lands in the bootloader menu with
+ * fastboot; "recovery" goes straight back to U-Boot, which shows the log.
+ */
+#define REBOOT_INTO		"bootloader"
 #define HIGHLIGHTS		20	/* kernel messages repeated at the end */
 #define SYSLOG_ACTION_READ_ALL	3
 
@@ -389,8 +396,8 @@ int main(void)
 	show_dir("crash logs kept from the previous boot", "/sys/fs/pstore");
 
 	while ((up = uptime()) < REBOOT_AT) {
-		say("uptime %.0f s; rebooting into the recovery slot at %d s",
-		    up, REBOOT_AT);
+		say("uptime %.0f s; 'reboot %s' at %d s", up, REBOOT_INTO,
+		    REBOOT_AT);
 		sleep(up + 15 < REBOOT_AT ? 15 : (unsigned int)(REBOOT_AT - up) + 1);
 	}
 
@@ -400,10 +407,11 @@ int main(void)
 	show_genpd();
 	show_display();
 	show_display_hw();
-	say("rebooting into the recovery slot, where U-Boot shows this log");
+	say("'reboot %s'; U-Boot shows this log when the recovery slot next boots",
+	    REBOOT_INTO);
 	sync();
 	syscall(SYS_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
-		LINUX_REBOOT_CMD_RESTART2, "recovery");
+		LINUX_REBOOT_CMD_RESTART2, REBOOT_INTO);
 	say("reboot failed: %m");
 	for (;;)
 		pause();

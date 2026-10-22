@@ -1,6 +1,6 @@
-From f6d98a40402a69fec2d64c5d78d32de0979798f7 Mon Sep 17 00:00:00 2001
+From 6e61bbd500c637b439c69497665522c15117b5e0 Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 10:51:27 -0700
+Date: Thu, 22 Oct 2026 12:44:58 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
@@ -40,6 +40,10 @@ not overwrite it).
   the FIT's device tree says, and shows its end instead of booting.
   The kernel command line is tagged darcy.chain=u-boot, to tell that
   log from Android's.
+- After showing that log, U-Boot reboots into the bootloader menu
+  (fastboot) after darcy_log_secs (60 s), so a failed kernel always
+  ends where the next image can be flashed. Reboots clear any
+  leftover "recovery" reason first.
 - The hush shell is enabled explicitly: darcy_boot needs if/then/fi, and
   turning BOOTSTD off had silently dropped it.
 - No GPU/VPR programming, networking, EFI, storage-write commands or
@@ -53,10 +57,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 716 +++++++++++++++++++++++++++
- board/nvidia/p2894/p2894.env         |  24 +
+ board/nvidia/p2894/p2894.c           | 734 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.env         |  27 +
  configs/p2894_defconfig              |  40 ++
- 9 files changed, 879 insertions(+)
+ 9 files changed, 900 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -219,10 +223,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..8ac357d8
+index 00000000..c1e3a100
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,716 @@
+@@ -0,0 +1,734 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -249,7 +253,9 @@ index 00000000..8ac357d8
 + * log comes back through the recovery slot. Just before the kernel starts,
 + * any reset is pointed at the recovery slot and the watchdog is armed
 + * (darcy_watchdog seconds). After the reset, U-Boot finds that kernel's
-+ * console log in ramoops and shows its end instead of booting again.
++ * console log in ramoops and shows its end instead of booting again, then
++ * reboots into the bootloader menu (fastboot) after darcy_log_secs, ready
++ * for the next image.
 + */
 +
 +#include <cpu_func.h>
@@ -793,7 +799,7 @@ index 00000000..8ac357d8
 +		c = log_char(zone, i);
 +		putc(c == '\n' || (c >= ' ' && c <= '~') ? c : '?');
 +	}
-+	printf("\n--- End of the log. Power-cycle the SHIELD to leave.\n");
++	printf("\n--- End of the log.\n");
 +
 +	zone->start = 0;
 +	zone->size = 0;
@@ -802,19 +808,28 @@ index 00000000..8ac357d8
 +}
 +
 +/*
-+ * Reset, into the bootloader menu if asked. The PMC is secure-only on the
-+ * SHIELD; tegra_pmc_*() go through the secure monitor when needed, and the
-+ * reset keeps PMC_SCRATCH0.
++ * Reset, into the bootloader menu (fastboot) or else Android. Any
++ * "recovery" reason board_quiesce_devices() left is cleared first. The PMC
++ * is secure-only on the SHIELD; tegra_pmc_*() go through the secure monitor
++ * when needed, and the reset keeps PMC_SCRATCH0.
 + */
++static void reboot_to(bool bootloader)
++{
++	u32 value = tegra_pmc_readl(PMC_SCRATCH0);
++
++	value &= ~(PMC_SCRATCH0_MODE_RECOVERY | PMC_SCRATCH0_MODE_BOOTLOADER);
++	if (bootloader)
++		value |= PMC_SCRATCH0_MODE_BOOTLOADER;
++	tegra_pmc_writel(value, PMC_SCRATCH0);
++	mdelay(500);
++	sysreset_walk_halt(SYSRESET_WARM);
++}
++
 +static void signal_by_reboot(bool bootloader)
 +{
 +	printf("No console and nothing to boot: rebooting into %s\n",
 +	       bootloader ? "the bootloader menu" : "Android");
-+	if (bootloader)
-+		tegra_pmc_writel(tegra_pmc_readl(PMC_SCRATCH0) |
-+				 PMC_SCRATCH0_MODE_BOOTLOADER, PMC_SCRATCH0);
-+	mdelay(500);
-+	sysreset_walk_halt(SYSRESET_WARM);
++	reboot_to(bootloader);
 +}
 +
 +/*
@@ -845,6 +860,7 @@ index 00000000..8ac357d8
 +	const void *fdt = cboot_fdt();
 +	const void *fit = NULL;
 +	const char *dts, *args;
++	ulong secs;
 +
 +	printf("\nSHIELD TV 2017 (P2894): U-Boot relocated to 0x%lx\n",
 +	       gd->relocaddr);
@@ -867,10 +883,16 @@ index 00000000..8ac357d8
 +	}
 +	report_display_hw();
 +
-+	/* Back from a kernel U-Boot started: show its log, don't boot it again */
++	/*
++	 * Back from a kernel U-Boot started: show its log instead of booting
++	 * it again, then go to fastboot, ready for the next image.
++	 */
 +	if (fit && report_last_log(fit)) {
-+		env_set("cboot_fit_start", NULL);
-+		return;
++		secs = env_get_ulong("darcy_log_secs", 10, 60);
++		printf("Rebooting into the bootloader menu (fastboot) in %lu s\n",
++		       secs);
++		mdelay(secs * 1000);
++		reboot_to(true);
 +	}
 +
 +	if (fit || (fb_in_use() && video_is_active()))
@@ -941,10 +963,10 @@ index 00000000..8ac357d8
 +}
 diff --git a/board/nvidia/p2894/p2894.env b/board/nvidia/p2894/p2894.env
 new file mode 100644
-index 00000000..ac49822d
+index 00000000..d4503b86
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.env
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,27 @@
 +/*
 + * NVIDIA SHIELD TV 2017 (darcy). cboot loads the Android boot image's
 + * ramdisk; when it holds a FIT image (kernel, device tree, initramfs),
@@ -961,6 +983,9 @@ index 00000000..ac49822d
 + * 0 leaves the watchdog off.
 + */
 +darcy_watchdog=150
++
++/* Seconds U-Boot shows a kernel's log before it reboots into fastboot */
++darcy_log_secs=60
 +
 +darcy_boot=
 +	if test -n "${cboot_fit_start}"; then
