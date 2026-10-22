@@ -8,6 +8,10 @@
 # untouched, so the SHIELD still boots Android, and --restore puts NVIDIA's
 # stock recovery back.
 #
+# Boot "Recovery mode" straight from the bootloader menu afterwards: every
+# normal Android boot runs vendor_flash_recovery, which silently rewrites
+# the stock recovery over whatever is in the partition.
+#
 # The SHIELD must be in its bootloader (scripts/07-check-fastboot.sh --stay)
 # with the bootloader unlocked.
 #
@@ -43,5 +47,6 @@ timeout 300 fastboot -s "$fb" flash recovery "$img" ||
 if [[ $1 == --restore ]]; then
   log "stock recovery restored"
 else
-  log "on the TV, choose 'Recovery mode' in the bootloader menu (arrow keys + Enter)"
+  log "now, on the TV, choose 'Recovery mode' in the bootloader menu (arrow keys + Enter)."
+  log "Do not boot Android first: it would restore the stock recovery over this image."
 fi

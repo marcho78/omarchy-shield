@@ -274,6 +274,22 @@ Put stock recovery back with:
 
     CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh --restore
 
+**Android restores its recovery on every boot.** The `vendor_flash_recovery`
+service (`init.svc.vendor_flash_recovery` in getprop) runs at each normal
+Android boot and rewrites the stock recovery over anything else in the
+partition. That is what happened on the first try:
+- the probe was flashed, then the Shield was power-cycled into Android
+- `adb reboot recovery` then showed stock recovery's "No command"
+
+So after `scripts/09`, choose "Recovery mode" directly from the bootloader
+menu.
+
+**Open design question.** A Linux kept in the recovery slot is wiped whenever
+Android boots. Options for the permanent install:
+- Linux in `boot`, with Android given up or reachable some other way
+- disabling `vendor_flash_recovery`, which needs a modified vendor partition
+- a different chain
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
