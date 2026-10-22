@@ -937,9 +937,20 @@ hub on the port near HDMI makes room for both the keyboard and the disk.
 - `scripts/14` then writes only the boot partition. `--restore` puts
   NVIDIA's `boot.img` back, and with it Android, data intact.
 - The disk has to come up behind the hub at boot: `rootwait=30`, and the
-  enclosure's power must hold through the hub. The partition report run
-  showed the hub but no disk; the report with the SSD attached has to
-  confirm it.
+  enclosure's power must hold through the hub.
+
+**The SSD on the SHIELD.** Two report runs showed the hub (Genesys
+`05e3:0610`/`0620`) and the keyboard, but nothing for the SSD: no device, no
+enumeration error, `usb over-currents: none` even with the hub powered. The
+enclosure's cable carried power but no data. With another cable:
+- `usb 1-3.1: 152d:581d SSK Storage`, a JMicron NVMe bridge ("SSK
+  PCIe581"), on `usb-storage`. `CONFIG_USB_UAS` is off, so it's
+  bulk-only.
+- `sda`, 500118192 sectors of 512 bytes (256 GB), attached 10.2 s after
+  the kernel started, well inside `rootwait=30`
+- **It runs at USB 2 speed:** `new high-speed USB device` on the hub's
+  USB 2 side (`1-3.1`). The working cable is probably USB 2 only. A USB 3
+  cable would put it on `2-2.x` at SuperSpeed.
 
 **The install, on the eMMC instead** (`scripts/14` with `PARTLABEL=UDA`),
 writes `userdata` and `boot`. Android must
