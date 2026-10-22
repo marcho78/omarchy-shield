@@ -83,6 +83,8 @@ USB and fastboot (2026-10-22, `scripts/07`; raw output in `device-info/fastboot.
 - **Board revision confirmed:** `fastboot oem dtbname` reports
   `tegra210-darcy-p2894-0050-a08-00.dtb`. That is the same board as mainline's
   `tegra210-p2894-0050-a08.dts` and blob entry `13-DTB`.
+- **Bootloader input.** A USB keyboard in the port near HDMI drives the menu
+  (arrow keys + Enter, confirmed 2026-10-22).
 - **`fastboot reboot` quirk.** It answers `FAILED (remote: 'unknown reason')`,
   but the Shield came back to Android anyway.
 

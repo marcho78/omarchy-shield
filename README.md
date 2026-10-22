@@ -32,8 +32,10 @@ different boards and are not covered.
   has to be the host end. This was confirmed on an Intel T2 MacBook: with that
   cable the laptop sees no USB device at all.
 - A USB 3 SSD or flash drive, 64 GB or more. It will be erased.
-- A SHIELD controller with a USB cable, for the bootloader menu. Plug it into
-  the USB port **near** HDMI; the computer goes in the port **far** from HDMI.
+- A USB keyboard or a SHIELD controller with a USB cable, for the bootloader
+  menu (it has no Bluetooth). Plug it into the USB port **near** HDMI; the
+  computer goes in the port **far** from HDMI. A USB keyboard (arrow keys +
+  Enter) is confirmed to work on darcy; a mouse does not drive the menu.
 - A free NVIDIA developer account, to download the stock recovery image.
 
 ## Safety rules
@@ -130,8 +132,10 @@ state and board revision, and reboots back. It changes nothing.
     CONFIRM_UNLOCK=yes scripts/08-unlock-bootloader.sh
 
 The bootloader asks for confirmation on the TV. The bootloader menu has no
-Bluetooth, so plug a SHIELD controller with a USB cable into the port **near**
-HDMI. Afterwards, finish Android setup and turn debugging back on. Then
+Bluetooth, so plug a USB keyboard (arrow keys + Enter, confirmed on darcy) or a
+SHIELD controller with a USB cable into the port **near** HDMI. Check it first
+with `scripts/07-check-fastboot.sh --stay`: the arrow keys must move the
+highlight, and Enter on "Continue" boots Android. Afterwards, finish Android setup and turn debugging back on. Then
 `scripts/07` should report `unlocked: yes`.
 
 ### Next (not scripted yet)
