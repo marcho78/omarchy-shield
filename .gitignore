@@ -1,0 +1,13 @@
+# Per-device data: contains serial numbers. Keep it private.
+device-info/
+
+# NVIDIA's recovery image is not redistributable; scripts/04 verifies and unpacks your own copy.
+recovery/
+*.tgz
+
+# Fetched at pinned commits by scripts/03-fetch-sources.sh
+vendor/
+
+# Build output
+build/
+out/
