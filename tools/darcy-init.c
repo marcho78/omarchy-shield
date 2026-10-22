@@ -397,7 +397,7 @@ static const char *const keys[] = {
 	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
 	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
 	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
-	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", NULL
+	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", "wdt", NULL
 };
 
 /* What the Bluetooth core, hci_bcm and the chip's UART (UARTD) say */

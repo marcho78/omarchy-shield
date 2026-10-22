@@ -32,8 +32,9 @@ fb=$(fastboot devices | awk '{ print $1; exit }')
 state=$(timeout 15 fastboot -s "$fb" getvar unlocked 2>&1) ||
   die "the bootloader does not answer: unplug the SHIELD's power, get back to the bootloader menu and run this again"
 grep -q 'unlocked: [Yy]es' <<<"$state" || die "the bootloader is locked: run scripts/08-unlock-bootloader.sh first"
-product=$(timeout 15 fastboot -s "$fb" getvar product 2>&1 | sed -n 's/^product: *//p')
-[[ $product == "$SHIELD_PRODUCT" ]] || die "the device in fastboot is '$product', not '$SHIELD_PRODUCT'"
+# cboot calls itself t210ref in fastboot; the device tree it names tells the board
+dtb=$(timeout 15 fastboot -s "$fb" oem dtbname 2>&1 | grep -o '[^ ]*\.dtb' || true)
+[[ $dtb == *"-$SHIELD_PRODUCT-"* ]] || die "the device in fastboot is not a $SHIELD_PRODUCT (its bootloader names '${dtb:-no device tree}')"
 
 # The filesystem image must fit the partition (it grows to fill it on the first boot)
 part=$(timeout 15 fastboot -s "$fb" getvar partition-size:userdata 2>&1 | sed -n 's/^partition-size:userdata: *//p')
