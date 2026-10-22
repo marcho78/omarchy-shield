@@ -696,6 +696,36 @@ Both ways back to fastboot are now proven. Before Android is removed,
 one path is still unproven: **the watchdog**, for a Linux that hangs
 silently. A panic already comes back by itself (`panic=10`).
 
+### USB works, and so does the watchdog (2026-10-22)
+
+The first USB image worked as written. darcy.dts enables the pad
+controller and the xHCI host for the port near HDMI, with the stock wiring
+and the supplies NVIDIA's power tree names. The xHCI microcode comes from
+`linux-firmware` at a pinned commit. The photo shows:
+- `tegra-xusb 70090000.usb: xHCI Host Controller` and `Host supports USB
+  3.0 SuperSpeed`
+- `usb 1-3: 046d:c34b USB Keyboard`, at low speed
+- `input devices: "gpio-keys" "Logitech USB Keyboard" "Logitech USB
+  Keyboard"`
+- the XUSB host and SuperSpeed partitions on: genpd `xusbc on; xusba on`
+
+The display state did not change.
+
+**The watchdog works:**
+- darcy-init froze on purpose.
+- The watchdog U-Boot armed reset the board about 150 s after Linux
+  started.
+- Android then reported `ro.boot.bootreason = watchdog`.
+
+**After a watchdog reset, cboot ignores the "recovery" reason** and boots
+normally, which is Android today. Once U-Boot lives in the boot slot, a
+normal boot starts U-Boot. U-Boot can then read cboot's
+`androidboot.bootreason=watchdog` and go to fastboot instead of starting
+Linux again, so a kernel that hangs every time cannot trap the box.
+
+All four ways back are proven: Linux's `reboot bootloader`, U-Boot's
+fallback after a log, a panic, and the watchdog.
+
 **Decision (2026-10-22): the root filesystem goes on the internal eMMC.**
 - **The goal** is a stripped-down media center, which fits in the 11–13
   GiB a reused `userdata` (plus `system`, `cache`) gives.

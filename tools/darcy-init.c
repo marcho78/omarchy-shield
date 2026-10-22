@@ -36,7 +36,7 @@
  * Freeze instead of rebooting, to prove the watchdog U-Boot arms
  * (darcy_watchdog) resets a kernel that hangs without a panic.
  */
-#define WATCHDOG_TEST		1
+#define WATCHDOG_TEST		0
 #define HIGHLIGHTS		20	/* kernel messages repeated at the end */
 #define SYSLOG_ACTION_READ_ALL	3
 
