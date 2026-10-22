@@ -29,7 +29,8 @@ different boards and are not covered.
 - An x86_64 Arch-based Linux host. Tested on Omarchy 4.5.
 - A USB-A male-to-male cable, plus a USB-C to USB-A adapter if your computer only
   has USB-C. A plain USB-A-to-C phone cable will not work, because your computer
-  has to be the host end.
+  has to be the host end. This was confirmed on an Intel T2 MacBook: with that
+  cable the laptop sees no USB device at all.
 - A USB 3 SSD or flash drive, 64 GB or more. It will be erased.
 - A SHIELD controller with a USB cable, for the bootloader menu. Plug it into
   the USB port **near** HDMI; the computer goes in the port **far** from HDMI.
@@ -110,14 +111,36 @@ environment never saved, no GPU/VPR writes, no networking/EFI/storage writes.
 
 For the design, see "Boot chain design" in `NOTES.md`.
 
+### 5. USB and the bootloader
+
+1. Connect the computer to the SHIELD's USB port **farthest from HDMI** with a
+   USB-A male-to-male cable. Use a hub or adapter if the computer only has
+   USB-C.
+2. Accept "Allow USB debugging?" on the TV. The remote works for this.
+3. Run:
+
+       scripts/07-check-fastboot.sh
+
+This reboots into the bootloader, checks fastboot over USB, records the lock
+state and board revision, and reboots back. It changes nothing.
+`device-info/fastboot.txt` should name `tegra210-darcy-p2894-0050-a08-00.dtb`.
+
+### 6. Unlock the bootloader (erases Android user data)
+
+    CONFIRM_UNLOCK=yes scripts/08-unlock-bootloader.sh
+
+The bootloader asks for confirmation on the TV. The bootloader menu has no
+Bluetooth, so plug a SHIELD controller with a USB cable into the port **near**
+HDMI. Afterwards, finish Android setup and turn debugging back on. Then
+`scripts/07` should report `unlocked: yes`.
+
 ### Next (not scripted yet)
 
-1. Unlock the bootloader. This **erases Android user data**.
-2. First test: `fastboot boot build/boot-uboot-probe.img`, then read U-Boot's
+1. First test: `fastboot boot build/boot-uboot-probe.img`, then read U-Boot's
    report on the TV and compare the CRC32 with `build/probe-ramdisk.crc32`.
-3. Bring up the mainline device tree and kernel, and build the FIT payload.
-4. Put Arch Linux ARM on USB.
-5. Install `omarchy-arm`.
+2. Bring up the mainline device tree and kernel, and build the FIT payload.
+3. Put Arch Linux ARM on USB.
+4. Install `omarchy-arm`.
 
 ## Layout
 

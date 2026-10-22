@@ -70,6 +70,22 @@ Hardware, from Android drivers and the downstream DT:
 
 The Google TV Streamer at .68 also has adb enabled. Don't confuse the two devices.
 
+USB and fastboot (2026-10-22, `scripts/07`; raw output in `device-info/fastboot.txt`):
+
+- **Cabling.** The Shield needs a USB-A male-to-male cable from a USB-A port on
+  the computer (a USB-C hub works) to its port farthest from HDMI. A plain
+  USB-A-to-C phone cable shows no USB device at all on the T2 MacBook.
+- **USB IDs.** In Android with USB debugging, the Shield shows up as
+  `0955:b43d` "NVIDIA Tegra Device", high speed. systemd's uaccess grants
+  adb/fastboot access, so no udev rules are needed.
+- **Bootloader `getvar`.** `version-bootloader: 1.0`, `product: t210ref`,
+  `secure: Yes`, `unlocked: No`, `partition-size:dtb: 0x400000`.
+- **Board revision confirmed:** `fastboot oem dtbname` reports
+  `tegra210-darcy-p2894-0050-a08-00.dtb`. That is the same board as mainline's
+  `tegra210-p2894-0050-a08.dts` and blob entry `13-DTB`.
+- **`fastboot reboot` quirk.** It answers `FAILED (remote: 'unknown reason')`,
+  but the Shield came back to Android anyway.
+
 ## The host
 
 Omarchy 4.5.0rc1 (x86_64) on Intel T2 MacBook hardware, which has USB-C ports only.
