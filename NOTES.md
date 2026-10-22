@@ -195,10 +195,13 @@ plus `patches/u-boot/0001-board-nvidia-add-SHIELD-TV-2017-P2894-darcy.patch`.
   - the DT address itself, which becomes `$fdt_addr`
 
   Our `board/nvidia/p2894/p2894.c` adds the rest:
-  - **The framebuffer**, from `/reserved-memory/fb0_carveout`. It is enabled in
-    U-Boot's own `simple-framebuffer` (`board_fix_fdt`) only if it fits 1080p
-    inside DRAM. Otherwise the console stays on the UART. There is no fallback
-    address, because video probe clears the surface.
+  - **The framebuffer**, read from the display controller A window that shows
+    cboot's logo: address, size, stride and format. Register offsets come from
+    Linux's `drivers/gpu/drm/tegra/dc.h`, and the controller is only touched
+    while clocked and out of reset. cboot's `/reserved-memory/fb0_carveout` is
+    the fallback, but cboot leaves it empty on darcy. It is enabled in U-Boot's
+    own `simple-framebuffer` (`board_fix_fdt`) only if it fits inside DRAM.
+    There is no fallback address, because video probe clears the surface.
   - **The ramdisk**, from `/chosen/linux,initrd-start` and `-end`, as one or two
     cells. Its CRC32 is always printed. It becomes `$cboot_fit_start` only if
     it lies in RAM and holds a whole FIT.
@@ -306,6 +309,58 @@ used "Boot recovery kernel" in the menu.
 
 n-codex's and n-grok's analyses of the boot failure are in
 `research/ncodex-cboot-boot-failure.md` and `research/ngrok-cboot-boot-failure.md`.
+
+### Milestone: our U-Boot runs on the SHIELD (2026-10-22)
+
+Run 4: gzip'd U-Boot (framebuffer from the display controller) plus the
+24 MiB probe, then "Boot recovery kernel". U-Boot's console came up on HDMI.
+Transcribed from the TV:
+
+```
+SHIELD TV 2017 (P2894): U-Boot relocated to 0xfed97000
+  display:     0x92cc3000, 1920x1080, stride 7680, a8b8g8r8, in use
+               (display controller A, window A)
+cboot handoff, device tree at 0000000083100000:
+  board:       .../hardware/nvidia/platform/t210/foster/kernel-dts/tegra210-darcy-p2894-0050-a08-00.dts
+  bootargs:    tegraid=21.1.2.0.0 ddr_die=3072M@2048M section=512M memtype=0 vpr_resize
+               usb_port_owner_info=1 lane_owner_info=0 emc_max_dvfs=1 touch_id=0@63 video=tegrafb
+               no_console_suspend=1 console=ttyS0,115200n8 debug_uartport=lsport,2
+               earlyprintk=uart8250-32bit,0x70006000 maxcpus=4 usbcore.old_scheme_first=1
+               lp0_vec=0x1000@0xff780000 nvdumper_reserved=0xff280000 core_edp_mv=1125 core_edp_ma=4000
+               tegra_fbmem=0x800000@0x92cc3000 is_hdmi_initialised=1 loop.max_part=7
+               androidboot.kerneltype=recovery post_recovery ... androidboot.bootreason=warm
+               androidboot.bootloader=32.00.2019.50-t210-69ebfcbe rootdelay=1
+               androidboot.verifiedbootstate=orange androidboot.secureos=tlk
+               earlycon=uart8250,mmio32,0x70006000 strict_cma=on androidboot.modem=none ...
+  memory:      3 bank(s) from cboot
+               0x80000000 + 0x1f200000
+               0xa0000000 + 0x5ee00000
+               0x100000000 + 0x40000000
+  fb0_carveout: none
+  ramdisk:     0x84100000, 25165824 bytes, crc32 6b05be7e
+               not a FIT image, so not booting it
+```
+
+What this establishes:
+- **The chain works.** cboot runs gzip'd U-Boot from the recovery slot, and
+  U-Boot relocates to the top of the second bank.
+- **cboot places the ramdisk at `0x84100000`, and it arrives intact.** The CRC
+  matches `build/probe-ramdisk.crc32`, so review finding 2 does not occur at
+  this layout.
+- **The framebuffer is DC A window A** at `0x92cc3000`, 1080p ABGR. That matches
+  cboot's `tegra_fbmem=0x800000@0x92cc3000`.
+- **Usable RAM is about 2.97 GB in three banks.** The gaps are carveouts:
+  `0x9f200000`–`0xa0000000`, and `0xfee00000`–`0x100000000` (TOS, `lp0_vec`,
+  nvdumper).
+- **Bug found and fixed.** `Unknown command 'if'`: the hush shell had been
+  silently dropped together with `BOOTSTD`. It is now set explicitly, and
+  `scripts/05` asserts it.
+- `Can't find Ethernet MAC address in cboot DTB` comes from generic `cboot.c`
+  and is harmless.
+
+**Next: a FIT payload** (mainline kernel + darcy DTB + small initramfs) that
+fits with U-Boot under 25.5 MiB. The kernel loads at `0x80200000`, clear of
+the FIT at `0x84100000`.
 
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:

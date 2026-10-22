@@ -33,6 +33,7 @@ log "building"
 log "checking safety invariants"
 grep -qx 'bootcmd=run darcy_boot' "$out/u-boot-initial-env" || die "bootcmd is not 'run darcy_boot'"
 grep -qx 'CONFIG_ENV_IS_NOWHERE=y' "$out/.config" || die "the environment must never be saved"
+grep -qx 'CONFIG_HUSH_PARSER=y' "$out/.config" || die "darcy_boot needs the hush shell (if/then/fi)"
 for opt in TEGRA_GPU NET EFI_LOADER CMD_SAVEENV CMD_MMC CMD_SF MMC_WRITE; do
   if grep -qx "CONFIG_$opt=y" "$out/.config"; then
     die "CONFIG_$opt must be off"
