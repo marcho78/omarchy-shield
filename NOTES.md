@@ -744,7 +744,8 @@ The first image with both worked. The kernel builds `r8169`, `rfkill`,
 - That MAC is the placeholder in `nvram_darcy_a00.txt`. The board's real
   Wi-Fi MAC still has to be found and passed on.
 - `cfg80211: failed to load regulatory.db`. The fix is to add
-  `regulatory.db` and `regulatory.db.p7s` from `linux-firmware`.
+  `regulatory.db` and `regulatory.db.p7s` from `wireless-regdb`
+  (`linux-firmware` doesn't carry them).
 
 USB, the display and the log loop are unchanged.
 
@@ -770,6 +771,32 @@ Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way
 - disabling `vendor_flash_recovery`, which needs a modified vendor partition
 - a different chain
+
+### Bluetooth: the UART needs an alias (2026-10-22)
+
+The first Bluetooth image ran, but nobody photographed its report. The
+chip's setup messages also come early enough to fall out of the last
+highlights. So darcy-init now gives Bluetooth its own section: the
+adapters, UARTD's driver, the serdev device `hci_bcm` binds to, probes
+still deferred, and the Bluetooth kernel messages.
+
+The second run shows:
+- `bluetooth: no adapters`
+- `bluetooth UART 70006300.serial: driver none`, and no serdev device
+- `deferred probes: none`
+- The Bluetooth core and the HCI UART protocols, Broadcom's among them,
+  registered.
+- `serial-tegra 70006300.serial: failed to get alias id, errno -19`
+
+**The cause:** `serial-tegra` numbers each port by its `serialN` alias and
+refuses a port without one. Darcy's mainline board file aliases only the
+debug UART (`serial0`). Smaug and p2180 also have `serial3 = &uartd`, which
+is `ttyTHS3`, the port Android uses. darcy.dts now adds it.
+
+Also in this run:
+- **`regulatory.db` loads now.** The "failed to load" lines are gone.
+- **The RTL8168g PHY patch is still untested.** `r8169` loads it only when
+  `eth0` is opened.
 
 ## Never flash
 

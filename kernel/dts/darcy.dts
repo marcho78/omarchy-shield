@@ -233,7 +233,17 @@
  * with the GPIOs of the stock bluedroid_pm node (shutdown H4, device wake
  * H3, host wake H5): the same wiring as the Pixel C (tegra210-smaug.dts).
  * Its firmware comes from NVIDIA's vendor partition (VENDOR_FIRMWARE).
+ *
+ * serial-tegra numbers a port by its serialN alias and refuses one without
+ * ("failed to get alias id, errno -19"); darcy's board file only names the
+ * debug UART, so UARTD gets smaug's alias, 3, which is ttyTHS3 as on Android.
  */
+/ {
+	aliases {
+		serial3 = &uartd;
+	};
+};
+
 &{/serial@70006300} {
 	compatible = "nvidia,tegra30-hsuart";
 	reset-names = "serial";
