@@ -646,6 +646,32 @@ darcy-init no longer reads that file. The oops killed init, and the panic
 proved the other return path: `panic=10`, then the reset, then U-Boot's
 recovery reboot reason, then the log screen.
 
+### Back to fastboot without Android (2026-10-22)
+
+**`fastboot reboot recovery` does not work on cboot.** It answers `FAILED
+(remote: 'unknown reason')` and reboots normally into Android, which then
+restores its stock recovery. A new recovery image still needs one keypress
+in the bootloader menu.
+
+**Proof 1, Linux back to fastboot, works.** darcy-init's
+`reboot bootloader` puts the box into the bootloader menu, with fastboot on
+USB, and no Android is involved:
+- The laptop keeps seeing cboot's fastboot connection the whole time U-Boot
+  and Linux run.
+- It disconnects at the reset and reconnects about 6 s later, in the menu.
+- The same pattern explains run 4's disconnect at 11:10.
+
+**The bootloader menu clears the ramoops RAM.** After going through the
+menu, U-Boot found no log, and so booted Linux again. The crash path never
+passes through the menu: it is the recovery reboot reason, straight to
+U-Boot, and run 4's panic proved the log survives it.
+
+So the dev loop is:
+1. darcy-init reboots into **recovery**.
+2. U-Boot shows the log, then after `darcy_log_secs` reboots into the menu.
+   That is the U-Boot fallback, still to be seen working.
+3. The next image is flashed from there, without Android.
+
 **Decision (2026-10-22): the root filesystem goes on the internal eMMC.**
 - **The goal** is a stripped-down media center, which fits in the 11–13
   GiB a reused `userdata` (plus `system`, `cache`) gives.
