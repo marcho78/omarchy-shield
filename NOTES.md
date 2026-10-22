@@ -677,6 +677,21 @@ without Android:
 - U-Boot showed the log for 60 s.
 - At 13:06:13 the board was back in the bootloader menu with fastboot.
 
+**The known-good display reference** comes from the same run's photo,
+where U-Boot reports cboot's state and darcy-init Linux's state:
+- **Identical:** the display clocks and resets, PLL_D2 `58281701`
+  (misc0 `40000020`), DISP1 src `a0000000`, SOR1 src `a000c000`, and DC A
+  (command `00000020`, power `00050155`).
+- **Different, and harmless:**
+  - PLL_DP: `00041401` becomes `001c1c01` (the clock init table sets 270
+    MHz; it stays off).
+  - HDMI HPD/CEC pins: `164`/`560` become `144`/`540` (pinctrl clears the
+    parked bit 5).
+
+Other facts from that run:
+- The eMMC is `DG4016 14.7 GiB`, with 33 partitions.
+- `kvm: exiting hardware virtualization` shows the kernel runs at EL2.
+
 Both ways back to fastboot are now proven. Before Android is removed,
 one path is still unproven: **the watchdog**, for a Linux that hangs
 silently. A panic already comes back by itself (`panic=10`).
