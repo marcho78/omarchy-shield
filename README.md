@@ -138,19 +138,41 @@ with `scripts/07-check-fastboot.sh --stay`: the arrow keys must move the
 highlight, and Enter on "Continue" boots Android. Afterwards, finish Android setup and turn debugging back on. Then
 `scripts/07` should report `unlocked: yes`.
 
+### 7. Run U-Boot (recovery slot)
+
+darcy's bootloader freezes on `fastboot boot`, so test images go into the
+recovery partition. Booting Android in between would put the stock recovery
+back (`vendor_flash_recovery`).
+
+    scripts/07-check-fastboot.sh --stay       # into the bootloader menu
+    CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-probe.img
+    scripts/10-watch-boot-outcome.sh          # optional: how the SHIELD comes back
+
+Choose "Boot recovery kernel" in the menu. U-Boot's report appears on the TV.
+The ramdisk CRC32 should equal `build/probe-ramdisk.crc32`, which shows U-Boot
+left the payload intact. If U-Boot finds no framebuffer, it reboots into the
+bootloader menu instead, and `scripts/10` reports `bootloader`.
+
+`CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh --restore` puts the stock
+recovery back.
+
+### 8. First Linux payload
+
+    scripts/11-build-kernel.sh    # pinned Linux, Tegra-only defconfig + kernel/darcy.config
+    scripts/12-make-payload.sh    # FIT: kernel + kernel/dts/darcy.dts + tiny initramfs
+    CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-darcy.img
+
+Choose "Boot recovery kernel" again. U-Boot boots the FIT, and the kernel's
+console appears on the TV through the framebuffer U-Boot hands over. `/init`
+(`tools/darcy-init.c`) prints what Linux sees, then its uptime every 30
+seconds.
+
 ### Next (not scripted yet)
 
-1. First test. `fastboot boot` freezes darcy's bootloader, so go through the
-   recovery slot instead:
-   - Run `CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-probe.img`.
-   - Choose "Recovery mode" in the bootloader menu.
-   - Read U-Boot's report on the TV, and compare its CRC32 with
-     `build/probe-ramdisk.crc32`.
-
-   `--restore` puts the stock recovery back.
-2. Bring up the mainline device tree and kernel, and build the FIT payload.
-3. Put Arch Linux ARM on USB.
-4. Install `omarchy-arm`.
+1. Extend the device tree: USB (keyboard, drive), Ethernet, Wi-Fi, HDMI
+   through tegra-drm, GPU (nouveau), fan.
+2. Put Arch Linux ARM on USB.
+3. Install `omarchy-arm`.
 
 ## Layout
 
@@ -160,6 +182,8 @@ highlight, and Enter on "Continue" boots Android. Afterwards, finish Android set
 | `scripts/` | Numbered steps; `lib.sh` holds shared helpers |
 | `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
+| `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
+| `tools/darcy-init.c` | The first payload's `/init` |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |

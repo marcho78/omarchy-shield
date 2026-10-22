@@ -48,6 +48,8 @@ SOURCES=(
   "lineage-u-boot|https://github.com/LineageOS/android_hardware_nvidia_u-boot|0b3cd412eadc0c7ec321eb410d8701fa19854839"
   "lineage-device-foster|https://github.com/LineageOS/android_device_nvidia_foster|aa1bf701c00a4febfd64a91ddc82b4a5af600b53"
   "lineage-device-t210-common|https://github.com/LineageOS/android_device_nvidia_t210-common|c2c9cd3f3c3971af110a2a4d2cd7878b74fdec6d"
+  # Linux, the stable release Arch Linux ARM's linux-aarch64 ships (v7.2.11)
+  "linux|https://github.com/gregkh/linux|a2de78ee6ed8bf8cd99d177c74865a6e8c3cb6ea"
   # Community aarch64 port of Omarchy, installed onto a running Arch Linux ARM
   "omarchy-arm|https://github.com/alexisraitano-myffu/omarchy-arm|579f15c699dab01e2b3b12e2c4d2503873359be9"
 )

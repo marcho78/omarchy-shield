@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * NVIDIA SHIELD TV 2017 ("darcy", board P2894-0050-a08) as our boot chain
+ * starts it: mainline's board description plus what Linux needs from us.
+ * U-Boot adds the rest: the memory map cboot reports and a
+ * simple-framebuffer for the HDMI console.
+ */
+/dts-v1/;
+
+#include "nvidia/tegra210-p2894-0050-a08.dts"
+
+/ {
+	chosen {
+		/*
+		 * The last console is /dev/console, the TV. Nothing drives the
+		 * display yet, so its clocks and power domains must stay as
+		 * cboot left them.
+		 */
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 clk_ignore_unused pd_ignore_unused ignore_loglevel";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* Where the stock kernel keeps it, so warm reboots preserve it */
+		ramoops@b0000000 {
+			compatible = "ramoops";
+			reg = <0x0 0xb0000000 0x0 0x200000>;
+			record-size = <0x20000>;
+			console-size = <0x100000>;
+			pmsg-size = <0x40000>;
+		};
+	};
+};
+
+/*
+ * The PMC is secure-only on the SHIELD. Linux needs no property for that:
+ * on Tegra210 it probes for it and goes through the secure monitor
+ * (maybe_tz_only in drivers/soc/tegra/pmc.c).
+ */

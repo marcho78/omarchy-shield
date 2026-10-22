@@ -1,0 +1,64 @@
+/*
+ * The FIT payload U-Boot boots on the SHIELD TV 2017: kernel, device tree
+ * and initramfs. scripts/12 runs mkimage on it from build/payload/, where
+ * the /incbin/ files are.
+ *
+ * The kernel unpacks at 0x80200000 (2 MiB aligned), clear of where cboot
+ * puts this FIT (0x84100000) and its own device tree (0x83100000).
+ */
+/dts-v1/;
+
+/ {
+	description = "Linux for the SHIELD TV 2017 (darcy)";
+	#address-cells = <1>;
+
+	images {
+		kernel {
+			description = "Linux";
+			data = /incbin/("Image.gz");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x80200000>;
+			entry = <0x80200000>;
+			hash {
+				algo = "sha256";
+			};
+		};
+
+		fdt {
+			description = "darcy device tree";
+			data = /incbin/("darcy.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			hash {
+				algo = "sha256";
+			};
+		};
+
+		initramfs {
+			description = "first userspace";
+			data = /incbin/("initramfs.cpio.gz");
+			type = "ramdisk";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			hash {
+				algo = "sha256";
+			};
+		};
+	};
+
+	configurations {
+		default = "darcy";
+
+		darcy {
+			description = "SHIELD TV 2017";
+			kernel = "kernel";
+			fdt = "fdt";
+			ramdisk = "initramfs";
+		};
+	};
+};
