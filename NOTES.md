@@ -869,10 +869,14 @@ Tegra30 name: same registers, timer 5 driving WDT 0, as U-Boot arms it.
   `/dev/watchdog`. The clocksource driver doesn't mark the node populated, so
   the platform device exists.
 - systemd opens it (`RuntimeWatchdogSec=60s`).
-- U-Boot does not arm it for the installed system until `tegra_wdt` is
-  proven on the board; the report could not show its line. Otherwise a
-  driver that failed to bind would let U-Boot's 150 s reset a working
-  system again and again.
+- U-Boot keeps arming it for the installed system too. The report could not
+  show whether `tegra_wdt` bound, but a driver that failed to bind costs
+  only a reset after 150 s, which ends in fastboot with the log (cboot's
+  `bootreason=watchdog`), not a loop. Without the watchdog, a first boot
+  that hangs would hang again on every power cycle, and no way into the
+  bootloader by hand is documented here.
+- `rootwait=30`: a missing root partition becomes a panic, and so a log, in
+  30 s.
 
 **The root filesystem** (`scripts/13`, about 5 minutes):
 - **The base** is Arch Linux ARM's aarch64 image (signed 2026-08-05), built
