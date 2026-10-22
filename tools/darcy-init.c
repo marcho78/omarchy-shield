@@ -37,7 +37,14 @@
  * (darcy_watchdog) resets a kernel that hangs without a panic.
  */
 #define WATCHDOG_TEST		0
-#define HIGHLIGHTS		24	/* kernel messages repeated at the end */
+/*
+ * The display registers, as U-Boot prints them from cboot's setup. They
+ * found why HDMI went dark; while nothing changes there, they stay out of
+ * the report to leave room in what U-Boot shows.
+ */
+#define DISPLAY_REPORT		0
+#define HIGHLIGHTS		16	/* kernel messages repeated at the end */
+#define BLUETOOTH_LINES		14	/* and the Bluetooth ones, separately */
 #define SYSLOG_ACTION_READ_ALL	3
 
 static int kmsg = -1;
@@ -383,11 +390,103 @@ static void show_net(void)
 		say("net: no interfaces");
 }
 
-/* Bluetooth adapters, with the address the kernel reads from the chip */
+/* Kernel messages worth seeing again at the end of the log */
+static const char *const keys[] = {
+	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
+	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
+	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
+	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", NULL
+};
+
+/* What the Bluetooth core, hci_bcm and the chip's UART (UARTD) say */
+static const char *const bluetooth_keys[] = {
+	"bluetooth", "hci0", "hci_uart", "serial0", "70006300", NULL
+};
+
+static bool matches(const char *line, const char *const *keys)
+{
+	for (; keys && *keys; keys++)
+		if (strcasestr(line, *keys))
+			return true;
+	return false;
+}
+
+/* The last max kernel messages with one of keys and none of except */
+static void show_messages(const char *title, const char *const *keys,
+			  const char *const *except, int max)
+{
+	static char log[1 << 20];
+	const char *ring[max];
+	char *line, *save;
+	int len, n = 0, i;
+
+	len = klogctl(SYSLOG_ACTION_READ_ALL, log, sizeof(log) - 1);
+	if (len < 0) {
+		say("%s: cannot read the kernel log: %m", title);
+		return;
+	}
+	log[len] = 0;
+
+	for (line = strtok_r(log, "\n", &save); line;
+	     line = strtok_r(NULL, "\n", &save)) {
+		if (line[0] == '<' && strchr(line, '>'))
+			line = strchr(line, '>') + 1;
+		if (!strstr(line, "darcy-init:") && matches(line, keys) &&
+		    !matches(line, except))
+			ring[n++ % max] = line;
+	}
+
+	say("%s: %d, the last %d of them follow", title, n, n < max ? n : max);
+	for (i = n < max ? 0 : n - max; i < n; i++)
+		say("| %s", ring[i % max]);
+}
+
+/* The driver bound to a device, by its sysfs path; NULL if none */
+static const char *driver_of(const char *dev, char *buf, size_t len)
+{
+	char path[300];
+	const char *slash;
+	ssize_t n;
+
+	snprintf(path, sizeof(path), "%s/driver", dev);
+	n = readlink(path, buf, len - 1);
+	if (n <= 0)
+		return NULL;
+	buf[n] = 0;
+	slash = strrchr(buf, '/');
+	return slash ? slash + 1 : buf;
+}
+
+/* Devices whose probe waits for something, and for what */
+static void show_deferred(void)
+{
+	char line[300];
+	FILE *f = fopen("/sys/kernel/debug/devices_deferred", "r");
+	int n = 0;
+
+	if (!f) {
+		say("deferred probes: cannot read devices_deferred");
+		return;
+	}
+	while (n < 8 && fgets(line, sizeof(line), f)) {
+		say("deferred probe: %s", line);
+		n++;
+	}
+	fclose(f);
+	if (!n)
+		say("deferred probes: none");
+}
+
+/*
+ * Bluetooth adapters, with the address the kernel reads from the chip, then
+ * the way there: UARTD's driver, the serdev device hci_bcm binds to, probes
+ * still waiting, and what the kernel said about all of it
+ */
 static void show_bluetooth(void)
 {
-	char path[300], addr[32];
+	char path[300], addr[32], driver[256], line[400];
 	DIR *d = opendir("/sys/class/bluetooth");
+	const char *name;
 	struct dirent *e;
 	int n = 0;
 
@@ -404,6 +503,27 @@ static void show_bluetooth(void)
 		closedir(d);
 	if (!n)
 		say("bluetooth: no adapters");
+
+	name = driver_of("/sys/bus/platform/devices/70006300.serial", driver,
+			 sizeof(driver));
+	snprintf(line, sizeof(line), "UART 70006300.serial: driver %s",
+		 name ? name : "none");
+	/* serdev devices are named after their controller: serial0-0 */
+	d = opendir("/sys/bus/serial/devices");
+	while (d && (e = readdir(d))) {
+		if (!strchr(e->d_name, '-'))
+			continue;
+		snprintf(path, sizeof(path), "/sys/bus/serial/devices/%s", e->d_name);
+		name = driver_of(path, driver, sizeof(driver));
+		snprintf(line + strlen(line), sizeof(line) - strlen(line),
+			 "; serdev %s: driver %s", e->d_name, name ? name : "none");
+	}
+	if (d)
+		closedir(d);
+	say("bluetooth %s", line);
+	show_deferred();
+	show_messages("Bluetooth kernel messages", bluetooth_keys, NULL,
+		      BLUETOOTH_LINES);
 }
 
 /* Disks other than the eMMC, as a USB drive appears */
@@ -464,53 +584,6 @@ static void show_regulators(void)
 	closedir(d);
 }
 
-/* Kernel messages worth seeing again at the end of the log */
-static const char *const keys[] = {
-	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
-	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
-	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
-	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", "bluetooth",
-	"hci0",
-};
-
-static bool highlight(const char *line)
-{
-	size_t i;
-
-	for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
-		if (strcasestr(line, keys[i]))
-			return true;
-	return false;
-}
-
-static void show_highlights(void)
-{
-	static char log[1 << 20];
-	const char *ring[HIGHLIGHTS];
-	char *line, *save;
-	int len, n = 0, i;
-
-	len = klogctl(SYSLOG_ACTION_READ_ALL, log, sizeof(log) - 1);
-	if (len < 0) {
-		say("kernel log: cannot read it: %m");
-		return;
-	}
-	log[len] = 0;
-
-	for (line = strtok_r(log, "\n", &save); line;
-	     line = strtok_r(NULL, "\n", &save)) {
-		if (line[0] == '<' && strchr(line, '>'))
-			line = strchr(line, '>') + 1;
-		if (!strstr(line, "darcy-init:") && highlight(line))
-			ring[n++ % HIGHLIGHTS] = line;
-	}
-
-	say("kernel messages to look at: %d, the last %d of them follow", n,
-	    n < HIGHLIGHTS ? n : HIGHLIGHTS);
-	for (i = n < HIGHLIGHTS ? 0 : n - HIGHLIGHTS; i < n; i++)
-		say("| %s", ring[i % HIGHLIGHTS]);
-}
-
 int main(void)
 {
 	double up;
@@ -542,16 +615,20 @@ int main(void)
 	}
 
 	/* The most telling lines last: U-Boot shows the end of the log */
-	show_highlights();
-	show_clks();
-	show_genpd();
+	show_messages("kernel messages to look at", keys, bluetooth_keys,
+		      HIGHLIGHTS);
+	if (DISPLAY_REPORT) {
+		show_clks();
+		show_genpd();
+	}
 	show_usb();
 	show_inputs();
 	show_disks();
 	show_net();
 	show_bluetooth();
 	show_display();
-	show_display_hw();
+	if (DISPLAY_REPORT)
+		show_display_hw();
 	if (WATCHDOG_TEST) {
 		say("freezing on purpose: the watchdog should reset the board 150 s after U-Boot started Linux");
 		for (;;)
