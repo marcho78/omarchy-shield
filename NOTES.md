@@ -510,9 +510,23 @@ reached the TV:
 Every other rail, sequencer source and PMIC pin matches stock. Our DT now
 keeps the stock values for both.
 
-n-codex and n-grok reviewed this (`research/*hdmi-black*`). Both rank GPIO1
-first and sd2 second. Both advise disabling `pmic@3c` for one boot only if
-HDMI is still black.
+NVIDIA's downstream darcy power tree names the HDMI supplies
+(`vendor/lineage-t210-foster/kernel-dts/foster-platforms/tegra210-darcy-power-tree-p2894-0000-a00.dtsi:283-285`):
+
+| Supply | Rail |
+|---|---|
+| `avdd_hdmi`, the HDMI PHY | ldo8, which sd2 feeds |
+| `avdd_hdmi_pll` | sd3 |
+| HDMI 5V | `vdd_hdmi` |
+
+So the sd2 step lands directly on the HDMI PHY's supply.
+
+n-codex, n-grok and Z.ai (opencode) reviewed this (`research/*hdmi-black*`):
+- **n-codex and n-grok** rank GPIO1 first.
+- **Z.ai** ranks sd2 first: sequencer 0 is clearly active, since the DDR rail
+  runs on it, so GPIO1 should stay high when it is handed over.
+- **All three** call the fix safe, and advise disabling `pmic@3c` for one
+  boot only if HDMI is still black.
 
 darcy-init now prints every regulator's voltage and state, and repeats
 "Bringing" lines at the end of the log.
