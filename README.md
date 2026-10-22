@@ -93,11 +93,23 @@ NVIDIA's `flash-all.sh` from inside `recovery/<version>/`.
 This fetches NVIDIA's downstream darcy device trees and `omarchy-arm`, at the
 commits pinned in `config.sh`.
 
+### 4. Boot chain: U-Boot
+
+    scripts/05-build-u-boot.sh    # pinned LineageOS U-Boot + patches/u-boot/
+    scripts/06-make-bootimg.sh    # -> build/boot-uboot.img
+
+cboot starts U-Boot as if it were the kernel of an Android boot image. U-Boot
+reads what cboot handed over (memory map, HDMI framebuffer, ramdisk, board
+revision) and shows it on the TV. Given a payload, it then boots it.
+
+For the design, see "Boot chain design" in `NOTES.md`.
+
 ### Next (not scripted yet)
 
-1. Unlock the bootloader.
-2. Chainload U-Boot.
-3. Bring up the mainline device tree and kernel.
+1. Unlock the bootloader. This **erases Android user data**.
+2. First test: `fastboot boot build/boot-uboot.img`, then read U-Boot's report
+   on the TV.
+3. Bring up the mainline device tree and kernel, and build the FIT payload.
 4. Put Arch Linux ARM on USB.
 5. Install `omarchy-arm`.
 
@@ -108,6 +120,8 @@ commits pinned in `config.sh`.
 | `config.sh` | Every pinned version, commit and checksum |
 | `scripts/` | Numbered steps; `lib.sh` holds shared helpers |
 | `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
+| `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
+| `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |
 | `device-info/` | Your device snapshot (git-ignored; contains serial numbers) |

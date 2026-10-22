@@ -1,0 +1,412 @@
+From a53d6f5cd05679ac4e4c747295bbbeed215cb03f Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 00:14:18 -0700
+Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
+
+U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
+the kernel of an Android boot image and leaves the board set up.
+
+The board code touches no hardware. It reads cboot's device tree for
+the HDMI framebuffer (to drive U-Boot's console through
+simple-framebuffer), the boot image's ramdisk (a FIT image to boot) and
+the board revision, reports them on screen, and passes the framebuffer
+on to the kernel. The environment is never stored.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm/dts/Makefile                |   1 +
+ arch/arm/dts/tegra210-p2894.dts      |  65 +++++++++++
+ arch/arm/mach-tegra/tegra210/Kconfig |   9 ++
+ board/nvidia/p2894/Kconfig           |  13 +++
+ board/nvidia/p2894/MAINTAINERS       |   6 +
+ board/nvidia/p2894/Makefile          |   3 +
+ board/nvidia/p2894/p2894.c           | 159 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.env         |  12 ++
+ configs/p2894_defconfig              |  36 ++++++
+ 9 files changed, 304 insertions(+)
+ create mode 100644 arch/arm/dts/tegra210-p2894.dts
+ create mode 100644 board/nvidia/p2894/Kconfig
+ create mode 100644 board/nvidia/p2894/MAINTAINERS
+ create mode 100644 board/nvidia/p2894/Makefile
+ create mode 100644 board/nvidia/p2894/p2894.c
+ create mode 100644 board/nvidia/p2894/p2894.env
+ create mode 100644 configs/p2894_defconfig
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 976dbda4..1c9e2ad8 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -133,6 +133,7 @@ dtb-$(CONFIG_ARCH_TEGRA) += \
+ 	tegra210-p2371-0000.dtb \
+ 	tegra210-p2371-2180.dtb \
+ 	tegra210-p2571.dtb \
++	tegra210-p2894.dtb \
+ 	tegra210-p3450-0000.dtb
+ 
+ ifdef CONFIG_ARMADA_32BIT
+diff --git a/arch/arm/dts/tegra210-p2894.dts b/arch/arm/dts/tegra210-p2894.dts
+new file mode 100644
+index 00000000..43f6adef
+--- /dev/null
++++ b/arch/arm/dts/tegra210-p2894.dts
+@@ -0,0 +1,65 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
++ *
++ * U-Boot runs as a second stage after NVIDIA's cboot, which has already set
++ * up the board, so this only describes what U-Boot itself uses: the debug
++ * UART and the framebuffer cboot leaves running on HDMI.
++ */
++/dts-v1/;
++
++#include "tegra210.dtsi"
++
++/ {
++	model = "NVIDIA SHIELD TV 2017";
++	compatible = "nvidia,p2894-0050-a08", "nvidia,darcy", "nvidia,tegra210";
++
++	chosen {
++		stdout-path = &uarta;
++	};
++
++	aliases {
++		i2c0 = "/i2c@7000d000";
++	};
++
++	/* Replaced by the memory map cboot hands over */
++	memory {
++		reg = <0x0 0x80000000 0x0 0xc0000000>;
++	};
++
++	/*
++	 * cboot keeps its 1080p boot screen on HDMI. board_fix_fdt() moves
++	 * this to the address cboot reports; 0x92cc1000 is what cboot used on
++	 * the 2015 SHIELD.
++	 */
++	framebuffer {
++		compatible = "simple-framebuffer";
++		reg = <0x0 0x92cc1000 0x0 (1920 * 1080 * 4)>;
++		width = <1920>;
++		height = <1080>;
++		stride = <(1920 * 4)>;
++		format = "a8b8g8r8";
++	};
++
++	i2c@7000d000 {
++		status = "okay";
++		clock-frequency = <400000>;
++	};
++
++	clocks {
++		compatible = "simple-bus";
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		clk32k_in: clock@0 {
++			compatible = "fixed-clock";
++			reg = <0>;
++			#clock-cells = <0>;
++			clock-frequency = <32768>;
++		};
++	};
++};
++
++&uarta {
++	status = "okay";
++};
+diff --git a/arch/arm/mach-tegra/tegra210/Kconfig b/arch/arm/mach-tegra/tegra210/Kconfig
+index 17f18cbf..a66bfbc6 100644
+--- a/arch/arm/mach-tegra/tegra210/Kconfig
++++ b/arch/arm/mach-tegra/tegra210/Kconfig
+@@ -27,6 +27,14 @@ config TARGET_P2571
+ 	help
+ 	  P2571 is a P2530 married to a P1963 I/O board
+ 
++config TARGET_P2894
++	bool "NVIDIA SHIELD TV 2017 (P2894, darcy)"
++	select BOARD_LATE_INIT
++	help
++	  The SHIELD TV 2017 ("darcy"): a P2894 board with 3 GiB of LPDDR4,
++	  16 GiB of eMMC and HDMI. U-Boot runs as a second stage, started by
++	  NVIDIA's cboot as the kernel of an Android boot image.
++
+ config TARGET_P3450_0000
+ 	bool "NVIDIA Jetson Nano Developer Kit"
+ 	select BOARD_LATE_INIT
+@@ -41,6 +49,7 @@ config SYS_SOC
+ source "board/nvidia/p2371-0000/Kconfig"
+ source "board/nvidia/p2371-2180/Kconfig"
+ source "board/nvidia/p2571/Kconfig"
++source "board/nvidia/p2894/Kconfig"
+ source "board/nvidia/p3450-0000/Kconfig"
+ 
+ endif
+diff --git a/board/nvidia/p2894/Kconfig b/board/nvidia/p2894/Kconfig
+new file mode 100644
+index 00000000..15511409
+--- /dev/null
++++ b/board/nvidia/p2894/Kconfig
+@@ -0,0 +1,13 @@
++if TARGET_P2894
++
++config SYS_BOARD
++	default "p2894"
++
++config SYS_VENDOR
++	default "nvidia"
++
++config TEGRA_BOARD_STRING
++	string "Default Tegra board name"
++	default "NVIDIA SHIELD TV 2017 (P2894)"
++
++endif
+diff --git a/board/nvidia/p2894/MAINTAINERS b/board/nvidia/p2894/MAINTAINERS
+new file mode 100644
+index 00000000..375ee928
+--- /dev/null
++++ b/board/nvidia/p2894/MAINTAINERS
+@@ -0,0 +1,6 @@
++P2894 BOARD (NVIDIA SHIELD TV 2017, darcy)
++M:	marcho78 <marcho78@users.noreply.github.com>
++S:	Maintained
++F:	board/nvidia/p2894/
++F:	configs/p2894_defconfig
++F:	arch/arm/dts/tegra210-p2894.dts
+diff --git a/board/nvidia/p2894/Makefile b/board/nvidia/p2894/Makefile
+new file mode 100644
+index 00000000..e6339f1e
+--- /dev/null
++++ b/board/nvidia/p2894/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++obj-y	+= p2894.o
+diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
+new file mode 100644
+index 00000000..1cf42c68
+--- /dev/null
++++ b/board/nvidia/p2894/p2894.c
+@@ -0,0 +1,159 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
++ *
++ * NVIDIA's cboot starts U-Boot as the kernel of an Android boot image and
++ * leaves the board fully set up, so nothing here touches the hardware. It
++ * only reads what cboot hands over in its device tree (x0):
++ *
++ *  - the framebuffer cboot keeps running on HDMI, for U-Boot's console
++ *  - the boot image's ramdisk, which carries the FIT image to boot
++ *  - the board revision cboot detected
++ *
++ * and reports it on screen, since retail units have no reachable UART.
++ */
++
++#include <env.h>
++#include <fdt_simplefb.h>
++#include <fdt_support.h>
++#include <init.h>
++#include <stdio.h>
++#include <linux/libfdt.h>
++#include <linux/string.h>
++#include <asm/arch-tegra/cboot.h>
++
++/* Written before relocation, when .bss is not usable yet */
++static u64 fb_base __section(".data");
++static u64 fb_size __section(".data");
++
++static const void *cboot_fdt(void)
++{
++	const void *fdt = (const void *)cboot_boot_x0;
++
++	if (!fdt || fdt_check_header(fdt))
++		return NULL;
++
++	return fdt;
++}
++
++/* cboot writes some integers as one cell and some as two */
++static int fdt_read_u64(const void *fdt, const char *path, const char *name,
++			u64 *val)
++{
++	const fdt32_t *cell;
++	int node, len;
++
++	node = fdt_path_offset(fdt, path);
++	if (node < 0)
++		return node;
++
++	cell = fdt_getprop(fdt, node, name, &len);
++	if (!cell)
++		return len;
++
++	if (len == sizeof(u32))
++		*val = fdt32_to_cpu(cell[0]);
++	else if (len == sizeof(u64))
++		*val = (u64)fdt32_to_cpu(cell[0]) << 32 | fdt32_to_cpu(cell[1]);
++	else
++		return -FDT_ERR_BADVALUE;
++
++	return 0;
++}
++
++/* The surface entry of fb0_carveout, which cboot fills in at boot */
++static int cboot_framebuffer(const void *fdt, u64 *base, u64 *size)
++{
++	const fdt32_t *reg;
++	int node, len;
++
++	node = fdt_path_offset(fdt, "/reserved-memory/fb0_carveout");
++	if (node < 0)
++		return node;
++
++	reg = fdt_getprop(fdt, node, "reg", &len);
++	if (!reg || len < 4 * sizeof(u32))
++		return -FDT_ERR_BADVALUE;
++
++	*base = (u64)fdt32_to_cpu(reg[0]) << 32 | fdt32_to_cpu(reg[1]);
++	*size = (u64)fdt32_to_cpu(reg[2]) << 32 | fdt32_to_cpu(reg[3]);
++
++	return *base ? 0 : -FDT_ERR_NOTFOUND;
++}
++
++/*
++ * Point U-Boot's simple-framebuffer at cboot's surface before video probes.
++ * Any failure keeps the built-in default; returning an error would hang.
++ */
++int board_fix_fdt(void *blob)
++{
++	const void *fdt = cboot_fdt();
++	const fdt32_t *cur;
++	fdt32_t reg[4];
++	int node, len;
++
++	if (!fdt || cboot_framebuffer(fdt, &fb_base, &fb_size))
++		return 0;
++
++	node = fdt_path_offset(blob, "/framebuffer");
++	if (node < 0)
++		return 0;
++
++	cur = fdt_getprop(blob, node, "reg", &len);
++	if (!cur || len != sizeof(reg))
++		return 0;
++
++	memcpy(reg, cur, sizeof(reg));
++	reg[0] = cpu_to_fdt32(fb_base >> 32);
++	reg[1] = cpu_to_fdt32(fb_base);
++	fdt_setprop_inplace(blob, node, "reg", reg, sizeof(reg));
++
++	return 0;
++}
++
++void nvidia_board_late_init(void)
++{
++	const void *fdt = cboot_fdt();
++	const char *dts, *args;
++	u64 start, end;
++
++	if (!fdt) {
++		printf("cboot: no device tree was handed over\n");
++		return;
++	}
++
++	printf("cboot handoff (device tree at %p):\n", fdt);
++
++	dts = fdt_getprop(fdt, 0, "nvidia,dtsfilename", NULL);
++	printf("  board:       %s\n", dts ? dts : "unknown");
++
++	args = env_get("cbootargs");
++	printf("  bootargs:    %s\n", args ? args : "");
++
++	if (fb_base)
++		printf("  framebuffer: 0x%llx, %llu bytes\n", fb_base, fb_size);
++	else
++		printf("  framebuffer: none reported, using the built-in address\n");
++
++	if (!fdt_read_u64(fdt, "/chosen", "linux,initrd-start", &start) &&
++	    !fdt_read_u64(fdt, "/chosen", "linux,initrd-end", &end) &&
++	    end > start) {
++		printf("  ramdisk:     0x%llx, %llu bytes\n", start, end - start);
++		env_set_hex("cboot_initrd_start", start);
++		env_set_hex("cboot_initrd_size", end - start);
++	} else {
++		printf("  ramdisk:     none\n");
++	}
++}
++
++/* Hand the running console framebuffer on to the kernel */
++int ft_board_setup(void *blob, struct bd_info *bd)
++{
++	if (fdt_simplefb_add_node(blob))
++		printf("warning: no simple-framebuffer for the kernel\n");
++
++	if (fb_base && fdt_add_mem_rsv(blob, fb_base, fb_size))
++		printf("warning: could not reserve the framebuffer\n");
++
++	return 0;
++}
+diff --git a/board/nvidia/p2894/p2894.env b/board/nvidia/p2894/p2894.env
+new file mode 100644
+index 00000000..afe65ed4
+--- /dev/null
++++ b/board/nvidia/p2894/p2894.env
+@@ -0,0 +1,12 @@
++/*
++ * NVIDIA SHIELD TV 2017 (darcy). cboot loads the Android boot image's
++ * ramdisk, which carries a FIT image (kernel, device tree, initramfs);
++ * p2894.c exports where it landed. The kernel command line comes from the
++ * device tree inside the FIT. CONFIG_BOOTCOMMAND runs darcy_boot.
++ */
++darcy_boot=
++	if test -n "${cboot_initrd_start}"; then
++		echo "Booting the FIT payload at ${cboot_initrd_start}";
++		bootm ${cboot_initrd_start};
++	fi;
++	echo "Nothing to boot: this boot image carries no payload.";
+diff --git a/configs/p2894_defconfig b/configs/p2894_defconfig
+new file mode 100644
+index 00000000..38510e84
+--- /dev/null
++++ b/configs/p2894_defconfig
+@@ -0,0 +1,36 @@
++CONFIG_ARM=y
++CONFIG_SYS_L2CACHE_OFF=y
++CONFIG_ARCH_TEGRA=y
++CONFIG_TEXT_BASE=0x80080000
++CONFIG_SYS_MALLOC_LEN=0x2500000
++CONFIG_NR_DRAM_BANKS=8
++CONFIG_ENV_SIZE=0x2000
++CONFIG_DEFAULT_DEVICE_TREE="tegra210-p2894"
++CONFIG_SYS_BOOTM_LEN=0x4000000
++CONFIG_SYS_LOAD_ADDR=0x80080000
++CONFIG_TEGRA210=y
++CONFIG_TARGET_P2894=y
++CONFIG_TEGRA_GPU=y
++CONFIG_FIT=y
++CONFIG_OF_BOARD_SETUP=y
++CONFIG_OF_SYSTEM_SETUP=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_FDT_SIMPLEFB=y
++CONFIG_BOOTDELAY=3
++CONFIG_BOOTCOMMAND="run darcy_boot"
++CONFIG_SYS_PBSIZE=2084
++CONFIG_CONSOLE_MUX=y
++CONFIG_SYS_STDIO_DEREGISTER=y
++CONFIG_SYS_PROMPT="SHIELD (P2894) # "
++# CONFIG_CMD_IMI is not set
++CONFIG_CMD_SETEXPR=y
++CONFIG_ENV_IS_NOWHERE=y
++# CONFIG_ENV_IS_IN_MMC is not set
++# CONFIG_MMC is not set
++# CONFIG_USB is not set
++# CONFIG_SPI is not set
++# CONFIG_NET is not set
++CONFIG_SYS_I2C_TEGRA=y
++CONFIG_SYS_NS16550=y
++CONFIG_VIDEO=y
++CONFIG_VIDEO_SIMPLE=y
+-- 
+2.56.0
+

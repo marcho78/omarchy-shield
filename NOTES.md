@@ -98,8 +98,13 @@ mkbootimg), `qemu-user-static` with binfmt.
 - **cboot cannot boot a mainline kernel directly.** cboot hands the kernel the
   Android DT from the `dtb` partition, and flashing that partition has bricked
   Shields. The working answer is U-Boot as a second-stage loader.
-- **LineageOS already uses this chain on Shields.** Its `mkbootimg.mk` builds
-  the outer boot.img as `--kernel u-boot-dtb.bin --ramdisk <inner boot.img>`.
+- **Correction (2026-10-22): LineageOS does *not* use this chain on darcy.**
+  Its `releasetools.py` flashes its own bootloader blob to `staging` and its
+  own DTB to the `DTB` partition. Its U-Boot wrapping in `mkbootimg.mk` only
+  applies when `TARGET_TEGRA_UBOOT_CONFIG` is set, and the SHIELD TV builds
+  don't set it. The proven U-Boot chain on a SHIELD is archeYR's
+  postmarketOS foster port. The wrapping logic itself
+  (`--kernel u-boot-dtb.bin --ramdisk <payload>`) is still the model.
   Dependencies:
   - `android_hardware_nvidia_u-boot` (`lineage-23.2`)
   - `android_hardware_nvidia_arm-trusted-firmware` (T210 branch)
@@ -138,9 +143,10 @@ mkbootimg), `qemu-user-static` with binfmt.
    safety net.
 1. **Wipes Android user data. Ask the user first.** Connect a USB A-A cable,
    run `adb reboot bootloader`, then `fastboot oem unlock`.
-2. **Prove the chain.** Build U-Boot (Lineage fork). Make an outer boot.img of
-   U-Boot plus an inner boot.img holding the ALARM kernel, initramfs and DTB.
-   Try `fastboot boot`; if that fails, flash `recovery` only.
+2. **Prove the chain.** U-Boot is built (`scripts/05`). The boot image is
+   U-Boot plus a FIT payload (kernel, DTB, initramfs) as its ramdisk
+   (`scripts/06`). Try `fastboot boot`; if that fails, flash `recovery` only.
+   See "Boot chain design" below.
 3. **Bring up the darcy DT.** Add XUSB, PCIe Ethernet, HDMI (SOR1), GPU,
    Wi-Fi, audio and fan. Port from the foster DTs, the live downstream DT and
    NVIDIA's 9.2.2 GPL source drop. There is no known serial access, so debug
@@ -155,6 +161,56 @@ mkbootimg), `qemu-user-static` with binfmt.
    for Tegra: `AQ_DRM_DEVICES`, nouveau pstate, a light Hyprland profile.
 6. Make it persistent. Dual-boot by putting Linux in the recovery slot and
    keeping Android in boot.
+
+## Boot chain design (U-Boot target `p2894`)
+
+The base is LineageOS U-Boot v2025.07 at the commit pinned in `config.sh`,
+plus `patches/u-boot/0001-board-nvidia-add-SHIELD-TV-2017-P2894-darcy.patch`.
+`scripts/05` builds it and `scripts/06` wraps it.
+
+- **Start-up.** cboot loads U-Boot as a kernel at `0x80080000`
+  (`CONFIG_TEXT_BASE`) and passes its own DT in `x0`.
+- **What U-Boot reads from cboot's DT.** `arch/arm/mach-tegra/cboot.c`
+  already handles part of it:
+  - the memory map (`/memory`, carveouts excluded)
+  - `/chosen/bootargs`, which becomes `$cbootargs`
+  - the DT address itself, which becomes `$fdt_addr`
+
+  Our `board/nvidia/p2894/p2894.c` adds the rest:
+  - the framebuffer from `/reserved-memory/fb0_carveout`, patched into U-Boot's
+    own `simple-framebuffer` before video probes (`board_fix_fdt`)
+  - the ramdisk from `/chosen/linux,initrd-start` and `-end`, as one or two
+    cells, which becomes `$cboot_initrd_start` and `$cboot_initrd_size`
+  - the board revision from `/nvidia,dtsfilename`
+
+  It prints all of this on the TV.
+- **Boot.** `bootcmd=run darcy_boot`, which runs `bootm ${cboot_initrd_start}`.
+  The FIT payload is the boot image's ramdisk. The kernel cmdline comes from the
+  DT inside the FIT. `ft_board_setup` hands the framebuffer to Linux
+  (`fdt_simplefb_add_node`) and reserves it.
+- **Hardware access.** U-Boot touches no hardware: no PMIC writes, no GPIOs, no
+  storage. The environment is `ENV_IS_NOWHERE`, so it is never saved to eMMC.
+  The one exception is `CONFIG_TEGRA_GPU`, which programs the VPR the way
+  archeYR's foster build did, so nouveau can work. The P2571 board's
+  `pin_mux_mmc` (LDO2) and `start_cpu_fan` (GPIO E4, which is a DMIC clock on
+  darcy) are deliberately not carried over.
+- **Debugging without a UART.**
+  - Photograph U-Boot's report on the TV.
+  - Later, Linux on simplefb shows its console on HDMI.
+  - Ramoops at `0xb0000000` (2 MB, same as stock) survives a warm reboot, and
+    `adb bugreport` includes "last kmsg".
+
+First device test, after unlocking:
+
+    fastboot boot build/boot-uboot.img
+
+If `fastboot boot` is refused, use instead:
+
+    fastboot flash recovery build/boot-uboot.img
+
+then boot recovery from the bootloader menu. Afterwards restore stock with:
+
+    fastboot flash recovery recovery/9.1.1/recovery.img
 
 ## Never flash
 

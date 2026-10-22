@@ -16,6 +16,19 @@ need() {
   done
 }
 
+# The commit config.sh pins for source $1
+source_commit() {
+  local entry name url commit
+  for entry in "${SOURCES[@]}"; do
+    IFS='|' read -r name url commit <<<"$entry"
+    if [[ $name == "$1" ]]; then
+      echo "$commit"
+      return
+    fi
+  done
+  die "no source named '$1' in config.sh"
+}
+
 # The SHIELD's LAN address: $SHIELD_IP if set, otherwise discovered.
 shield_ip() {
   if [[ -n ${SHIELD_IP:-} ]]; then
