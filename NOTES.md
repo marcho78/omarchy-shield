@@ -565,9 +565,12 @@ secure monitor. It then registers the domain as off.
 holds SOR1, the HDMI encoder cboot left running, so HDMI dies early in
 every boot.
 
-n-codex and n-grok found this independently. The fix is in our DT: the
-`sor` node is deleted from the PMC's powergates, along with all nine
-`power-domains = <&pd_sor>` references. Until tegra-drm drives HDMI, Linux
+n-codex and n-grok found this independently, and antigravity and Z.ai
+agree. The fix is in our DT: the `sor` node is deleted from the PMC's
+powergates, along with all nine `power-domains = <&pd_sor>` references.
+Marking the node `status = "disabled"` would not work:
+`tegra_powergate_init()` walks the children with
+`for_each_child_of_node_scoped`, which includes disabled nodes. Until tegra-drm drives HDMI, Linux
 leaves that partition as cboot set it. The other partitions (audio, video,
 XUSB and so on) are still powered down at probe, which is harmless.
 
