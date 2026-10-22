@@ -352,6 +352,37 @@ static void show_inputs(void)
 	say("input devices: %s", names[0] ? names : "none");
 }
 
+/* Network interfaces: name, driver, MAC address, link state */
+static void show_net(void)
+{
+	char path[300], addr[32], state[16], driver[256];
+	DIR *d = opendir("/sys/class/net");
+	struct dirent *e;
+	const char *slash;
+	ssize_t len;
+	int n = 0;
+
+	while (d && (e = readdir(d))) {
+		if (e->d_name[0] == '.' || !strcmp(e->d_name, "lo"))
+			continue;
+		snprintf(path, sizeof(path), "/sys/class/net/%s/address", e->d_name);
+		read_line(path, addr, sizeof(addr));
+		snprintf(path, sizeof(path), "/sys/class/net/%s/operstate", e->d_name);
+		read_line(path, state, sizeof(state));
+		snprintf(path, sizeof(path), "/sys/class/net/%s/device/driver", e->d_name);
+		len = readlink(path, driver, sizeof(driver) - 1);
+		driver[len > 0 ? len : 0] = 0;
+		slash = strrchr(driver, '/');
+		say("net %s: %s %s %s", e->d_name,
+		    len <= 0 ? "-" : slash ? slash + 1 : driver, addr, state);
+		n++;
+	}
+	if (d)
+		closedir(d);
+	if (!n)
+		say("net: no interfaces");
+}
+
 /* Disks other than the eMMC, as a USB drive appears */
 static void show_disks(void)
 {
@@ -415,7 +446,7 @@ static const char *const keys[] = {
 	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
 	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
 	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
-	"padctl", "firmware",
+	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio",
 };
 
 static bool highlight(const char *line)
@@ -493,6 +524,7 @@ int main(void)
 	show_usb();
 	show_inputs();
 	show_disks();
+	show_net();
 	show_display();
 	show_display_hw();
 	if (WATCHDOG_TEST) {

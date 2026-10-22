@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Verify NVIDIA's recovery image and unpack it into recovery/<version>/ for
 # reference: the bootloader blob split into its partitions, the board DTBs
-# decompiled, and the boot/recovery image headers. This never runs NVIDIA's
-# flash scripts and never talks to the SHIELD.
+# decompiled, the boot/recovery image headers, and the firmware in
+# config.sh VENDOR_FIRMWARE taken out of vendor.img. This never runs
+# NVIDIA's flash scripts and never talks to the SHIELD.
 #
 # Usage: scripts/04-unpack-recovery.sh [path/to/recovery.tgz]
 #        (default: ~/Downloads/$RECOVERY_FILE from config.sh)
 source "$(dirname "$0")/lib.sh"
-need sha256sum tar dtc fdtget unpack_bootimg python3
+need sha256sum tar dtc fdtget unpack_bootimg python3 simg2img debugfs
 
 tgz=${1:-$HOME/Downloads/$RECOVERY_FILE}
 [[ -f $tgz ]] || die "missing $tgz
@@ -33,4 +34,15 @@ done | tee "$out/dtbs.txt"
 for img in boot recovery; do
   unpack_bootimg --boot_img "$out/$img.img" --out "$out/$img-unpacked" > "$out/$img-header.txt"
 done
+
+log "extracting the firmware listed in config.sh VENDOR_FIRMWARE from vendor.img"
+raw="$out/vendor.raw"
+simg2img "$out/vendor.img" "$raw"
+mkdir -p "$out/vendor-firmware"
+for entry in "${VENDOR_FIRMWARE[@]}"; do
+  file=${entry%%|*}
+  debugfs -R "dump /firmware/$file $out/vendor-firmware/$file" "$raw" 2> /dev/null
+  [[ -s $out/vendor-firmware/$file ]] || die "vendor.img has no /firmware/$file"
+done
+rm -f "${raw:?}"
 log "done; boot image headers are in recovery/$RECOVERY_VERSION/*-header.txt"

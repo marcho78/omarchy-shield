@@ -203,6 +203,91 @@
 };
 
 /*
+ * Wi-Fi: the BCM4354 on SDMMC2, as in the stock darcy device tree
+ * (bcmdhd_wlan: power on GPIO H0, host wake on H2) and like the same chip
+ * on the Pixel C (tegra210-smaug.dts). Its firmware, darcy's NVRAM and CLM
+ * blob come from NVIDIA's vendor partition (config.sh VENDOR_FIRMWARE).
+ */
+&{/mmc@700b0200} {
+	power-gpios = <&gpio TEGRA_GPIO(H, 0) GPIO_ACTIVE_HIGH>;
+	bus-width = <4>;
+	non-removable;
+	vqmmc-supply = <&max77620_sd3>;
+	vmmc-supply = <&vdd_3v3>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	wifi@1 {
+		compatible = "brcm,bcm4354-fmac", "brcm,bcm4329-fmac";
+		reg = <1>;
+		interrupt-parent = <&gpio>;
+		interrupts = <TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "host-wake";
+	};
+};
+
+/*
+ * Ethernet: the RTL8168 sits on PCIe. Both root ports as in the stock darcy
+ * device tree (x4 on lanes pcie-1..4, x1 on pcie-0); the one whose link
+ * comes up shows where the chip is.
+ */
+&padctl {
+	pads {
+		pcie {
+			lanes {
+				pcie-0 {
+					nvidia,function = "pcie-x1";
+					status = "okay";
+				};
+
+				pcie-1 {
+					nvidia,function = "pcie-x4";
+					status = "okay";
+				};
+
+				pcie-2 {
+					nvidia,function = "pcie-x4";
+					status = "okay";
+				};
+
+				pcie-3 {
+					nvidia,function = "pcie-x4";
+					status = "okay";
+				};
+
+				pcie-4 {
+					nvidia,function = "pcie-x4";
+					status = "okay";
+				};
+			};
+		};
+	};
+};
+
+&{/pcie@1003000} {
+	hvddio-pex-supply = <&max77620_sd3>;
+	dvddio-pex-supply = <&max77620_ldo1>;
+	vddio-pex-ctl-supply = <&max77620_sd3>;
+	status = "okay";
+
+	pci@1,0 {
+		phys = <&{/padctl@7009f000/pads/pcie/lanes/pcie-1}>,
+		       <&{/padctl@7009f000/pads/pcie/lanes/pcie-2}>,
+		       <&{/padctl@7009f000/pads/pcie/lanes/pcie-3}>,
+		       <&{/padctl@7009f000/pads/pcie/lanes/pcie-4}>;
+		phy-names = "pcie-0", "pcie-1", "pcie-2", "pcie-3";
+		status = "okay";
+	};
+
+	pci@2,0 {
+		phys = <&{/padctl@7009f000/pads/pcie/lanes/pcie-0}>;
+		phy-names = "pcie-0";
+		status = "okay";
+	};
+};
+
+/*
  * The PMC is secure-only on the SHIELD. Linux needs no property for that:
  * on Tegra210 it probes for it and goes through the secure monitor
  * (maybe_tz_only in drivers/soc/tegra/pmc.c).

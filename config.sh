@@ -65,6 +65,21 @@ FIRMWARE=(
   "nvidia/tegra210/xusb.bin|941873a6a70993b5c40a608cedc4608c281458c11949092d4bce125b96a92025"
 )
 
+# Firmware from NVIDIA's vendor partition (vendor.img in the recovery image,
+# /firmware) that mainline drivers load, and where it goes under
+# /lib/firmware. scripts/04 extracts it into recovery/<version>/vendor-firmware/
+# and scripts/12 puts it in the initramfs; it is NVIDIA's, so only the names
+# live here.
+# Format: file in /vendor/firmware|path under /lib/firmware
+VENDOR_FIRMWARE=(
+  # Wi-Fi (brcmfmac): the BCM4354's firmware, darcy's NVRAM, its CLM blob
+  "fw_bcmdhd.bin|brcm/brcmfmac4354-sdio.bin"
+  "nvram_darcy_a00.txt|brcm/brcmfmac4354-sdio.txt"
+  "bcmdhd_clm_darcy.blob|brcm/brcmfmac4354-sdio.clm_blob"
+  # Bluetooth (hci_bcm): the BCM4354's Bluetooth core is a BCM4350C0
+  "bcm4350.hcd|brcm/BCM4350C0.hcd"
+)
+
 # Host packages (Arch Linux / Omarchy, x86_64)
 HOST_PACKAGES=(
   base-devel git curl avahi bc swig python-pyelftools python-setuptools

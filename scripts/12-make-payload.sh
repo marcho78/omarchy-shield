@@ -3,7 +3,7 @@
 #   - the kernel from scripts/11
 #   - our device tree, kernel/dts/darcy.dts on top of mainline's darcy board
 #   - an initramfs whose /init is tools/darcy-init.c, with the firmware
-#     pinned in config.sh (FIRMWARE) under /lib/firmware
+#     pinned in config.sh (FIRMWARE, VENDOR_FIRMWARE) under /lib/firmware
 #
 # Output: build/payload/darcy.itb and build/boot-uboot-darcy.img, the image
 # to write with scripts/09-boot-via-recovery.sh.
@@ -35,8 +35,19 @@ for entry in "${FIRMWARE[@]}"; do
     echo "$sum  $file" | sha256sum -c --status || die "checksum mismatch for $path"
   fi
   fw_files+=("file /lib/firmware/$path $file 0644 0 0")
-  # gen_init_cpio needs every parent directory listed
-  d=$(dirname "/lib/firmware/$path")
+done
+
+log "firmware from NVIDIA's vendor partition (scripts/04)"
+for entry in "${VENDOR_FIRMWARE[@]}"; do
+  name=${entry%%|*} path=${entry##*|}
+  file="$ROOT/recovery/$RECOVERY_VERSION/vendor-firmware/$name"
+  [[ -s $file ]] || die "missing $file: run scripts/04-unpack-recovery.sh"
+  fw_files+=("file /lib/firmware/$path $file 0644 0 0")
+done
+
+# gen_init_cpio needs every parent directory listed
+for f in "${fw_files[@]}"; do
+  d=$(dirname "$(cut -d' ' -f2 <<< "$f")")
   while [[ $d != / ]]; do
     fw_dirs+=("$d")
     d=$(dirname "$d")
