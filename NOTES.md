@@ -362,6 +362,85 @@ What this establishes:
 fits with U-Boot under 25.5 MiB. The kernel loads at `0x80200000`, clear of
 the FIT at `0x84100000`.
 
+### First Linux payload: the handoff, checked before the first boot
+
+`scripts/11` and `scripts/12` build the FIT and the boot image:
+- **Kernel:** 7.2.11, built in only. The Image is 26 MB with `image_size`
+  0x1980000, so it ends at `0x81b80000`.
+- **Device tree:** our darcy.dts.
+- **Initramfs:** darcy-init.
+- **Boot image:** 11.8 MB.
+
+Reading the kernel source turned up three problems that would have left the
+TV dark. The third came from the n-codex review.
+- **The framebuffer must be reserved `no-map`.** It lies inside the RAM cboot
+  reports (bank 0). A `/memreserve/` keeps it in the kernel's linear map, and
+  arm64 `ioremap` refuses linear-mapped RAM (`arch/arm64/mm/ioremap.c:27`),
+  so simpledrm would fail to probe. U-Boot now adds
+  `/reserved-memory/framebuffer@92cc3000` with `no-map` instead
+  (`fdtdec_add_reserved_memory()`).
+- **The HDMI 5V supply would be switched off 30 s after boot.** `vdd-hdmi` (a
+  fixed regulator on GPIO CC7) is `regulator-boot-on` but not always-on. With
+  no consumer, which tegra-drm would be, the regulator late cleanup disables
+  it, and many TVs drop the picture without HDMI's +5V. The fix:
+  - `regulator_ignore_unused` stops that cleanup for every unclaimed supply.
+  - For the first boots, our DT also disables `vdd-hdmi`, so Linux never
+    touches CC7. If a Tegra GPIO's probe defers, freeing the GPIO hands the
+    pin back to its special function (`gpio-tegra.c:146`).
+  - `consoleblank=0` was added at the same time.
+- **Always-on rails would be pulsed off at probe.** regulator-fixed requests
+  a rail's enable GPIO low unless the rail is `regulator-boot-on`
+  (`drivers/regulator/fixed.c`). The core switches it back on only
+  afterwards. Three rails are always-on without `boot-on`:
+  - `vdd-3v3`
+  - `vdd-sys-boost`, which feeds HDMI 5V
+  - `vdd-disp-3v0`
+
+  Our DT adds `boot-on` to all three.
+
+The PMIC's HDMI LDOs (`vdd-gen-pll-edp`, `vdd-hdmi-dp`) are always-on.
+DRM_TEGRA and HOST1X are modules, so nothing in this kernel touches the
+display controller.
+
+Limits of this first kernel, to fix during DT bring-up:
+- **Fan and temperature.** SOCTHERM and `pwm-fan` are modules, so there is no
+  temperature reading and no fan control. Linux would switch `vdd-fan`
+  (GPIO E4, no `boot-on`) off when its driver probes, so our DT disables that
+  node and the fan stays as cboot left it. Stock Android's "quiet"
+  fan profile is 0% at the lowest state, so idle tests are fine. Long runs
+  need both drivers built in, plus a `pwm-fan` node (stock: PWM channel 3).
+- **CPU clock.** Mainline's darcy DT has no CPU DFLL, so the CPUs stay at
+  cboot's clock.
+- **Idle.** Mainline enables the C7 state (PSCI `0x40000007`, the same one
+  stock Android uses). The first boots run with `cpuidle.off=1` anyway.
+- **USB, XUSB and PCIe.** None of them is enabled in mainline's darcy DT, so
+  they are next for the DT: USB keyboard and drive, Ethernet on PCIe.
+
+n-codex and n-grok reviewed the handoff (`research/*linux-handoff*`). The
+ramoops node is now `no-map`, like stock. Suggestions checked against the
+source and not taken:
+- **Disable the pinmux (n-grok).** Its table is a `"boot"` state, which
+  Linux never applies (the pinctrl core applies only `"default"`,
+  `drivers/pinctrl/core.c:2227`). Disabling the pinmux would also leave the
+  GPIO controller deferring forever on its `gpio-ranges`
+  (`gpiolib-of.c:947`).
+- **Disable the PMIC (n-grok).** The rails behind its GPIOs, and their
+  consumers, would defer. Mainline's MAX77620 setup is what NVIDIA wrote
+  for this board.
+- **Turn the SMMU off (both, marked uncertain).** Its probe writes only the
+  global PTC/TLB/CONFIG registers and enables no client's translation. The
+  display controller scans out the physical address `0x92cc3000`, so it is
+  in bypass. This is the first suspect if the picture dies as drivers start.
+- **Drop earlycon and `console=ttyS0` (n-grok).** U-Boot already drives
+  UART A without trouble.
+- **Move the framebuffer node under `/chosen` (n-codex).** U-Boot's own
+  `fdt_simplefb_add_node()` also puts it at the root, and Linux creates a
+  device for it either way.
+- **The PLLD write at clock init (n-codex).** BIT(25) selects the DSI clock
+  source. HDMI on SOR1 does not use it.
+- **`panic=10` (n-codex).** A panic left on the TV is a better channel than
+  a ramoops whose stock layout we cannot read.
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way

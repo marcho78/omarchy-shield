@@ -1,6 +1,6 @@
-From e4aee7df50d2a8671d829768fb2242d5546a8a4b Mon Sep 17 00:00:00 2001
+From f70fd39b3107c6f841e8f8d3b15ea9ef130cf532 Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 02:10:41 -0700
+Date: Thu, 22 Oct 2026 09:13:05 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
@@ -18,7 +18,9 @@ not overwrite it).
   is the fallback. Without a buffer that fits inside DRAM the console
   stays off: video probe clears the whole surface, so there is no safe
   default address. When used, it is handed on to the kernel as a
-  simple-framebuffer and reserved.
+  simple-framebuffer, reserved as no-map: it lies inside the RAM cboot
+  reports, and arm64 Linux will not ioremap a buffer left in its linear
+  map (a /memreserve/ would leave it there).
 - The ramdisk is booted only if it lies inside RAM and holds a whole FIT
   image. fdt_high is cleared first so bootm copies the device tree out of
   the FIT instead of growing it in place.
@@ -39,10 +41,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 447 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.c           | 459 +++++++++++++++++++++++++++
  board/nvidia/p2894/p2894.env         |  17 +
  configs/p2894_defconfig              |  40 +++
- 9 files changed, 603 insertions(+)
+ 9 files changed, 615 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -205,10 +207,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..95ec2ab1
+index 00000000..b762e5b9
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,447 @@
+@@ -0,0 +1,459 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -234,6 +236,7 @@ index 00000000..95ec2ab1
 +
 +#include <env.h>
 +#include <fdt_support.h>
++#include <fdtdec.h>
 +#include <init.h>
 +#include <stdio.h>
 +#include <sysreset.h>
@@ -641,17 +644,28 @@ index 00000000..95ec2ab1
 +{
 +	static const char compat[] = "simple-framebuffer";
 +	const struct fb_mode *fb = fb_in_use();
++	struct fdt_memory mem;
 +	int node;
 +
 +	if (!fb || !video_is_active())
 +		return 0;
++
++	/*
++	 * The buffer lies inside the RAM cboot reports, so it is reserved as
++	 * no-map, in whole pages. A /memreserve/ would leave it in the
++	 * kernel's linear map, where arm64 refuses to ioremap it and
++	 * simpledrm gives up.
++	 */
++	mem.start = ALIGN_DOWN(fb->base, SZ_4K);
++	mem.end = ALIGN(fb->base + (u64)fb->stride * fb->height, SZ_4K) - 1;
 +
 +	node = fdt_add_subnode(blob, 0, "framebuffer");
 +	if (node < 0 ||
 +	    fdt_setprop(blob, node, "compatible", compat, sizeof(compat)) ||
 +	    fdt_setup_simplefb_node(blob, node, fb->base, fb->width,
 +				    fb->height, fb->stride, fb->format) ||
-+	    fdt_add_mem_rsv(blob, fb->base, (u64)fb->stride * fb->height))
++	    fdtdec_add_reserved_memory(blob, "framebuffer", &mem, NULL, 0, NULL,
++				       FDTDEC_RESERVED_MEMORY_NO_MAP))
 +		printf("warning: could not hand the framebuffer to the kernel\n");
 +
 +	return 0;

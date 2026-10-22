@@ -13,10 +13,13 @@
 	chosen {
 		/*
 		 * The last console is /dev/console, the TV. Nothing drives the
-		 * display yet, so its clocks and power domains must stay as
-		 * cboot left them.
+		 * display yet, so its clocks, power domains and supplies must
+		 * stay as cboot left them; unclaimed supplies would otherwise
+		 * be switched off 30 seconds after boot. CPU idle is off for
+		 * the first boots, although the secure monitor implements the
+		 * C7 state (stock Android uses it).
 		 */
-		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 clk_ignore_unused pd_ignore_unused ignore_loglevel";
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel";
 	};
 
 	reserved-memory {
@@ -24,15 +27,46 @@
 		#size-cells = <2>;
 		ranges;
 
-		/* Where the stock kernel keeps it, so warm reboots preserve it */
+		/* Stock's ramoops carveout, so warm reboots preserve it */
 		ramoops@b0000000 {
 			compatible = "ramoops";
 			reg = <0x0 0xb0000000 0x0 0x200000>;
 			record-size = <0x20000>;
 			console-size = <0x100000>;
 			pmsg-size = <0x40000>;
+			no-map;
 		};
 	};
+};
+
+/*
+ * regulator-fixed drives a rail's enable pin low at probe unless the rail
+ * is boot-on, so these always-on rails would be pulsed off. vdd-sys-boost
+ * feeds HDMI 5V.
+ */
+&vdd_3v3 {
+	regulator-boot-on;
+};
+
+&vdd_sys_boost {
+	regulator-boot-on;
+};
+
+&vdd_disp_3v0 {
+	regulator-boot-on;
+};
+
+/*
+ * Left as cboot set them until a driver owns them: the HDMI 5V switch
+ * (tegra-drm) and the fan (pwm-fan). Probing either would take over its
+ * GPIO, and the fan's would be driven low.
+ */
+&vdd_hdmi {
+	status = "disabled";
+};
+
+&vdd_fan {
+	status = "disabled";
 };
 
 /*
