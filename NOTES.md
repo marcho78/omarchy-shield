@@ -615,6 +615,37 @@ Before the next stages:
 RTL8168), then Arch Linux ARM, then the GPU (tegra-drm and nouveau) for
 Hyprland.
 
+**The reference photo of that run** (U-Boot's log screen) adds the
+following.
+
+cboot's display setup:
+- clocks (on/in reset): DISP1 1/0, HOST1X 1/0, SOR1 1/0, DPAUX1 1/0,
+  SOR_SAFE 1/0; DISP2, DPAUX and SOR0 are in reset
+- PLL_D2 `58281701` (misc0 `40000020`)
+- DISP1 source `a0000000` and SOR1 source `a000c000`: parent 5 is
+  `pll_d2_out0`
+- PMC `PWRGATE_STATUS` `3ffec14d`: SOR (bit 17) and DIS (bit 18) are on.
+  The secure-monitor reads return real values.
+- HDMI HPD pin `00000164` and CEC pin `00000560`: both parked (bit 5).
+  Linux unparks them at probe, and HDMI survives that.
+- DC A: command `00000020`, which is C_DISPLAY
+
+Linux's clock framework shows PLL_D2, DISP1 and SOR1 at 148.35 MHz, the
+1080p59.94 pixel clock. PLL_DP is set to 270 MHz but off.
+
+**A mainline bug turned up.** Reading `/sys/kernel/debug/powergate` oopses
+in Linux 7.2.11 (NULL dereference at `0x31`, in `powergate_show+0x38`).
+- `powergate_show()` in `drivers/soc/tegra/pmc.c` takes its
+  `struct tegra_pmc *` from the show callback's `void *data`.
+- Under `DEFINE_SHOW_ATTRIBUTE` that argument is `SEQ_START_TOKEN`,
+  `(void *)1`. The PMC is in `s->private`.
+- The fix is `struct tegra_pmc *pmc = s->private;`. It is a candidate to
+  send upstream.
+
+darcy-init no longer reads that file. The oops killed init, and the panic
+proved the other return path: `panic=10`, then the reset, then U-Boot's
+recovery reboot reason, then the log screen.
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way

@@ -212,30 +212,6 @@ static void show_display_hw(void)
 	close(fd);
 }
 
-/* The PMC's view of its power partitions, read through the secure monitor */
-static void show_powergates(void)
-{
-	char line[128], name[32], state[16], on[320] = "", off[320] = "";
-	FILE *f = fopen("/sys/kernel/debug/powergate", "r");
-	char *list;
-
-	if (!f) {
-		say("powergates: cannot read /sys/kernel/debug/powergate");
-		return;
-	}
-	while (fgets(line, sizeof(line), f)) {
-		if (sscanf(line, "%31s %15s", name, state) != 2 ||
-		    !strcmp(name, "powergate") || name[0] == '-')
-			continue;
-		list = strcmp(state, "yes") ? off : on;
-		snprintf(list + strlen(list), sizeof(on) - strlen(list), "%s ",
-			 name);
-	}
-	fclose(f);
-	say("powergates on: %s", on);
-	say("powergates off: %s", off);
-}
-
 /* The power domains as Linux tracks them */
 static void show_genpd(void)
 {
@@ -422,7 +398,6 @@ int main(void)
 	show_highlights();
 	show_clks();
 	show_genpd();
-	show_powergates();
 	show_display();
 	show_display_hw();
 	say("rebooting into the recovery slot, where U-Boot shows this log");
