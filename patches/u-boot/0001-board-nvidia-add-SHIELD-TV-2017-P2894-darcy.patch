@@ -1,42 +1,46 @@
-From 802744d648abb8313cafa27d649077db92545f24 Mon Sep 17 00:00:00 2001
+From 71eafb1cbb765df4c555aaf0df74c3835d37243e Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 01:58:16 -0700
+Date: Thu, 22 Oct 2026 02:06:13 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
-the kernel of an Android boot image and leaves the board set up.
+the kernel of an Android boot image (gzip'd, like NVIDIA's own kernels)
+and leaves the board set up with its boot logo on HDMI.
 
-The board code reads cboot's device tree and reports on screen what it
-found: board revision, bootargs, memory banks, the HDMI framebuffer and
-the ramdisk (with its CRC32, so a test image can confirm U-Boot did not
-overwrite it).
+The board code reports on screen what it finds: board revision,
+bootargs and memory banks from cboot's device tree, the framebuffer,
+and the ramdisk with its CRC32 (so a test image can confirm U-Boot did
+not overwrite it).
 
-- The console framebuffer is disabled unless cboot reports a surface big
-  enough for 1080p inside DRAM: video probe clears the whole surface, so
-  there is no safe default address. When used, it is handed on to the
-  kernel as a simple-framebuffer and reserved.
+- The console framebuffer is read from the window of display controller
+  A that shows cboot's logo (address, size, stride, format), only while
+  the controller is clocked and out of reset; cboot's fb0_carveout note
+  is the fallback. Without a buffer that fits inside DRAM the console
+  stays off: video probe clears the whole surface, so there is no safe
+  default address. When used, it is handed on to the kernel as a
+  simple-framebuffer and reserved.
 - The ramdisk is booted only if it lies inside RAM and holds a whole FIT
   image. fdt_high is cleared first so bootm copies the device tree out of
   the FIT instead of growing it in place.
 - With no console and no FIT to boot, the next boot carries the answer:
-  the bootloader menu when cboot reported no framebuffer, Android when it
-  reported one U-Boot could not use. The PMC is secure-only on the
-  SHIELD, so the reboot reason goes through tegra_pmc_writel().
+  the bootloader menu when no framebuffer was found, Android when one
+  was found but unusable. The PMC is secure-only on the SHIELD, so the
+  reboot reason goes through tegra_pmc_writel().
 - No GPU/VPR programming, networking, EFI, storage-write commands or
   saved environment.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  arch/arm/dts/Makefile                |   1 +
- arch/arm/dts/tegra210-p2894.dts      |  67 ++++++
+ arch/arm/dts/tegra210-p2894.dts      |  67 ++++
  arch/arm/mach-tegra/tegra210/Kconfig |   9 +
- board/nvidia/p2894/Kconfig           |  13 ++
+ board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 291 +++++++++++++++++++++++++++
- board/nvidia/p2894/p2894.env         |  17 ++
- configs/p2894_defconfig              |  39 ++++
- 9 files changed, 446 insertions(+)
+ board/nvidia/p2894/p2894.c           | 447 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.env         |  17 +
+ configs/p2894_defconfig              |  39 +++
+ 9 files changed, 602 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -199,31 +203,31 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..93ddf2fb
+index 00000000..95ec2ab1
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,291 @@
+@@ -0,0 +1,447 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
 + *
 + * NVIDIA's cboot starts U-Boot as the kernel of an Android boot image and
-+ * leaves the board set up. This reads what cboot hands over in its device
-+ * tree (x0) and reports it on screen, since retail units have no reachable
-+ * UART:
++ * leaves the board set up, with its boot logo on HDMI. This finds what U-Boot
++ * needs and reports it on screen, since retail units have no reachable UART:
 + *
-+ *  - the framebuffer cboot keeps running on HDMI. U-Boot's console uses it
-+ *    only if cboot reports one big enough for 1080p; there is no fallback
-+ *    address, because video probe clears the whole surface.
-+ *  - the boot image's ramdisk. It is booted only if it lies in RAM and holds
-+ *    a whole FIT image. Its CRC32 is always shown, so a test image can check
-+ *    that nothing in U-Boot overwrote it.
++ *  - the console framebuffer. It is read from the display controller window
++ *    showing cboot's logo, which is the ground truth; cboot's fb0_carveout
++ *    note in its device tree is the fallback. There is no default address,
++ *    because video probe clears the whole surface.
++ *  - the boot image's ramdisk, from cboot's device tree (x0). It is booted
++ *    only if it lies in RAM and holds a whole FIT image. Its CRC32 is always
++ *    shown, so a test image can check that nothing in U-Boot overwrote it.
 + *  - the board revision and memory map cboot detected.
 + *
 + * With no console on the TV and no FIT to boot, the report would go
 + * nowhere, so the next boot carries the answer instead: back into the
-+ * bootloader menu when cboot reported no framebuffer, into Android when it
-+ * reported one U-Boot could not use.
++ * bootloader menu when no framebuffer was found, into Android when one was
++ * found but U-Boot could not use it.
 + */
 +
 +#include <env.h>
@@ -233,20 +237,16 @@ index 00000000..93ddf2fb
 +#include <sysreset.h>
 +#include <video.h>
 +#include <asm/global_data.h>
++#include <asm/io.h>
 +#include <asm/arch-tegra/cboot.h>
 +#include <asm/arch-tegra/pmc.h>
 +#include <linux/delay.h>
 +#include <linux/libfdt.h>
 +#include <linux/sizes.h>
++#include <linux/string.h>
 +#include <u-boot/crc.h>
 +
 +DECLARE_GLOBAL_DATA_PTR;
-+
-+#define FB_WIDTH	1920
-+#define FB_HEIGHT	1080
-+#define FB_STRIDE	(FB_WIDTH * 4)
-+#define FB_SIZE		(FB_STRIDE * FB_HEIGHT)
-+#define FB_FORMAT	"a8b8g8r8"
 +
 +/* 3 GiB of LPDDR4 */
 +#define DRAM_START	0x80000000ULL
@@ -255,10 +255,44 @@ index 00000000..93ddf2fb
 +/* Android's reboot reason in PMC_SCRATCH0, which cboot acts on */
 +#define PMC_SCRATCH0_MODE_BOOTLOADER	BIT(30)
 +
-+/* Written before relocation, when .bss is not usable yet */
-+static u64 fb_base __section(".data");
-+static u64 fb_size __section(".data");
-+static bool fb_used __section(".data");
++/* Display controller A drives HDMI (SOR1) on darcy */
++#define CAR_RST_DEVICES_L		0x60006004UL
++#define CAR_CLK_OUT_ENB_L		0x60006010UL
++#define  CAR_L_DISP1			BIT(27)
++#define DC_BASE				0x54200000UL
++
++/* Register word offsets, from Linux's drivers/gpu/drm/tegra/dc.h */
++#define DC_CMD_DISPLAY_WINDOW_HEADER	0x042
++#define  WINDOW_A_SELECT		BIT(4)
++#define DC_WIN_WIN_OPTIONS		0x700
++#define  WIN_ENABLE			BIT(30)
++#define DC_WIN_COLOR_DEPTH		0x703
++#define DC_WIN_PRESCALED_SIZE		0x706
++#define DC_WIN_LINE_STRIDE		0x70a
++#define DC_WINBUF_START_ADDR		0x800
++
++struct fb_mode {
++	u64 base;
++	u64 size;		/* of the buffer; cboot's whole carveout */
++	u32 width, height, stride, bpp;
++	char format[9];		/* simple-framebuffer name, NUL padded */
++	char source;		/* 'A'..'C': controller window, 'c': cboot */
++};
++
++/* Found before relocation, when .bss is not usable yet */
++static struct fb_mode dc_fb __section(".data");
++static struct fb_mode cboot_fb __section(".data");
++/* Which one is in use, by source: a pointer set now would go stale on relocation */
++static char fb_source __section(".data");
++
++static struct fb_mode *fb_in_use(void)
++{
++	if (fb_source && fb_source == dc_fb.source)
++		return &dc_fb;
++	if (fb_source && fb_source == cboot_fb.source)
++		return &cboot_fb;
++	return NULL;
++}
 +
 +static const void *cboot_fdt(void)
 +{
@@ -295,59 +329,188 @@ index 00000000..93ddf2fb
 +	return 0;
 +}
 +
-+/* The surface entry of fb0_carveout, which cboot fills in at boot */
-+static int cboot_framebuffer(const void *fdt, u64 *base, u64 *size)
++static void set_format(struct fb_mode *mode, const char *format, u32 bpp)
++{
++	memset(mode->format, 0, sizeof(mode->format));
++	strncpy(mode->format, format, sizeof(mode->format) - 1);
++	mode->bpp = bpp;
++}
++
++static u32 dc_readl(unsigned int reg)
++{
++	return readl(DC_BASE + reg * 4);
++}
++
++static void dc_writel(u32 value, unsigned int reg)
++{
++	writel(value, DC_BASE + reg * 4);
++}
++
++/*
++ * simple-framebuffer names for the window colour depths, as Linux maps them
++ * (tegra_plane_format); 35, 36, 65 and 66 are best guesses, where a wrong
++ * guess only swaps red and blue.
++ */
++static bool dc_format(struct fb_mode *mode, u32 depth)
++{
++	switch (depth) {
++	case 12:	/* B8G8R8A8 */
++	case 35:	/* A8R8G8B8 */
++		set_format(mode, "a8r8g8b8", 4);
++		return true;
++	case 13:	/* R8G8B8A8 */
++	case 36:	/* A8B8G8R8 */
++		set_format(mode, "a8b8g8r8", 4);
++		return true;
++	case 37:	/* B8G8R8X8 */
++	case 66:	/* X8R8G8B8 */
++		set_format(mode, "x8r8g8b8", 4);
++		return true;
++	case 38:	/* R8G8B8X8 */
++	case 65:	/* X8B8G8R8 */
++		set_format(mode, "x8b8g8r8", 4);
++		return true;
++	case 6:		/* B5G6R5 */
++	case 34:	/* R5G6B5 */
++		set_format(mode, "r5g6b5", 2);
++		return true;
++	}
++
++	return false;
++}
++
++/*
++ * The first enabled window of display controller A, which shows cboot's logo.
++ * The controller is only touched while it is clocked and out of reset; the
++ * window selector is put back afterwards. Only the low 32 bits of the
++ * address are used: cboot's buffer sits below 4 GiB.
++ */
++static bool dc_framebuffer(struct fb_mode *mode)
++{
++	u32 header, size;
++	bool found = false;
++	int win;
++
++	if (!(readl(CAR_CLK_OUT_ENB_L) & CAR_L_DISP1) ||
++	    readl(CAR_RST_DEVICES_L) & CAR_L_DISP1)
++		return false;
++
++	header = dc_readl(DC_CMD_DISPLAY_WINDOW_HEADER);
++	for (win = 0; win < 3 && !found; win++) {
++		dc_writel(WINDOW_A_SELECT << win, DC_CMD_DISPLAY_WINDOW_HEADER);
++		if (!(dc_readl(DC_WIN_WIN_OPTIONS) & WIN_ENABLE) ||
++		    !dc_format(mode, dc_readl(DC_WIN_COLOR_DEPTH)))
++			continue;
++
++		size = dc_readl(DC_WIN_PRESCALED_SIZE);
++		mode->width = (size & 0x7fff) / mode->bpp;
++		mode->height = (size >> 16) & 0x1fff;
++		mode->stride = dc_readl(DC_WIN_LINE_STRIDE) & 0xffff;
++		mode->base = dc_readl(DC_WINBUF_START_ADDR);
++		mode->size = (u64)mode->stride * mode->height;
++		mode->source = 'A' + win;
++		found = true;
++	}
++	dc_writel(header, DC_CMD_DISPLAY_WINDOW_HEADER);
++
++	return found;
++}
++
++/* cboot's fb0_carveout note (surface entry), assumed to hold its 1080p screen */
++static bool cboot_framebuffer(const void *fdt, struct fb_mode *mode)
 +{
 +	const fdt32_t *reg;
 +	int node, len;
 +
 +	node = fdt_path_offset(fdt, "/reserved-memory/fb0_carveout");
-+	if (node < 0)
-+		return node;
-+
-+	reg = fdt_getprop(fdt, node, "reg", &len);
++	reg = node < 0 ? NULL : fdt_getprop(fdt, node, "reg", &len);
 +	if (!reg || len < 4 * sizeof(u32))
-+		return -FDT_ERR_BADVALUE;
++		return false;
 +
-+	*base = (u64)fdt32_to_cpu(reg[0]) << 32 | fdt32_to_cpu(reg[1]);
-+	*size = (u64)fdt32_to_cpu(reg[2]) << 32 | fdt32_to_cpu(reg[3]);
++	mode->base = (u64)fdt32_to_cpu(reg[0]) << 32 | fdt32_to_cpu(reg[1]);
++	mode->size = (u64)fdt32_to_cpu(reg[2]) << 32 | fdt32_to_cpu(reg[3]);
++	mode->width = 1920;
++	mode->height = 1080;
++	mode->stride = 1920 * 4;
++	set_format(mode, "a8b8g8r8", 4);
++	mode->source = 'c';
 +
-+	return *base ? 0 : -FDT_ERR_NOTFOUND;
++	return mode->base != 0;
++}
++
++/* A buffer U-Boot can safely draw into: all of it inside DRAM */
++static bool fb_usable(const struct fb_mode *mode)
++{
++	u64 used = (u64)mode->stride * mode->height;
++
++	return mode->base >= DRAM_START && mode->base % 64 == 0 &&
++	       mode->width >= 320 && mode->width <= 4096 &&
++	       mode->height >= 200 && mode->height <= 2304 &&
++	       mode->stride >= mode->width * mode->bpp &&
++	       used <= mode->size && used <= SZ_64M &&
++	       mode->base + used <= DRAM_END;
 +}
 +
 +/*
-+ * Enable U-Boot's disabled simple-framebuffer on cboot's surface, before
-+ * video probes. Any doubt leaves it disabled; returning an error would hang.
++ * Point U-Boot's disabled simple-framebuffer at a usable buffer and enable
++ * it. Every property keeps its length, so the blob needs no extra room.
++ * U-Boot's simplefb has no stride, so it draws at stride / bpp pixels per
++ * line; the padding columns are simply off screen.
 + */
++static bool use_framebuffer(void *blob, const struct fb_mode *mode)
++{
++	fdt32_t reg[4];
++	int node, len;
++
++	node = fdt_path_offset(blob, "/framebuffer");
++	if (node < 0 || !fdt_getprop(blob, node, "format", &len) ||
++	    len != sizeof(mode->format))
++		return false;
++
++	reg[0] = cpu_to_fdt32(mode->base >> 32);
++	reg[1] = cpu_to_fdt32(mode->base);
++	reg[2] = cpu_to_fdt32(0);
++	reg[3] = cpu_to_fdt32(mode->stride * mode->height);
++
++	return !fdt_setprop_inplace(blob, node, "reg", reg, sizeof(reg)) &&
++	       !fdt_setprop_inplace_u32(blob, node, "width",
++					mode->stride / mode->bpp) &&
++	       !fdt_setprop_inplace_u32(blob, node, "height", mode->height) &&
++	       !fdt_setprop_inplace_u32(blob, node, "stride", mode->stride) &&
++	       !fdt_setprop_inplace(blob, node, "format", mode->format,
++				    sizeof(mode->format)) &&
++	       !fdt_nop_property(blob, node, "status");
++}
++
++/* Before video probes; returning an error here would hang */
 +int board_fix_fdt(void *blob)
 +{
 +	const void *fdt = cboot_fdt();
-+	fdt32_t reg[4];
-+	int node;
 +
-+	if (!fdt || cboot_framebuffer(fdt, &fb_base, &fb_size))
-+		return 0;
-+
-+	if (fb_base % SZ_4K || fb_size < FB_SIZE ||
-+	    fb_base < DRAM_START || fb_base + FB_SIZE > DRAM_END)
-+		return 0;
-+
-+	node = fdt_path_offset(blob, "/framebuffer");
-+	if (node < 0)
-+		return 0;
-+
-+	reg[0] = cpu_to_fdt32(fb_base >> 32);
-+	reg[1] = cpu_to_fdt32(fb_base);
-+	reg[2] = cpu_to_fdt32(0);
-+	reg[3] = cpu_to_fdt32(FB_SIZE);
-+	if (fdt_setprop_inplace(blob, node, "reg", reg, sizeof(reg)))
-+		return 0;
-+
-+	/* Dropping "disabled" in place needs no room in the blob */
-+	if (!fdt_nop_property(blob, node, "status"))
-+		fb_used = true;
++	if (dc_framebuffer(&dc_fb) && fb_usable(&dc_fb) &&
++	    use_framebuffer(blob, &dc_fb))
++		fb_source = dc_fb.source;
++	else if (fdt && cboot_framebuffer(fdt, &cboot_fb) &&
++		 fb_usable(&cboot_fb) && use_framebuffer(blob, &cboot_fb))
++		fb_source = cboot_fb.source;
 +
 +	return 0;
++}
++
++static void report_framebuffer(const char *what, const struct fb_mode *mode)
++{
++	printf("  %-12s ", what);
++	if (!mode->source) {
++		printf("none\n");
++		return;
++	}
++
++	printf("0x%llx, %ux%u, stride %u, %s%s\n", mode->base, mode->width,
++	       mode->height, mode->stride, mode->format,
++	       mode == fb_in_use() ? ", in use" : "");
++	if (mode->source != 'c')
++		printf("               (display controller A, window %c)\n",
++		       mode->source);
 +}
 +
 +static void report_memory(const void *fdt)
@@ -443,53 +606,50 @@ index 00000000..93ddf2fb
 +{
 +	const void *fdt = cboot_fdt();
 +	const char *dts, *args;
++	bool fit = false;
 +
 +	printf("\nSHIELD TV 2017 (P2894): U-Boot relocated to 0x%lx\n",
 +	       gd->relocaddr);
++	report_framebuffer("display:", &dc_fb);
 +
-+	if (!fdt) {
++	if (fdt) {
++		printf("cboot handoff, device tree at %p:\n", fdt);
++
++		dts = fdt_getprop(fdt, 0, "nvidia,dtsfilename", NULL);
++		printf("  board:       %s\n", dts ? dts : "unknown");
++
++		args = env_get("cbootargs");
++		printf("  bootargs:    %s\n", args ? args : "");
++
++		report_memory(fdt);
++		report_framebuffer("fb0_carveout:", &cboot_fb);
++		fit = report_ramdisk(fdt);
++	} else {
 +		printf("cboot handed over no device tree\n");
-+		signal_by_reboot(true);
-+		return;
 +	}
 +
-+	printf("cboot handoff, device tree at %p:\n", fdt);
-+
-+	dts = fdt_getprop(fdt, 0, "nvidia,dtsfilename", NULL);
-+	printf("  board:       %s\n", dts ? dts : "unknown");
-+
-+	args = env_get("cbootargs");
-+	printf("  bootargs:    %s\n", args ? args : "");
-+
-+	report_memory(fdt);
-+
-+	if (!fb_base)
-+		printf("  framebuffer: none reported, console on UART only\n");
-+	else
-+		printf("  framebuffer: 0x%llx, %llu bytes, %s\n", fb_base,
-+		       fb_size, fb_used ? "in use" : "rejected");
-+
-+	if (report_ramdisk(fdt) || (fb_used && video_is_active()))
++	if (fit || (fb_in_use() && video_is_active()))
 +		return;
 +
-+	signal_by_reboot(!fb_base);
++	signal_by_reboot(!dc_fb.source && !cboot_fb.source);
 +}
 +
 +/* Hand the console framebuffer on to the kernel and keep it reserved */
 +int ft_board_setup(void *blob, struct bd_info *bd)
 +{
 +	static const char compat[] = "simple-framebuffer";
++	const struct fb_mode *fb = fb_in_use();
 +	int node;
 +
-+	if (!fb_used || !video_is_active())
++	if (!fb || !video_is_active())
 +		return 0;
 +
 +	node = fdt_add_subnode(blob, 0, "framebuffer");
 +	if (node < 0 ||
 +	    fdt_setprop(blob, node, "compatible", compat, sizeof(compat)) ||
-+	    fdt_setup_simplefb_node(blob, node, fb_base, FB_WIDTH, FB_HEIGHT,
-+				    FB_STRIDE, FB_FORMAT) ||
-+	    fdt_add_mem_rsv(blob, fb_base, FB_SIZE))
++	    fdt_setup_simplefb_node(blob, node, fb->base, fb->width,
++				    fb->height, fb->stride, fb->format) ||
++	    fdt_add_mem_rsv(blob, fb->base, (u64)fb->stride * fb->height))
 +		printf("warning: could not hand the framebuffer to the kernel\n");
 +
 +	return 0;
