@@ -726,6 +726,28 @@ Linux again, so a kernel that hangs every time cannot trap the box.
 All four ways back are proven: Linux's `reboot bootloader`, U-Boot's
 fallback after a log, a panic, and the watchdog.
 
+### Wi-Fi and Ethernet work (2026-10-22)
+
+The first image with both worked. The kernel builds `r8169`, `rfkill`,
+`cfg80211` and `brcmfmac` in.
+
+**Ethernet:**
+- `pcieport 0000:00:02.0`: the RTL8168 is behind the **x1** root port
+  (`pci@2,0`, lane `pcie-0`). The x4 port is empty.
+- `r8169 0000:01:00.0 eth0: RTL8168g/8111g, 00:04:4b:b2:35:bb, XID 4c0`.
+  The MAC is the board's own (NVIDIA's OUI `00:04:4b`).
+- `eth0` is down, with no cable.
+
+**Wi-Fi:**
+- `net wlan0: brcmfmac 00:90:4c:16:70:01`: `brcmfmac` booted NVIDIA's
+  BCM4354 firmware with darcy's NVRAM and CLM blob.
+- That MAC is the placeholder in `nvram_darcy_a00.txt`. The board's real
+  Wi-Fi MAC still has to be found and passed on.
+- `cfg80211: failed to load regulatory.db`. The fix is to add
+  `regulatory.db` and `regulatory.db.p7s` from `linux-firmware`.
+
+USB, the display and the log loop are unchanged.
+
 **Decision (2026-10-22): the root filesystem goes on the internal eMMC.**
 - **The goal** is a stripped-down media center, which fits in the 11–13
   GiB a reused `userdata` (plus `system`, `cache`) gives.
