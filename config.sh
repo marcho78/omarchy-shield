@@ -54,15 +54,23 @@ SOURCES=(
   "omarchy-arm|https://github.com/alexisraitano-myffu/omarchy-arm|579f15c699dab01e2b3b12e2c4d2503873359be9"
 )
 
-# Firmware files the payload's kernel loads, from linux-firmware at a pinned
-# commit. scripts/12 fetches them into vendor/linux-firmware/ and puts them in
-# the initramfs under /lib/firmware.
-# Format: path in linux-firmware|sha256
-LINUX_FIRMWARE_URL=https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git
-LINUX_FIRMWARE_COMMIT=2627913c0f298b6b2f4206e3bdabec5ed90c9a52
+# Firmware the payload's kernel loads, from upstream repositories at pinned
+# commits. scripts/12 fetches each file into vendor/firmware/<repo>/, checks
+# its sha256 and puts it in the initramfs under /lib/firmware.
+# Format: name|git url|commit
+FIRMWARE_REPOS=(
+  "linux-firmware|https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git|2627913c0f298b6b2f4206e3bdabec5ed90c9a52"
+  "wireless-regdb|https://git.kernel.org/pub/scm/linux/kernel/git/wens/wireless-regdb.git|389b9b702cf9018e9a9078ccc4fa8eaae2e054e3"
+)
+# Format: repo|path|sha256
 FIRMWARE=(
   # Microcode of the XUSB (USB host) controller
-  "nvidia/tegra210/xusb.bin|941873a6a70993b5c40a608cedc4608c281458c11949092d4bce125b96a92025"
+  "linux-firmware|nvidia/tegra210/xusb.bin|941873a6a70993b5c40a608cedc4608c281458c11949092d4bce125b96a92025"
+  # PHY patch for the RTL8168g Ethernet chip (r8169, XID 4c0)
+  "linux-firmware|rtl_nic/rtl8168g-2.fw|f878ec719f78e0b104bc73362a9862611858bec893f58a1b3b289a0a57d71d25"
+  # Wi-Fi regulatory database (cfg80211) and its signature
+  "wireless-regdb|regulatory.db|7e236caecd939c8ec98be4870bf30422f28ffef2565a38aaaa2d9ddabd0c2641"
+  "wireless-regdb|regulatory.db.p7s|50332f0db09b8bcc719235ec4985c27377f2cc2f42abb7b5dcf951866c5a888a"
 )
 
 # Firmware from NVIDIA's vendor partition (vendor.img in the recovery image,

@@ -37,7 +37,7 @@
  * (darcy_watchdog) resets a kernel that hangs without a panic.
  */
 #define WATCHDOG_TEST		0
-#define HIGHLIGHTS		20	/* kernel messages repeated at the end */
+#define HIGHLIGHTS		24	/* kernel messages repeated at the end */
 #define SYSLOG_ACTION_READ_ALL	3
 
 static int kmsg = -1;
@@ -383,6 +383,29 @@ static void show_net(void)
 		say("net: no interfaces");
 }
 
+/* Bluetooth adapters, with the address the kernel reads from the chip */
+static void show_bluetooth(void)
+{
+	char path[300], addr[32];
+	DIR *d = opendir("/sys/class/bluetooth");
+	struct dirent *e;
+	int n = 0;
+
+	while (d && (e = readdir(d))) {
+		if (e->d_name[0] == '.' || strchr(e->d_name, ':'))
+			continue;
+		snprintf(path, sizeof(path), "/sys/kernel/debug/bluetooth/%s/identity",
+			 e->d_name);
+		read_line(path, addr, sizeof(addr));
+		say("bluetooth %s: %s", e->d_name, addr);
+		n++;
+	}
+	if (d)
+		closedir(d);
+	if (!n)
+		say("bluetooth: no adapters");
+}
+
 /* Disks other than the eMMC, as a USB drive appears */
 static void show_disks(void)
 {
@@ -446,7 +469,8 @@ static const char *const keys[] = {
 	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
 	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
 	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
-	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio",
+	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", "bluetooth",
+	"hci0",
 };
 
 static bool highlight(const char *line)
@@ -525,6 +549,7 @@ int main(void)
 	show_inputs();
 	show_disks();
 	show_net();
+	show_bluetooth();
 	show_display();
 	show_display_hw();
 	if (WATCHDOG_TEST) {

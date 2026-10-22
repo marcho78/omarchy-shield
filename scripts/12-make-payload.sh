@@ -24,15 +24,24 @@ cpp -nostdinc -undef -x assembler-with-cpp -D__DTS__ \
   -o "$out/darcy.dts.pre" "$ROOT/kernel/dts/darcy.dts"
 dtc -q -I dts -O dtb -o "$out/darcy.dtb" "$out/darcy.dts.pre"
 
-log "firmware from linux-firmware ${LINUX_FIRMWARE_COMMIT:0:12}"
+firmware_repo() {
+  local entry
+  for entry in "${FIRMWARE_REPOS[@]}"; do
+    [[ ${entry%%|*} == "$1" ]] && { echo "$entry"; return; }
+  done
+  die "config.sh FIRMWARE names an unknown repository: $1"
+}
+
+log "firmware from upstream repositories (config.sh FIRMWARE)"
 fw_dirs=() fw_files=()
 for entry in "${FIRMWARE[@]}"; do
-  path=${entry%%|*} sum=${entry##*|}
-  file="$ROOT/vendor/linux-firmware/$path"
+  IFS='|' read -r repo path sum <<< "$entry"
+  IFS='|' read -r _ url commit <<< "$(firmware_repo "$repo")"
+  file="$ROOT/vendor/firmware/$repo/$path"
   if ! echo "$sum  $file" | sha256sum -c --status 2>/dev/null; then
     mkdir -p "$(dirname "$file")"
-    curl -fsSL -o "$file" "$LINUX_FIRMWARE_URL/plain/$path?id=$LINUX_FIRMWARE_COMMIT"
-    echo "$sum  $file" | sha256sum -c --status || die "checksum mismatch for $path"
+    curl -fsSL -o "$file" "$url/plain/$path?id=$commit"
+    echo "$sum  $file" | sha256sum -c --status || die "checksum mismatch for $repo/$path"
   fi
   fw_files+=("file /lib/firmware/$path $file 0644 0 0")
 done
