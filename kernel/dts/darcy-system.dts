@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * The installed system: the board as darcy.dts describes it, booting Arch
+ * Linux ARM from the eMMC (scripts/13) instead of darcy-init. Its
+ * initramfs only carries the firmware the built-in drivers load before the
+ * root filesystem is up; with no /init in it, the kernel mounts root=
+ * itself and starts systemd.
+ */
+#include "darcy.dts"
+
+/ {
+	chosen {
+		/*
+		 * darcy.dts's, plus the root filesystem: the partition that
+		 * held Android's user data
+		 */
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel panic=10 printk.devkmsg=on root=PARTLABEL=UDA rootwait rw";
+
+		/*
+		 * U-Boot boots it again after a reboot, and shows its log only
+		 * after a panic or a watchdog reset (p2894.c)
+		 */
+		darcy,system;
+	};
+};
+
+/* Dump records only for panics (KMSG_DUMP_PANIC): an oops does not stop a reboot */
+&{/reserved-memory/ramoops@b0000000} {
+	max-reason = <1>;
+};

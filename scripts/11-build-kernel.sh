@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Build the Linux kernel for the SHIELD TV 2017: the pinned stable release,
 # arm64's defconfig with every platform but Tegra switched off, and
-# kernel/darcy.config merged in. Only the image is built: the first
-# payloads carry no modules.
+# kernel/darcy.config merged in. What the boot needs is built in; the
+# modules are for the root filesystem (scripts/13).
 #
-# Output: build/linux/arch/arm64/boot/Image.gz
+# Output: build/linux/arch/arm64/boot/Image.gz, and the modules in build/linux
 #
 # Usage: scripts/11-build-kernel.sh
 source "$(dirname "$0")/lib.sh"
@@ -34,6 +34,6 @@ while read -r line; do
   fi
 done < "$ROOT/kernel/darcy.config"
 
-log "building Image.gz"
-"${kmake[@]}" -s -j"$(nproc)" Image.gz
+log "building Image.gz and the modules"
+"${kmake[@]}" -s -j"$(nproc)" Image.gz modules
 log "built build/linux/arch/arm64/boot/Image.gz ($(stat -c %s "$out/arch/arm64/boot/Image.gz") bytes)"

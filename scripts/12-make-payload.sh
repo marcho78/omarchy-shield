@@ -5,23 +5,33 @@
 #   - an initramfs whose /init is tools/darcy-init.c, with the firmware
 #     pinned in config.sh (FIRMWARE, VENDOR_FIRMWARE) under /lib/firmware
 #
-# Output: build/payload/darcy.itb and build/boot-uboot-darcy.img, the image
-# to write with scripts/09-boot-via-recovery.sh.
+# With --system, the installed system's payload instead: the device tree is
+# kernel/dts/darcy-system.dts, which mounts the root filesystem from the
+# eMMC (scripts/13), and the initramfs holds only the firmware, which the
+# built-in drivers load before the root filesystem is up.
 #
-# Usage: scripts/12-make-payload.sh
+# Output: build/payload/darcy.itb and build/boot-uboot-darcy.img, the image
+# to write with scripts/09-boot-via-recovery.sh; with --system,
+# build/system/darcy-system.itb and build/boot-uboot-darcy-system.img.
+#
+# Usage: scripts/12-make-payload.sh [--system]
 source "$(dirname "$0")/lib.sh"
 need cpp dtc gcc mkimage aarch64-linux-gnu-gcc gzip curl sha256sum
 
 src="$ROOT/vendor/linux"
 kbuild="$ROOT/build/linux"
-out="$ROOT/build/payload"
+if [[ ${1:-} == --system ]]; then
+  out="$ROOT/build/system" dts=darcy-system fit=darcy-system.itb
+else
+  out="$ROOT/build/payload" dts=darcy fit=darcy.itb
+fi
 [[ -f $kbuild/arch/arm64/boot/Image.gz ]] || die "build the kernel first: scripts/11-build-kernel.sh"
 mkdir -p "$out"
 
-log "device tree"
+log "device tree: kernel/dts/$dts.dts"
 cpp -nostdinc -undef -x assembler-with-cpp -D__DTS__ \
-  -I "$src/arch/arm64/boot/dts" -I "$src/include" \
-  -o "$out/darcy.dts.pre" "$ROOT/kernel/dts/darcy.dts"
+  -I "$src/arch/arm64/boot/dts" -I "$src/include" -I "$ROOT/kernel/dts" \
+  -o "$out/darcy.dts.pre" "$ROOT/kernel/dts/$dts.dts"
 dtc -q -I dts -O dtb -o "$out/darcy.dtb" "$out/darcy.dts.pre"
 
 firmware_repo() {
@@ -63,8 +73,12 @@ for f in "${fw_files[@]}"; do
   done
 done
 
-log "initramfs with tools/darcy-init.c as /init"
-aarch64-linux-gnu-gcc -static -Os -Wall -o "$out/init" "$ROOT/tools/darcy-init.c"
+if [[ $dts == darcy ]]; then
+  log "initramfs with tools/darcy-init.c as /init"
+  aarch64-linux-gnu-gcc -static -Os -Wall -o "$out/init" "$ROOT/tools/darcy-init.c"
+else
+  log "initramfs with the firmware only: the kernel mounts root= and starts systemd"
+fi
 gcc -O2 -o "$out/gen_init_cpio" "$src/usr/gen_init_cpio.c"
 {
   cat <<EOF
@@ -72,8 +86,8 @@ dir /dev 0755 0 0
 nod /dev/console 0600 0 0 c 5 1
 dir /proc 0755 0 0
 dir /sys 0755 0 0
-file /init $out/init 0755 0 0
 EOF
+  [[ $dts == darcy ]] && echo "file /init $out/init 0755 0 0"
   printf '%s\n' "${fw_dirs[@]}" | sort -u | sed 's|.*|dir & 0755 0 0|'
   printf '%s\n' "${fw_files[@]}"
 } > "$out/initramfs.list"
@@ -82,7 +96,7 @@ EOF
 log "FIT image"
 cp "$kbuild/arch/arm64/boot/Image.gz" "$out/Image.gz"
 cp "$ROOT/kernel/darcy.its" "$out/darcy.its"
-(cd "$out" && mkimage -q -f darcy.its darcy.itb)
-ls -l "$out"/{Image.gz,darcy.dtb,initramfs.cpio.gz,darcy.itb} >&2
+(cd "$out" && mkimage -q -f darcy.its "$fit")
+ls -l "$out"/{Image.gz,darcy.dtb,initramfs.cpio.gz,"$fit"} >&2
 
-"$ROOT/scripts/06-make-bootimg.sh" "$out/darcy.itb"
+"$ROOT/scripts/06-make-bootimg.sh" "$out/$fit"

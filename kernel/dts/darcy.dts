@@ -327,6 +327,16 @@
 };
 
 /*
+ * The timer block also holds the watchdog U-Boot arms (timer 5 driving
+ * WDT 0). tegra_wdt knows it only by Tegra30's name, whose registers these
+ * are; bound, it lets systemd take the watchdog over. Until something opens
+ * /dev/watchdog it leaves U-Boot's watchdog running.
+ */
+&{/timer@60005000} {
+	compatible = "nvidia,tegra210-timer", "nvidia,tegra30-timer";
+};
+
+/*
  * The PMC is secure-only on the SHIELD. Linux needs no property for that:
  * on Tegra210 it probes for it and goes through the secure monitor
  * (maybe_tz_only in drivers/soc/tegra/pmc.c).

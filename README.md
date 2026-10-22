@@ -17,7 +17,8 @@ Android stays installed, so you can go back.
 >   the recovery slot, and U-Boot starts mainline Linux, whose console stays
 >   on HDMI. Linux drives USB, Ethernet, Wi-Fi and Bluetooth, with NVIDIA's
 >   firmware taken from the recovery image.
-> - **Next:** Arch Linux ARM on the internal eMMC, then Omarchy.
+> - **Next:** the first boot of Arch Linux ARM from the internal eMMC (built
+>   and scripted, not yet installed), then Omarchy.
 >
 > `NOTES.md` is the research log.
 
@@ -184,9 +185,41 @@ Photograph it. After 60 s (`darcy_log_secs`) U-Boot reboots into the
 bootloader menu by itself, so the next image can be flashed straight away
 with `scripts/09`, without going through Android.
 
+### 9. Root filesystem (built, not yet booted)
+
+    scripts/13-make-rootfs.sh             # build/rootfs.img and its sparse form, build/rootfs.simg
+    scripts/12-make-payload.sh --system   # build/boot-uboot-darcy-system.img
+
+`scripts/13` builds the system without root, in a user namespace (your
+`/etc/subuid` range), running Arch Linux ARM's own `pacman` through QEMU.
+- **The base** is Arch Linux ARM's signed aarch64 image, fully upgraded,
+  with Wi-Fi (`iwd`), Bluetooth (`bluez`), `sudo`, and the kernel's modules.
+- **NVIDIA's Wi-Fi and Bluetooth firmware** goes in under darcy's
+  board-specific names.
+- **SSH** takes a key made for the SHIELD, `device-info/ssh/id_ed25519`;
+  passwords are refused over the network. On the TV, the default logins
+  still work: `root`/`root` and `alarm`/`alarm`.
+- **Wi-Fi without the TV:** put two lines in `device-info/wifi` before the
+  build, `SSID=...` and `PASSPHRASE=...`, and the SHIELD joins that network
+  by itself. Otherwise, join from the TV with `iwctl`.
+
+The system payload boots that filesystem from the eMMC. U-Boot boots it
+again after a normal reboot, and stops at its log (then fastboot) only
+after a panic or a watchdog reset.
+
+### 10. Install (replaces Android)
+
+    CONFIRM_FLASH=yes scripts/14-install-system.sh
+
+This writes the root filesystem over Android's user data and U-Boot with the
+system into the boot partition, so the SHIELD starts Linux from then on.
+Android must not start again while Linux is on the user data partition: it
+would offer to wipe it. NVIDIA's recovery image is the undo: its
+`flash-all.sh` puts Android's boot partition back.
+
 ### Next (not scripted yet)
 
-1. Put Arch Linux ARM on the internal eMMC.
+1. The first boot of the installed system: Wi-Fi, Bluetooth pairing, SSH.
 2. Extend the device tree: HDMI through tegra-drm, GPU (nouveau), audio,
    fan.
 3. Install `omarchy-arm`.
@@ -204,7 +237,7 @@ with `scripts/09`, without going through Android.
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |
-| `device-info/` | Your device snapshot (git-ignored; contains serial numbers) |
+| `device-info/` | Your device snapshot, SSH key and Wi-Fi settings (git-ignored; private) |
 | `recovery/` | Your unpacked recovery image (git-ignored; NVIDIA's, not redistributable) |
 | `vendor/` | Fetched third-party sources (git-ignored) |
 

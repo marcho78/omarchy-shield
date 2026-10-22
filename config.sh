@@ -90,6 +90,26 @@ VENDOR_FIRMWARE=(
   "bcm4350.hcd|brcm/BCM4354.hcd"
 )
 
+# darcy's device tree names the board "nvidia,p2894-0050-a08" (the first
+# root compatible), and drivers look for board-specific firmware under that
+# name before the generic one: brcm/brcmfmac4354-sdio.nvidia,p2894-0050-a08.bin
+BOARD_COMPATIBLE=nvidia,p2894-0050-a08
+
+# Arch Linux ARM's generic aarch64 root filesystem, the base of the system on
+# the eMMC (scripts/13). archlinuxarm.org keeps only its latest upload, so a
+# newer one stops matching the checksum; scripts/13 still checks its
+# signature and prints the checksum to pin.
+ALARM_URL=http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+ALARM_SHA256=42a4eeaa038994ffd31fa173256ef2f0ef511358eeb41b9ea1f8626391b9b319
+ALARM_KEY=68B3537F39A313B3E574D06777193F152BDBE6A6  # Arch Linux ARM Build System
+# Installed on top of it, after a full upgrade
+ROOTFS_PACKAGES=(
+  iwd                    # Wi-Fi; systemd-networkd does DHCP, as for Ethernet
+  bluez bluez-utils      # bluetoothd, bluetoothctl
+  wireless-regdb         # regulatory.db, for cfg80211
+  sudo
+)
+
 # Host packages (Arch Linux / Omarchy, x86_64)
 HOST_PACKAGES=(
   base-devel git curl avahi bc swig python-pyelftools python-setuptools

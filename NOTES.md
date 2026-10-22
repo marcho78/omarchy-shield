@@ -842,6 +842,68 @@ so the root filesystem is next. The report now also lists the eMMC's
 partitions as Linux reads them, which decides how Linux finds the root
 filesystem.
 
+### The installed system: design and build (2026-10-22)
+
+**The boot.**
+- **The system payload** (`scripts/12 --system`) uses `darcy-system.dts`:
+  darcy.dts plus `root=PARTLABEL=UDA rootwait rw` and `/chosen/darcy,system`.
+  `UDA` is NVIDIA's usual name for `userdata`; the partition report has to
+  confirm it.
+- **Its initramfs holds only the firmware**, which the built-in drivers load
+  before the root filesystem is up. With no `/init` in it, the kernel mounts
+  `root=` itself and starts systemd.
+- **Its ramoops keeps dump records for panics only** (`max-reason = <1>`).
+- **U-Boot reads `darcy,system` from the FIT's device tree.** It boots the
+  system again after a normal reboot. It shows the log and goes to fastboot
+  only after a panic (a dump record in ramoops) or a watchdog reset (cboot's
+  `androidboot.bootreason=watchdog`). The system's resets aren't pointed at
+  the recovery slot, and showing a log empties the dump records too.
+- **Linux's reboot reasons.** `reboot` clears PMC_SCRATCH0's mode bits
+  (tegra-pmc's reboot notifier), and `reboot recovery` or `reboot bootloader`
+  sets them. A panic restarts without the notifier, so the bits stay as
+  U-Boot left them. That is how the test loop gets back to recovery.
+
+**The watchdog.** Mainline's `tegra_wdt` matches only `nvidia,tegra30-timer`,
+and darcy's timer node says `nvidia,tegra210-timer`. darcy.dts adds the
+Tegra30 name: same registers, timer 5 driving WDT 0, as U-Boot arms it.
+- The driver leaves a running watchdog alone until something opens
+  `/dev/watchdog`. The clocksource driver doesn't mark the node populated, so
+  the platform device exists.
+- systemd opens it (`RuntimeWatchdogSec=60s`). A hang before systemd is
+  still caught by U-Boot's 150 s.
+
+**The root filesystem** (`scripts/13`, about 5 minutes):
+- **The base** is Arch Linux ARM's aarch64 image (signed 2026-08-05), built
+  without root:
+  - `unshare --map-auto --map-root-user`, plus QEMU's aarch64 binfmt with the
+    `F` flag, so it works in the chroot
+  - inside: `pacman-key`, `pacman -Rns linux-aarch64`, then `pacman -Syu` and
+    the packages, with pacman's sandbox off under QEMU
+  - the tmpfiles hook can't re-own the host's `/dev` nodes, which are visible
+    in the chroot. That's harmless.
+- **The base has no Wi-Fi client or BlueZ.** The build adds `iwd`, with DHCP
+  by `systemd-networkd` as for Ethernet, and `bluez`.
+- **`systemd-firstboot` would ask for a timezone on the TV.** The image has
+  an empty `machine-id` and no `/etc/localtime`. The build host's timezone
+  and `KEYMAP=us` go in.
+- **Arch's linux-firmware is zstd-compressed,** hence
+  `CONFIG_FW_LOADER_COMPRESS_ZSTD`. It also ships Broadcom's generic
+  `brcmfmac4354-sdio.bin`. NVIDIA's files go in under board-specific names,
+  which `brcmfmac` and `btbcm` try first:
+  `<name>.nvidia,p2894-0050-a08.<ext>`.
+- **The kernel now builds its 949 modules too,** plus `uhid` for Bluetooth
+  LE keyboards and remotes.
+- **The result** is 2.8 GB of ext4 (label `darcy-root`), 1.7 GB as a sparse
+  image. It grows to fill its partition on the first boot
+  (`x-systemd.growfs`). debugfs shows the setuid bits and group ownerships
+  survived.
+
+**The install** (`scripts/14`) writes `userdata` and `boot`. Android must
+never start again while Linux is on `userdata`: its file-based encryption
+would fail there and it would offer a wipe, and `vendor_flash_recovery`
+would put its recovery back. The recovery slot keeps the test payload, for
+reports.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
