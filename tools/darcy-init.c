@@ -342,6 +342,39 @@ static void show_usb(void)
 		say("usb: no devices");
 }
 
+/*
+ * Hub ports that saw an over-current: a device that draws more than its
+ * hub gives, as a disk behind a hub on the SHIELD's port may
+ */
+static void show_usb_ports(void)
+{
+	char dir[300], path[600], count[16], line[400] = "";
+	DIR *d = opendir("/sys/bus/usb/devices"), *p;
+	struct dirent *e, *port;
+
+	while (d && (e = readdir(d))) {
+		if (!strchr(e->d_name, ':'))
+			continue;
+		snprintf(dir, sizeof(dir), "/sys/bus/usb/devices/%s", e->d_name);
+		p = opendir(dir);
+		while (p && (port = readdir(p))) {
+			if (!strstr(port->d_name, "-port"))
+				continue;
+			snprintf(path, sizeof(path), "%s/%s/over_current_count",
+				 dir, port->d_name);
+			read_line(path, count, sizeof(count));
+			if (strcmp(count, "0") && strcmp(count, "-"))
+				snprintf(line + strlen(line), sizeof(line) - strlen(line),
+					 "%s %s; ", port->d_name, count);
+		}
+		if (p)
+			closedir(p);
+	}
+	if (d)
+		closedir(d);
+	say("usb over-currents: %s", line[0] ? line : "none");
+}
+
 /* Input devices by name, which shows a USB keyboard */
 static void show_inputs(void)
 {
@@ -397,7 +430,8 @@ static const char *const keys[] = {
 	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
 	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
 	"pmc", "powergate", "smmu", "reserved mem", "bringing", "xhci", "xusb",
-	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", "wdt", NULL
+	"padctl", "firmware", "brcmf", "r8169", "pcie", "sdio", "wdt",
+	"over-current", "cannot enable", NULL
 };
 
 /* What the Bluetooth core, hci_bcm and the chip's UART (UARTD) say */
@@ -744,6 +778,7 @@ int main(void)
 		show_genpd();
 	}
 	show_usb();
+	show_usb_ports();
 	show_inputs();
 	show_disks();
 	show_emmc();
