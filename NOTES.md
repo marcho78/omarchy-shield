@@ -284,6 +284,29 @@ partition. That is what happened on the first try:
 So after `scripts/09`, choose "Recovery mode" directly from the bootloader
 menu.
 
+**Recovery-slot attempts (2026-10-22).** Each attempt flashed the image, then
+used "Boot recovery kernel" in the menu.
+- **Raw `u-boot-dtb.bin` with the 24 MiB probe.** USB disconnected, then came
+  back as fastboot ~7 s later. The TV showed only the NVIDIA logo, and fastboot
+  was frozen afterwards.
+- **gzip'd U-Boot with the same probe.** No USB disconnect at all, the NVIDIA
+  logo, and fastboot frozen. A different path from raw: most likely cboot
+  accepted the gzip'd kernel, jumped into U-Boot (which leaves USB alone), and
+  U-Boot either has no framebuffer or hangs before video. NVIDIA's own kernels
+  are gzip'd, so `scripts/06` now always gzips U-Boot.
+- **After any failed or frozen attempt**, cboot stays enumerated as fastboot
+  but answers nothing. Power-cycle into Android, then re-run 07 and 09.
+- **The PMC is secure-only** (`nvidia,secure-pmc` in the stock DT). Non-secure
+  code must reach it through the secure monitor (`TEGRA_SMC_PMC`). U-Boot's
+  `tegra_pmc_*()` detect and handle this; Linux will need the same.
+- **Signalling without a screen.** With no console and nothing to boot, U-Boot
+  reboots: into the bootloader menu if cboot reported no framebuffer, into
+  Android if it reported one U-Boot could not use. Both are visible on USB
+  from the laptop.
+
+n-codex's and n-grok's analyses of the boot failure are in
+`research/ncodex-cboot-boot-failure.md` and `research/ngrok-cboot-boot-failure.md`.
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way

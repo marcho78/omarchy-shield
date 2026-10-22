@@ -33,9 +33,10 @@ BOOTIMG_ARGS=(
 FASTBOOT_MAX_DOWNLOAD=$((0x2000000))
 BOOTIMG_MAX_SIZE=$((0x1980000))
 
-# Size of the dummy ramdisk in a probe boot image (scripts/06 --probe): about
-# the largest FIT payload that still fits BOOTIMG_MAX_SIZE
-PROBE_RAMDISK_SIZE=$((24 * 1024 * 1024))
+# Size of the dummy ramdisk in a probe boot image (scripts/06 --probe). The
+# default is about the largest FIT payload that still fits BOOTIMG_MAX_SIZE;
+# override it in the environment to probe cboot with a smaller ramdisk.
+PROBE_RAMDISK_SIZE=${PROBE_RAMDISK_SIZE:-$((24 * 1024 * 1024))}
 
 # Third-party sources, fetched into vendor/<name> by scripts/03-fetch-sources.sh.
 # Format: name|git url|commit

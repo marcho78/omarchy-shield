@@ -13,15 +13,21 @@
 #   scripts/06-make-bootimg.sh payload.itb  -> build/boot-uboot-payload.img
 #     A FIT image (kernel, device tree, initramfs) for U-Boot to boot.
 source "$(dirname "$0")/lib.sh"
-need mkbootimg unpack_bootimg python3
+need mkbootimg unpack_bootimg python3 gzip
 
 uboot="$ROOT/build/u-boot/u-boot-dtb.bin"
 [[ -f $uboot ]] || die "build U-Boot first: scripts/05-build-u-boot.sh"
 
-args=("${BOOTIMG_ARGS[@]}" --cmdline "" --kernel "$uboot")
+# NVIDIA's own kernels are gzip'd, and darcy's cboot fell back to fastboot
+# within seconds when handed raw U-Boot, so gzip it like a kernel.
+# -n keeps the output reproducible (no name or timestamp).
+gzip -9 -n -c "$uboot" > "$uboot.gz"
+
+args=("${BOOTIMG_ARGS[@]}" --cmdline "" --kernel "$uboot.gz")
 out="$ROOT/build/boot-uboot.img"
 
 if [[ ${1:-} == --probe ]]; then
+  ((PROBE_RAMDISK_SIZE > 0)) || die "PROBE_RAMDISK_SIZE must be positive"
   ramdisk="$ROOT/build/probe-ramdisk.bin"
   python3 -I - "$ramdisk" "$PROBE_RAMDISK_SIZE" <<'EOF' > "$ROOT/build/probe-ramdisk.crc32"
 import random, sys, zlib

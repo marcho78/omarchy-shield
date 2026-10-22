@@ -1,6 +1,6 @@
-From 0c167e23b9368364cd9802675d21e0d105de1bce Mon Sep 17 00:00:00 2001
+From 802744d648abb8313cafa27d649077db92545f24 Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 00:37:02 -0700
+Date: Thu, 22 Oct 2026 01:58:16 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
@@ -18,21 +18,25 @@ overwrite it).
 - The ramdisk is booted only if it lies inside RAM and holds a whole FIT
   image. fdt_high is cleared first so bootm copies the device tree out of
   the FIT instead of growing it in place.
+- With no console and no FIT to boot, the next boot carries the answer:
+  the bootloader menu when cboot reported no framebuffer, Android when it
+  reported one U-Boot could not use. The PMC is secure-only on the
+  SHIELD, so the reboot reason goes through tegra_pmc_writel().
 - No GPU/VPR programming, networking, EFI, storage-write commands or
   saved environment.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  arch/arm/dts/Makefile                |   1 +
- arch/arm/dts/tegra210-p2894.dts      |  67 +++++++
+ arch/arm/dts/tegra210-p2894.dts      |  67 ++++++
  arch/arm/mach-tegra/tegra210/Kconfig |   9 +
  board/nvidia/p2894/Kconfig           |  13 ++
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 258 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.c           | 291 +++++++++++++++++++++++++++
  board/nvidia/p2894/p2894.env         |  17 ++
  configs/p2894_defconfig              |  39 ++++
- 9 files changed, 413 insertions(+)
+ 9 files changed, 446 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -195,10 +199,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..b3c258dc
+index 00000000..93ddf2fb
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,291 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -215,15 +219,23 @@ index 00000000..b3c258dc
 + *    a whole FIT image. Its CRC32 is always shown, so a test image can check
 + *    that nothing in U-Boot overwrote it.
 + *  - the board revision and memory map cboot detected.
++ *
++ * With no console on the TV and no FIT to boot, the report would go
++ * nowhere, so the next boot carries the answer instead: back into the
++ * bootloader menu when cboot reported no framebuffer, into Android when it
++ * reported one U-Boot could not use.
 + */
 +
 +#include <env.h>
 +#include <fdt_support.h>
 +#include <init.h>
 +#include <stdio.h>
++#include <sysreset.h>
 +#include <video.h>
 +#include <asm/global_data.h>
 +#include <asm/arch-tegra/cboot.h>
++#include <asm/arch-tegra/pmc.h>
++#include <linux/delay.h>
 +#include <linux/libfdt.h>
 +#include <linux/sizes.h>
 +#include <u-boot/crc.h>
@@ -239,6 +251,9 @@ index 00000000..b3c258dc
 +/* 3 GiB of LPDDR4 */
 +#define DRAM_START	0x80000000ULL
 +#define DRAM_END	0x140000000ULL
++
++/* Android's reboot reason in PMC_SCRATCH0, which cboot acts on */
++#define PMC_SCRATCH0_MODE_BOOTLOADER	BIT(30)
 +
 +/* Written before relocation, when .bss is not usable yet */
 +static u64 fb_base __section(".data");
@@ -376,7 +391,8 @@ index 00000000..b3c258dc
 +	return false;
 +}
 +
-+static void report_ramdisk(const void *fdt)
++/* Returns whether the ramdisk holds a FIT image to boot */
++static bool report_ramdisk(const void *fdt)
 +{
 +	const void *buf;
 +	u64 start, end, size;
@@ -385,14 +401,14 @@ index 00000000..b3c258dc
 +	    fdt_read_u64(fdt, "/chosen", "linux,initrd-end", &end) ||
 +	    end <= start) {
 +		printf("  ramdisk:     none\n");
-+		return;
++		return false;
 +	}
 +
 +	size = end - start;
 +	printf("  ramdisk:     0x%llx, %llu bytes", start, size);
 +	if (!in_dram(start, size)) {
 +		printf(", not inside RAM: ignored\n");
-+		return;
++		return false;
 +	}
 +
 +	buf = (const void *)(uintptr_t)start;
@@ -400,10 +416,27 @@ index 00000000..b3c258dc
 +
 +	if (start % 8 || fdt_check_header(buf) || fdt_totalsize(buf) > size) {
 +		printf("               not a FIT image, so not booting it\n");
-+		return;
++		return false;
 +	}
 +
 +	env_set_hex("cboot_fit_start", start);
++	return true;
++}
++
++/*
++ * Reset, into the bootloader menu if asked. The PMC is secure-only on the
++ * SHIELD; tegra_pmc_*() go through the secure monitor when needed, and the
++ * reset keeps PMC_SCRATCH0.
++ */
++static void signal_by_reboot(bool bootloader)
++{
++	printf("No console and nothing to boot: rebooting into %s\n",
++	       bootloader ? "the bootloader menu" : "Android");
++	if (bootloader)
++		tegra_pmc_writel(tegra_pmc_readl(PMC_SCRATCH0) |
++				 PMC_SCRATCH0_MODE_BOOTLOADER, PMC_SCRATCH0);
++	mdelay(500);
++	sysreset_walk_halt(SYSRESET_WARM);
 +}
 +
 +void nvidia_board_late_init(void)
@@ -416,6 +449,7 @@ index 00000000..b3c258dc
 +
 +	if (!fdt) {
 +		printf("cboot handed over no device tree\n");
++		signal_by_reboot(true);
 +		return;
 +	}
 +
@@ -435,7 +469,10 @@ index 00000000..b3c258dc
 +		printf("  framebuffer: 0x%llx, %llu bytes, %s\n", fb_base,
 +		       fb_size, fb_used ? "in use" : "rejected");
 +
-+	report_ramdisk(fdt);
++	if (report_ramdisk(fdt) || (fb_used && video_is_active()))
++		return;
++
++	signal_by_reboot(!fb_base);
 +}
 +
 +/* Hand the console framebuffer on to the kernel and keep it reserved */
