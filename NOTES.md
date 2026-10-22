@@ -847,8 +847,7 @@ filesystem.
 **The boot.**
 - **The system payload** (`scripts/12 --system`) uses `darcy-system.dts`:
   darcy.dts plus `root=PARTLABEL=UDA rootwait rw` and `/chosen/darcy,system`.
-  `UDA` is NVIDIA's usual name for `userdata`; the partition report has to
-  confirm it.
+  The partition report confirms `UDA` (below).
 - **Its initramfs holds only the firmware**, which the built-in drivers load
   before the root filesystem is up. With no `/init` in it, the kernel mounts
   `root=` itself and starts systemd.
@@ -869,8 +868,11 @@ Tegra30 name: same registers, timer 5 driving WDT 0, as U-Boot arms it.
 - The driver leaves a running watchdog alone until something opens
   `/dev/watchdog`. The clocksource driver doesn't mark the node populated, so
   the platform device exists.
-- systemd opens it (`RuntimeWatchdogSec=60s`). A hang before systemd is
-  still caught by U-Boot's 150 s.
+- systemd opens it (`RuntimeWatchdogSec=60s`).
+- U-Boot does not arm it for the installed system until `tegra_wdt` is
+  proven on the board; the report could not show its line. Otherwise a
+  driver that failed to bind would let U-Boot's 150 s reset a working
+  system again and again.
 
 **The root filesystem** (`scripts/13`, about 5 minutes):
 - **The base** is Arch Linux ARM's aarch64 image (signed 2026-08-05), built
@@ -897,6 +899,23 @@ Tegra30 name: same registers, timer 5 driving WDT 0, as U-Boot arms it.
   image. It grows to fill its partition on the first boot
   (`x-systemd.growfs`). debugfs shows the setuid bits and group ownerships
   survived.
+
+**The partition report** (the new kernel and U-Boot, through the test loop):
+- **Linux reads the eMMC's GPT:** `mmcblk0`, 14.7 GiB, 33 partitions. They
+  are BPF, TBC, TBC-B, EBT, RBL, **NCT**, WB0, DFI, RP1, RP2, TOS, EKS, UKS,
+  FB, BMP, SOS (recovery), DTB, LNX (boot), APP (system, 2048M), CAC (cache),
+  vendor (768M), MSC, USP, MDA, RP3, RP4, FCT, UCB, RP5–RP8, and **p33 UDA
+  11630M** (userdata). `root=PARTLABEL=UDA` is right.
+- **A USB hub on the port near HDMI works at both speeds:** a Genesys Logic
+  hub (`05e3:0610`, and `05e3:0620` on `usb 2-2 … SuperSpeed`). So the USB 3
+  lane (`usb3-1`, UPHY `pcie-5`) works too.
+- **Bluetooth's address is a placeholder:** `43:50:C0:00:1F:AC` ("4350C0"
+  plus a default suffix). btbcm doesn't list it as a default, yet the
+  adapter wasn't initialised: debugfs has no `features`. That's to be looked
+  at on the installed system, with BlueZ and the full log.
+- **The real Bluetooth and Wi-Fi addresses** are probably in `NCT`, NVIDIA's
+  config table. The Wi-Fi MAC (`00:90:4c:16:70:01`) is the NVRAM file's
+  placeholder.
 
 **The install** (`scripts/14`) writes `userdata` and `boot`. Android must
 never start again while Linux is on `userdata`: its file-based encryption

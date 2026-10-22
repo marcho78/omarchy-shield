@@ -1,4 +1,4 @@
-From fa540037f90832f42791a4c8047f3b5743b30791 Mon Sep 17 00:00:00 2001
+From 34dc3000d6169b3af39da799edca01808a2357db Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
 Date: Thu, 22 Oct 2026 12:44:58 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
@@ -46,7 +46,9 @@ not overwrite it).
   leftover "recovery" reason first.
 - The installed system, a FIT whose device tree has
   /chosen/darcy,system, boots again after a normal reboot: its resets
-  are left to Linux, and its log is shown (then fastboot) only after a
+  and its watchdog are left to Linux (systemd arms it through
+  tegra_wdt; U-Boot does not, until that driver is proven on the
+  board), and its log is shown (then fastboot) only after a
   panic, which leaves a dump record in ramoops, or after a watchdog
   reset, which cboot passes on as androidboot.bootreason=watchdog.
   Showing a log empties the dump records too, so a crash is reported
@@ -65,10 +67,10 @@ Claude-Session: https://claude.ai/code/session_01FFZawuz1Lpcnnzby2Nt9GX
  board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 813 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.c           | 819 +++++++++++++++++++++++++++
  board/nvidia/p2894/p2894.env         |  27 +
  configs/p2894_defconfig              |  40 ++
- 9 files changed, 979 insertions(+)
+ 9 files changed, 985 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -231,10 +233,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..a413fd50
+index 00000000..07006eeb
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,813 @@
+@@ -0,0 +1,819 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -266,10 +268,10 @@ index 00000000..a413fd50
 + * for the next image.
 + *
 + * The installed system, a FIT whose device tree has /chosen/darcy,system,
-+ * boots again after a normal reboot: its resets are left to Linux, and its
-+ * log is shown only after a panic, which leaves a dump record in ramoops, or
-+ * after the watchdog reset the board, which cboot passes on as
-+ * androidboot.bootreason=watchdog.
++ * boots again after a normal reboot: its resets and its watchdog are left
++ * to Linux, and its log is shown only after a panic, which leaves a dump
++ * record in ramoops, or after the watchdog reset the board, which cboot
++ * passes on as androidboot.bootreason=watchdog.
 + */
 +
 +#include <cpu_func.h>
@@ -909,19 +911,25 @@ index 00000000..a413fd50
 +}
 +
 +/*
-+ * Called by bootm just before the kernel starts. The watchdog makes sure a
-+ * hung kernel resets (darcy_watchdog=0 leaves it off); the installed
-+ * system's systemd takes it over through tegra_wdt. A test payload's resets
-+ * are pointed at the recovery slot, where report_last_log() shows its log;
-+ * the installed system's are left to Linux, so that a reboot boots it again.
++ * Called by bootm just before the kernel starts. A test payload's resets are
++ * pointed at the recovery slot, where report_last_log() shows its log, and
++ * the watchdog makes sure a hung kernel resets (darcy_watchdog=0 leaves it
++ * off).
++ *
++ * The installed system's resets are left to Linux, so that a reboot boots
++ * it again, and so is its watchdog: systemd arms it through tegra_wdt. Until
++ * that driver is proven on the board, U-Boot does not arm it for the system,
++ * so that a missing driver cannot reset a working system again and again.
 + */
 +void board_quiesce_devices(void)
 +{
 +	ulong secs = env_get_ulong("darcy_watchdog", 10, 0);
 +
-+	if (!system_payload)
-+		tegra_pmc_writel(tegra_pmc_readl(PMC_SCRATCH0) |
-+				 PMC_SCRATCH0_MODE_RECOVERY, PMC_SCRATCH0);
++	if (system_payload)
++		return;
++
++	tegra_pmc_writel(tegra_pmc_readl(PMC_SCRATCH0) |
++			 PMC_SCRATCH0_MODE_RECOVERY, PMC_SCRATCH0);
 +	if (!secs)
 +		return;
 +
@@ -1050,7 +1058,7 @@ index 00000000..a413fd50
 +}
 diff --git a/board/nvidia/p2894/p2894.env b/board/nvidia/p2894/p2894.env
 new file mode 100644
-index 00000000..1b453e11
+index 00000000..5387ab48
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.env
 @@ -0,0 +1,27 @@
@@ -1065,9 +1073,9 @@ index 00000000..1b453e11
 + * to make bootm copy the device tree out first.
 + */
 +/*
-+ * Seconds a kernel gets before the watchdog resets the board, and U-Boot
-+ * shows the end of its log (p2894.c). The installed system's systemd takes
-+ * the watchdog over (tegra_wdt). 0 leaves the watchdog off.
++ * Seconds a test payload's kernel gets before the watchdog resets the board,
++ * and U-Boot shows the end of its log (p2894.c). The installed system's
++ * watchdog is systemd's (tegra_wdt), not U-Boot's. 0 leaves it off.
 + */
 +darcy_watchdog=150
 +
