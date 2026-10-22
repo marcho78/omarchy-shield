@@ -16,12 +16,19 @@ RECOVERY_FILE=nv-recovery-image-shield-2017-atv-9.1.1.tgz
 RECOVERY_SHA256=31e72d6c1aa838de19a43e738845036e99f3c7c464b83f14942577a40c7fa16d
 
 # Android boot image header for what we hand cboot, copied from NVIDIA's own
-# 9.1.1 boot.img (unpack_bootimg --format=mkbootimg) so cboot sees what it knows.
+# 9.1.1 recovery.img, the stock image that carries a ramdisk
+# (unpack_bootimg --format=mkbootimg). The offsets are NVIDIA's base of
+# 10000000 *decimal* plus the usual 0x8000/0x1000000/0x100, which is not a
+# DRAM address, so cboot evidently places kernel and ramdisk itself.
 BOOTIMG_ARGS=(
   --header_version 1 --pagesize 2048
   --os_version 11.0.0 --os_patch_level 2022-04
-  --base 0 --kernel_offset 0x00991680 --ramdisk_offset 0 --tags_offset 0x00989780
+  --base 0 --kernel_offset 0x00991680 --ramdisk_offset 0x01989680 --tags_offset 0x00989780
 )
+
+# Size of the dummy ramdisk in a probe boot image (scripts/06 --probe), about
+# what a kernel + initramfs FIT will weigh
+PROBE_RAMDISK_SIZE=$((32 * 1024 * 1024))
 
 # Third-party sources, fetched into vendor/<name> by scripts/03-fetch-sources.sh.
 # Format: name|git url|commit

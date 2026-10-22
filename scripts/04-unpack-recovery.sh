@@ -16,7 +16,7 @@ tgz=${1:-$HOME/Downloads/$RECOVERY_FILE}
 log "verifying sha256 of $(basename "$tgz")"
 echo "$RECOVERY_SHA256  $tgz" | sha256sum -c --quiet - || die "checksum mismatch: wrong or corrupt download"
 
-out="$ROOT/recovery/$RECOVERY_VERSION"
+out="$ROOT/recovery/${RECOVERY_VERSION:?}"
 log "unpacking into recovery/$RECOVERY_VERSION/"
 rm -rf "$out" && mkdir -p "$out"
 tar -xzf "$tgz" -C "$out"

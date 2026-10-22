@@ -29,7 +29,7 @@ sh_ 'for n in /sys/class/net/*; do
 # Device-tree property files are SELinux-protected without root, so this only
 # captures the node layout. The full DTB comes from the recovery image (04).
 adb -s "$target" exec-out 'tar -cf - -C /sys/firmware/devicetree/base . 2>/dev/null' > "$out/live-dt.tar"
-rm -rf "$out/live-dt-fs" && mkdir -p "$out/live-dt-fs"
+rm -rf "${out:?}/live-dt-fs" && mkdir -p "$out/live-dt-fs"
 tar -xf "$out/live-dt.tar" -C "$out/live-dt-fs"
 dtc -q -I fs -O dts -o "$out/live-dt-layout.dts" "$out/live-dt-fs"
 

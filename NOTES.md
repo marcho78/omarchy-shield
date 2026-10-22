@@ -177,36 +177,64 @@ plus `patches/u-boot/0001-board-nvidia-add-SHIELD-TV-2017-P2894-darcy.patch`.
   - the DT address itself, which becomes `$fdt_addr`
 
   Our `board/nvidia/p2894/p2894.c` adds the rest:
-  - the framebuffer from `/reserved-memory/fb0_carveout`, patched into U-Boot's
-    own `simple-framebuffer` before video probes (`board_fix_fdt`)
-  - the ramdisk from `/chosen/linux,initrd-start` and `-end`, as one or two
-    cells, which becomes `$cboot_initrd_start` and `$cboot_initrd_size`
-  - the board revision from `/nvidia,dtsfilename`
+  - **The framebuffer**, from `/reserved-memory/fb0_carveout`. It is enabled in
+    U-Boot's own `simple-framebuffer` (`board_fix_fdt`) only if it fits 1080p
+    inside DRAM. Otherwise the console stays on the UART. There is no fallback
+    address, because video probe clears the surface.
+  - **The ramdisk**, from `/chosen/linux,initrd-start` and `-end`, as one or two
+    cells. Its CRC32 is always printed. It becomes `$cboot_fit_start` only if
+    it lies in RAM and holds a whole FIT.
+  - **The board revision** from `/nvidia,dtsfilename`, plus every cboot memory
+    bank, with a warning if there are more than `NR_DRAM_BANKS`.
 
   It prints all of this on the TV.
-- **Boot.** `bootcmd=run darcy_boot`, which runs `bootm ${cboot_initrd_start}`.
-  The FIT payload is the boot image's ramdisk. The kernel cmdline comes from the
-  DT inside the FIT. `ft_board_setup` hands the framebuffer to Linux
-  (`fdt_simplefb_add_node`) and reserves it.
-- **Hardware access.** U-Boot touches no hardware: no PMIC writes, no GPIOs, no
-  storage. The environment is `ENV_IS_NOWHERE`, so it is never saved to eMMC.
-  The one exception is `CONFIG_TEGRA_GPU`, which programs the VPR the way
-  archeYR's foster build did, so nouveau can work. The P2571 board's
-  `pin_mux_mmc` (LDO2) and `start_cpu_fan` (GPIO E4, which is a DMIC clock on
-  darcy) are deliberately not carried over.
+- **Boot.** `bootcmd=run darcy_boot` clears `fdt_high`, then runs
+  `bootm ${cboot_fit_start}`. Tegra's `fdt_high=~0` would make `bootm` grow the
+  FIT's device tree in place, over the next image. The kernel cmdline comes
+  from the DT inside the FIT. `ft_board_setup` writes the kernel its own
+  `simple-framebuffer` node, with the real `a8b8g8r8` format, and reserves it.
+- **Hardware access.** Our board code writes nothing: no PMIC writes, no GPIOs,
+  no storage.
+  - The environment is `ENV_IS_NOWHERE`. Networking, EFI and every
+    write-capable storage command are compiled out. `scripts/05` asserts all
+    of this after each build, because Kconfig silently flips options: turning
+    off `BOOTSTD` once silently dropped `bootcmd`.
+  - `CONFIG_TEGRA_GPU`, which writes and locks the VPR after the secure OS has
+    set it, is off. GPU/VPR becomes its own experiment once Linux runs.
+  - Tegra's generic init still runs, as on every cboot-chainloaded T210
+    U-Boot (Jetson TX1/Nano under L4T, archeYR's foster). That is
+    `clock_init()`, the UART pinmux, the arch timer, and XUSB pad init plus
+    power-down before Linux. This is an accepted risk: cboot's HDMI output
+    survived it on foster.
+  - The P2571 board's `pin_mux_mmc` (LDO2) and `start_cpu_fan` (GPIO E4, which
+    is a DMIC clock on darcy) are deliberately not carried over.
+- **Boot image header.** Copied from stock `recovery.img`, the stock image
+  with a ramdisk. The offsets are NVIDIA's base `10000000` *decimal* plus the
+  usual offsets, which are not DRAM addresses. So cboot places the kernel and
+  ramdisk itself, and the probe test measures where.
 - **Debugging without a UART.**
   - Photograph U-Boot's report on the TV.
   - Later, Linux on simplefb shows its console on HDMI.
   - Ramoops at `0xb0000000` (2 MB, same as stock) survives a warm reboot, and
     `adb bugreport` includes "last kmsg".
 
-First device test, after unlocking:
+n-codex reviewed the patch (`research/ncodex-uboot-review.md`). Findings 1, 3,
+4, 5, 7, 8 and 9 are fixed. Finding 2 (U-Boot relocating or allocating over
+cboot's ramdisk) depends on where cboot puts the ramdisk, so the probe test
+measures it before any real payload. Finding 6 is accepted as described above.
 
-    fastboot boot build/boot-uboot.img
+### First device test (after unlocking)
+
+    fastboot boot build/boot-uboot-probe.img
+
+Expect U-Boot's report on the TV. Check that the ramdisk CRC32 equals
+`build/probe-ramdisk.crc32` (`0fefffd9` for the pinned probe). A different
+value means something overwrote it before late init, so finding 2 needs work
+before any payload.
 
 If `fastboot boot` is refused, use instead:
 
-    fastboot flash recovery build/boot-uboot.img
+    fastboot flash recovery build/boot-uboot-probe.img
 
 then boot recovery from the bootloader menu. Afterwards restore stock with:
 

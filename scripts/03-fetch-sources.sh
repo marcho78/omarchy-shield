@@ -11,7 +11,7 @@ for entry in "${SOURCES[@]}"; do
   if (($#)) && [[ " $* " != *" $name "* ]]; then
     continue
   fi
-  dir="$ROOT/vendor/$name"
+  dir="$ROOT/vendor/${name:?}"
   if [[ $(git -C "$dir" rev-parse HEAD 2>/dev/null) == "$commit" ]]; then
     log "$name: already at ${commit:0:12}"
     continue

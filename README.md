@@ -95,20 +95,26 @@ commits pinned in `config.sh`.
 
 ### 4. Boot chain: U-Boot
 
-    scripts/05-build-u-boot.sh    # pinned LineageOS U-Boot + patches/u-boot/
-    scripts/06-make-bootimg.sh    # -> build/boot-uboot.img
+    scripts/05-build-u-boot.sh            # pinned LineageOS U-Boot + patches/u-boot/
+    scripts/06-make-bootimg.sh --probe    # -> build/boot-uboot-probe.img
 
 cboot starts U-Boot as if it were the kernel of an Android boot image. U-Boot
 reads what cboot handed over (memory map, HDMI framebuffer, ramdisk, board
-revision) and shows it on the TV. Given a payload, it then boots it.
+revision) and shows it on the TV. Given a FIT payload, it then boots it.
+
+The `--probe` image carries a dummy ramdisk with a known CRC32. U-Boot's
+report shows where cboot put it, and whether it arrived intact.
+
+`05` also checks the safety-critical settings on every build: `bootcmd`,
+environment never saved, no GPU/VPR writes, no networking/EFI/storage writes.
 
 For the design, see "Boot chain design" in `NOTES.md`.
 
 ### Next (not scripted yet)
 
 1. Unlock the bootloader. This **erases Android user data**.
-2. First test: `fastboot boot build/boot-uboot.img`, then read U-Boot's report
-   on the TV.
+2. First test: `fastboot boot build/boot-uboot-probe.img`, then read U-Boot's
+   report on the TV and compare the CRC32 with `build/probe-ramdisk.crc32`.
 3. Bring up the mainline device tree and kernel, and build the FIT payload.
 4. Put Arch Linux ARM on USB.
 5. Install `omarchy-arm`.

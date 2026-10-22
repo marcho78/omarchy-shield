@@ -28,4 +28,17 @@ log "building"
   { cat "$out/build-warnings.log" >&2; die "U-Boot build failed"; }
 "${make_[@]}" -s u-boot-initial-env
 
+# Safety invariants for code that runs on the SHIELD; Kconfig can silently
+# flip options when others change, so check the result, not the defconfig.
+log "checking safety invariants"
+grep -qx 'bootcmd=run darcy_boot' "$out/u-boot-initial-env" || die "bootcmd is not 'run darcy_boot'"
+grep -qx 'CONFIG_ENV_IS_NOWHERE=y' "$out/.config" || die "the environment must never be saved"
+for opt in TEGRA_GPU NET EFI_LOADER CMD_SAVEENV CMD_MMC CMD_SF MMC_WRITE; do
+  if grep -qx "CONFIG_$opt=y" "$out/.config"; then
+    die "CONFIG_$opt must be off"
+  fi
+done
+[[ $(fdtget "$out/arch/arm/dts/tegra210-p2894.dtb" /framebuffer status) == disabled ]] ||
+  die "the framebuffer must stay disabled until cboot reports one"
+
 log "built build/u-boot/u-boot-dtb.bin ($(stat -c %s "$out/u-boot-dtb.bin") bytes)"
