@@ -798,6 +798,32 @@ Also in this run:
 - **The RTL8168g PHY patch is still untested.** `r8169` loads it only when
   `eth0` is opened.
 
+**The third run, with the alias: the chip answers.**
+- `UART 70006300.serial: driver serial-tegra; serdev serial0-0: driver
+  hci_uart_bcm`
+- `hci0` exists, and the chip identifies itself at 115200 baud:
+  `BCM4354 (003.001.012) build 0000`
+- `BCM: firmware Patch file not found`. btbcm names chip subversion
+  `0x610c` BCM4354 and looks for `brcm/BCM4354.hcd` (and the board-specific
+  `brcm/BCM4354.nvidia,p2894-0050-a08.hcd`). We had installed the patch as
+  `brcm/BCM4350C0.hcd`.
+
+**The patch files say which chip they're for:**
+- `bcm4350.hcd` names itself `BCM4354 37.4MHz Class 1.5 Nvidia-0438`. It is
+  darcy's, and VENDOR_FIRMWARE now installs it as `brcm/BCM4354.hcd`.
+- `bcm4356a3.hcd` is `BCM4356A3 37.4MHz Class 1.5 Nvidia mDarcy-0108`, the
+  2019 SHIELD's.
+
+**How Android does it.** Its Broadcom `libbt-vendor` finds the patch by
+matching the chip's local name against the files in `/vendor/firmware`.
+Neither partition has a `bt_vendor.conf` that names a file. It runs the UART
+at 3 Mbaud (`set UART baud 3000000`).
+
+**The UART speed.** `hci_bcm` switches to `max-speed` once the patch is in.
+darcy.dts had smaug's 4 Mbaud, which UARTD's clock only reaches 1.9% slow
+(PLLP's 408 MHz / 6.5). It now asks for 3 Mbaud, which comes out exact
+(408 MHz / 8.5).
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

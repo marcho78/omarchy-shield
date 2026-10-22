@@ -228,15 +228,20 @@
 };
 
 /*
- * Bluetooth: the BCM4354's Bluetooth core (a BCM4350C0) on UARTD, the port
- * Android uses (ttyTHS3, labelled hci_attach_dev in its SELinux contexts),
- * with the GPIOs of the stock bluedroid_pm node (shutdown H4, device wake
- * H3, host wake H5): the same wiring as the Pixel C (tegra210-smaug.dts).
- * Its firmware comes from NVIDIA's vendor partition (VENDOR_FIRMWARE).
+ * Bluetooth: the BCM4354's Bluetooth core on UARTD, the port Android uses
+ * (ttyTHS3, labelled hci_attach_dev in its SELinux contexts), with the GPIOs
+ * of the stock bluedroid_pm node (shutdown H4, device wake H3, host wake
+ * H5): the same wiring as the Pixel C (tegra210-smaug.dts). Its firmware
+ * patch comes from NVIDIA's vendor partition (VENDOR_FIRMWARE).
  *
  * serial-tegra numbers a port by its serialN alias and refuses one without
  * ("failed to get alias id, errno -19"); darcy's board file only names the
  * debug UART, so UARTD gets smaug's alias, 3, which is ttyTHS3 as on Android.
+ *
+ * hci_bcm talks at 115200 baud until the patch is in, then at max-speed.
+ * That is 3 Mbaud, as NVIDIA's Android sets it (libbt-vendor: "set UART
+ * baud 3000000") and as UARTD's clock makes it exactly: PLLP's 408 MHz / 8.5
+ * = 16 x 3 Mbaud. Smaug's 4 Mbaud would come out 1.9% slow.
  */
 / {
 	aliases {
@@ -252,7 +257,7 @@
 
 	bluetooth {
 		compatible = "brcm,bcm43540-bt";
-		max-speed = <4000000>;
+		max-speed = <3000000>;
 		device-wakeup-gpios = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_HIGH>;
 		shutdown-gpios = <&gpio TEGRA_GPIO(H, 4) GPIO_ACTIVE_HIGH>;
 		interrupt-parent = <&gpio>;

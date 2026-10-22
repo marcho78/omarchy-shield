@@ -84,8 +84,10 @@ VENDOR_FIRMWARE=(
   "fw_bcmdhd.bin|brcm/brcmfmac4354-sdio.bin"
   "nvram_darcy_a00.txt|brcm/brcmfmac4354-sdio.txt"
   "bcmdhd_clm_darcy.blob|brcm/brcmfmac4354-sdio.clm_blob"
-  # Bluetooth (hci_bcm): the BCM4354's Bluetooth core is a BCM4350C0
-  "bcm4350.hcd|brcm/BCM4350C0.hcd"
+  # Bluetooth (hci_bcm): the patch for the BCM4354's Bluetooth core. It names
+  # itself "BCM4354 37.4MHz Class 1.5 Nvidia-0438", and btbcm names the chip
+  # BCM4354 too (subversion 0x610c). bcm4356a3.hcd is the 2019 SHIELD's.
+  "bcm4350.hcd|brcm/BCM4354.hcd"
 )
 
 # Host packages (Arch Linux / Omarchy, x86_64)
