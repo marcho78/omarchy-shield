@@ -1,6 +1,6 @@
-From b54ff5833748cdf50b17cf6c881f80730940d289 Mon Sep 17 00:00:00 2001
+From 7d1edf7be8083b19738ff803c71ff8dc67a14e1f Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 09:50:55 -0700
+Date: Thu, 22 Oct 2026 10:38:58 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
@@ -21,6 +21,10 @@ not overwrite it).
   simple-framebuffer, reserved as no-map: it lies inside the RAM cboot
   reports, and arm64 Linux will not ioremap a buffer left in its linear
   map (a /memreserve/ would leave it there).
+- The report also shows the display hardware as cboot left it: the
+  display blocks' clocks and resets, the display PLLs, and whether
+  display controller A runs. darcy-init prints the same lines under
+  Linux, to compare.
 - The ramdisk is booted only if it lies inside RAM and holds a whole FIT
   image. fdt_high is cleared first so bootm copies the device tree out of
   the FIT instead of growing it in place.
@@ -48,10 +52,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 650 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.c           | 707 +++++++++++++++++++++++++++
  board/nvidia/p2894/p2894.env         |  24 +
  configs/p2894_defconfig              |  40 ++
- 9 files changed, 813 insertions(+)
+ 9 files changed, 870 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -214,10 +218,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..8f20989e
+index 00000000..a7b80be9
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,650 @@
+@@ -0,0 +1,707 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -307,14 +311,38 @@ index 00000000..8f20989e
 +#define LOG_LINES	56
 +
 +/* Display controller A drives HDMI (SOR1) on darcy */
++#define CAR_BASE			0x60006000UL
 +#define CAR_RST_DEVICES_L		0x60006004UL
 +#define CAR_CLK_OUT_ENB_L		0x60006010UL
 +#define  CAR_L_DISP1			BIT(27)
++#define CAR_PLLD_BASE			0x0d0
++#define CAR_PLLD2_BASE			0x4b8
++#define CAR_PLLDP_BASE			0x590
++#define CAR_CLK_SOURCE_DISP1		0x138
++#define CAR_CLK_SOURCE_SOR1		0x410
 +#define DC_BASE				0x54200000UL
 +
++/* CAR clock-enable and reset registers of the clock banks L, H, U, V, W, X, Y */
++static const u16 car_enb[] = { 0x010, 0x014, 0x018, 0x360, 0x364, 0x280, 0x298 };
++static const u16 car_rst[] = { 0x004, 0x008, 0x00c, 0x358, 0x35c, 0x28c, 0x2a4 };
++
++/* The display blocks, by CAR clock ID (Linux's dt-bindings tegra210-car.h) */
++static const struct {
++	const char *name;
++	u16 id;
++} display_clocks[] = {
++	{ "DISP1", 27 }, { "DISP2", 26 }, { "HOST1X", 28 }, { "DSIA", 48 },
++	{ "MIPI_CAL", 56 }, { "DPAUX", 181 }, { "SOR0", 182 }, { "SOR1", 183 },
++	{ "DPAUX1", 207 }, { "SOR_SAFE", 222 },
++};
++
 +/* Register word offsets, from Linux's drivers/gpu/drm/tegra/dc.h */
++#define DC_CMD_DISPLAY_COMMAND		0x032
++#define DC_CMD_DISPLAY_POWER_CONTROL	0x036
++#define DC_CMD_STATE_CONTROL		0x041
 +#define DC_CMD_DISPLAY_WINDOW_HEADER	0x042
 +#define  WINDOW_A_SELECT		BIT(4)
++#define DC_DISP_DISP_CLOCK_CONTROL	0x42e
 +#define DC_WIN_WIN_OPTIONS		0x700
 +#define  WIN_ENABLE			BIT(30)
 +#define DC_WIN_COLOR_DEPTH		0x703
@@ -564,6 +592,38 @@ index 00000000..8f20989e
 +		       mode->source);
 +}
 +
++/*
++ * The display hardware as cboot left it: its clocks (on/in reset), the PLLs
++ * and whether display controller A runs. darcy-init prints the same lines
++ * under Linux, to compare.
++ */
++static void report_display_hw(void)
++{
++	unsigned int i, bank, bit;
++
++	printf("  clocks:      ");
++	for (i = 0; i < ARRAY_SIZE(display_clocks); i++) {
++		bank = display_clocks[i].id / 32;
++		bit = display_clocks[i].id % 32;
++		printf("%s %u/%u ", display_clocks[i].name,
++		       readl(CAR_BASE + car_enb[bank]) >> bit & 1,
++		       readl(CAR_BASE + car_rst[bank]) >> bit & 1);
++	}
++	printf("(clock on/in reset)\n");
++	printf("  PLLs:        D %08x D2 %08x DP %08x, DISP1 src %08x, SOR1 src %08x\n",
++	       readl(CAR_BASE + CAR_PLLD_BASE), readl(CAR_BASE + CAR_PLLD2_BASE),
++	       readl(CAR_BASE + CAR_PLLDP_BASE),
++	       readl(CAR_BASE + CAR_CLK_SOURCE_DISP1),
++	       readl(CAR_BASE + CAR_CLK_SOURCE_SOR1));
++	if (readl(CAR_CLK_OUT_ENB_L) & CAR_L_DISP1 &&
++	    !(readl(CAR_RST_DEVICES_L) & CAR_L_DISP1))
++		printf("  DC A:        command %08x power %08x state %08x clock %08x\n",
++		       dc_readl(DC_CMD_DISPLAY_COMMAND),
++		       dc_readl(DC_CMD_DISPLAY_POWER_CONTROL),
++		       dc_readl(DC_CMD_STATE_CONTROL),
++		       dc_readl(DC_DISP_DISP_CLOCK_CONTROL));
++}
++
 +static void report_memory(const void *fdt)
 +{
 +	const fdt32_t *reg;
@@ -795,6 +855,7 @@ index 00000000..8f20989e
 +	} else {
 +		printf("cboot handed over no device tree\n");
 +	}
++	report_display_hw();
 +
 +	/* Back from a kernel U-Boot started: show its log, don't boot it again */
 +	if (fit && report_last_log(fit)) {

@@ -531,6 +531,28 @@ n-codex, n-grok and Z.ai (opencode) reviewed this (`research/*hdmi-black*`):
 darcy-init now prints every regulator's voltage and state, and repeats
 "Bringing" lines at the end of the log.
 
+**Run 3, with the stock PMIC values: the TV still lost the signal.** The
+user saw U-Boot's text, a flicker (the console taking over), then "No
+signal" until the reboot. The log ruled the PMIC out as the only cause:
+- `vdd-pre-reg` reads 1,350,000 µV with no "Bringing" line, so cboot runs
+  sd2 at 1.35 V and Linux left it alone.
+- All the HDMI supplies are on: `vdd-hdmi-dp` 1.05 V, `vdd-gen-pll-edp`
+  1.05 V, `vdd-1v8` 1.8 V, `vdd-sys-boost` 5 V.
+
+"No signal" means the HDMI link itself stopped, so something in the
+display's clocks, resets, PLLs or power partitions changed. U-Boot and
+darcy-init now print the same lines on each side of the handoff, so the
+difference shows on one screen:
+- the display blocks' clock-enable and reset bits
+- PLL_D, PLL_D2 and PLL_DP
+- the DISP1 and SOR1 clock sources
+- display controller A's state
+
+darcy-init adds three views from inside Linux:
+- the PMC's powergates (read through the secure monitor)
+- genpd's power domains
+- the clock framework's view of the display clocks
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way
