@@ -121,11 +121,56 @@ static void show_display(void)
 	    n <= 0 ? "missing" : slash ? slash + 1 : driver);
 }
 
+static void read_attr(const char *dev, const char *attr, char *buf, int len)
+{
+	char path[300];
+	FILE *f;
+
+	snprintf(path, sizeof(path), "/sys/class/regulator/%s/%s", dev, attr);
+	f = fopen(path, "r");
+	if (!f || !fgets(buf, len, f))
+		snprintf(buf, len, "-");
+	if (f)
+		fclose(f);
+	buf[strcspn(buf, "\n")] = 0;
+}
+
+/* Every regulator's voltage and state, four to a line */
+static void show_regulators(void)
+{
+	char name[48], uv[16], state[16], line[400] = "";
+	DIR *d = opendir("/sys/class/regulator");
+	struct dirent *e;
+	int n = 0, len;
+
+	if (!d) {
+		say("regulators: cannot read /sys/class/regulator");
+		return;
+	}
+	while ((e = readdir(d))) {
+		if (strncmp(e->d_name, "regulator.", 10))
+			continue;
+		read_attr(e->d_name, "name", name, sizeof(name));
+		read_attr(e->d_name, "microvolts", uv, sizeof(uv));
+		read_attr(e->d_name, "state", state, sizeof(state));
+		len = strlen(line);
+		snprintf(line + len, sizeof(line) - len, "%s%s %s %s",
+			 n % 4 ? "; " : "", name, uv, state);
+		if (++n % 4 == 0) {
+			say("regulators: %s", line);
+			line[0] = 0;
+		}
+	}
+	if (n % 4)
+		say("regulators: %s", line);
+	closedir(d);
+}
+
 /* Kernel messages worth seeing again at the end of the log */
 static const char *const keys[] = {
 	"error", "fail", "warn", "unable", "timeout", "invalid", "bug:",
 	"oops", "drm", "simple", "framebuffer", "frame buffer", "regulator",
-	"pmc", "powergate", "smmu", "reserved mem",
+	"pmc", "powergate", "smmu", "reserved mem", "bringing",
 };
 
 static bool highlight(const char *line)
@@ -195,6 +240,7 @@ int main(void)
 	}
 
 	show_display();
+	show_regulators();
 	show_highlights();
 	say("rebooting into the recovery slot, where U-Boot shows this log");
 	sync();

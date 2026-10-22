@@ -472,10 +472,50 @@ So the kernel's log now comes back through the recovery slot:
   - at the end, the kernel messages that matter: errors, display,
     regulators, PMC, reserved memory
 
-Unproven until the next test:
-- cboot follows the reboot reason after a watchdog or PSCI reset
-- the normal world can write the watchdog's registers
-- RAM survives those resets
+The next test proved the reboot-into-recovery path: Linux's
+`reboot recovery`, the warm PSCI reset, cboot following the reboot reason,
+and RAM keeping the log. The watchdog path has not been exercised yet.
+
+### The first log: Linux runs, and the PMIC probe drops HDMI (2026-10-22)
+
+U-Boot showed the end of the log on the first try. It shows:
+- **Linux 7.2.11 boots fully:** 4 CPUs, 2.9 GB (MemTotal 2949824 kB), and
+  the eMMC (DG4016: mmcblk0, boot0/boot1, rpmb). darcy-init runs and reboots
+  into recovery at 60 s.
+- **The framebuffer handoff works:**
+  - `framebuffer@92cc3000` is reserved `nomap`.
+  - simpledrm takes the buffer at 1.41 s.
+  - The console switches to it at 1.45 s (120x33).
+- **PMC:** "access to PMC is restricted to TZ", and no SMC failures.
+- **`regulator_ignore_unused` holds:** "Not disabling unused regulators" at
+  33.8 s.
+
+Yet the TV went black. Mainline's MAX77620 setup differs from the stock
+darcy DT in exactly two places. Both are on the HDMI power path, and both
+are applied when the PMIC probes, at about 1.8 s, just after the console
+reached the TV:
+- **PMIC GPIO1** enables `vdd-sys-boost`, the 5V boost behind HDMI 5V.
+  - Mainline hands it to power sequencer 0 (`FPS_SRC_0`); stock keeps it
+    out of the sequencer (`FPS_SRC_NONE`).
+  - The pinctrl driver writes the source without any glitch protection.
+  - In `fps-out` mode the sequencer, not the GPIO bit, then owns the pin.
+- **sd2, `vdd-pre-reg`,** feeds the 1.05 V LDOs of the HDMI PHY (`ldo8`)
+  and the display PLLs (`ldo7`).
+  - Mainline sets 3.0–3.0 V, and the regulator core moves the rail into
+    that range at probe. It logs "Bringing ..." when it does.
+  - Stock allows 1.35–3.0 V.
+  - Jetson TX1, Jetson Nano, Pixel C and NVIDIA's downstream e2174 PMIC
+    file all use 1.35 V.
+
+Every other rail, sequencer source and PMIC pin matches stock. Our DT now
+keeps the stock values for both.
+
+n-codex and n-grok reviewed this (`research/*hdmi-black*`). Both rank GPIO1
+first and sd2 second. Both advise disabling `pmic@3c` for one boot only if
+HDMI is still black.
+
+darcy-init now prints every regulator's voltage and state, and repeats
+"Bringing" lines at the end of the log.
 
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:

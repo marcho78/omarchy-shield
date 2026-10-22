@@ -61,6 +61,26 @@
 };
 
 /*
+ * Where mainline's PMIC setup differs from the stock darcy device tree, the
+ * stock values are kept; HDMI depends on both:
+ *  - sd2 feeds the 1.05 V LDOs of the HDMI PHY and display PLLs (ldo7,
+ *    ldo8). Mainline fixes it at 3.0 V, which the regulator core applies at
+ *    probe. Stock allows 1.35-3.0 V, so Linux keeps cboot's voltage; the
+ *    other Tegra X1 boards (p2180, p3450, smaug) run it at 1.35 V.
+ *  - PMIC GPIO1 enables the 5V boost behind HDMI 5V. Stock keeps it off
+ *    the power sequencer.
+ */
+&max77620_sd2 {
+	regulator-min-microvolt = <1350000>;
+};
+
+&max77620_default {
+	gpio1 {
+		maxim,active-fps-source = <MAX77620_FPS_SRC_NONE>;
+	};
+};
+
+/*
  * Left as cboot set them until a driver owns them: the HDMI 5V switch
  * (tegra-drm) and the fan (pwm-fan). Probing either would take over its
  * GPIO, and the fan's would be driven low.
