@@ -824,6 +824,24 @@ darcy.dts had smaug's 4 Mbaud, which UARTD's clock only reaches 1.9% slow
 (PLLP's 408 MHz / 6.5). It now asks for 3 Mbaud, which comes out exact
 (408 MHz / 8.5).
 
+**Bluetooth works (the fourth run).**
+- `BCM4354 'brcm/BCM4354.hcd' Patch` at 2.5 s. The download at 115200 baud
+  takes about 7 s.
+- Then, at 3 Mbaud: `BCM4354 37.4MHz Class 1.5 Nvidia-0438` (the patch sets
+  that name; the ROM calls itself `BCM4350C0`) and `BCM4354 (003.001.012)
+  build 1427`. No errors.
+- The address showed as `-`. Debugfs's `identity` only exists once the
+  kernel has initialised the adapter, and it skips that for an adapter
+  without a valid address of its own ("unconfigured"). The report now asks
+  the kernel directly (`HCIGETDEVINFO`, as `hciconfig` does) and says
+  whether the adapter was initialised.
+
+**USB, Ethernet, Wi-Fi and Bluetooth all have working drivers now.** Using
+them (joining a network, pairing, a link on `eth0`) needs a real userspace,
+so the root filesystem is next. The report now also lists the eMMC's
+partitions as Linux reads them, which decides how Linux finds the root
+filesystem.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

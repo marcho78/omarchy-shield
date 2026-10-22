@@ -6,7 +6,7 @@ Hyprland) natively on an NVIDIA SHIELD TV 2017, which uses the Tegra X1.
 The approach:
 1. NVIDIA's own bootloader (cboot) starts U-Boot.
 2. U-Boot starts a mainline Linux kernel with a device tree written for this board.
-3. The kernel boots Arch Linux ARM from a USB drive.
+3. The kernel boots Arch Linux ARM from the SHIELD's internal eMMC.
 4. The community [`omarchy-arm`](https://github.com/alexisraitano-myffu/omarchy-arm)
    port installs Omarchy on top.
 
@@ -15,9 +15,9 @@ Android stays installed, so you can go back.
 > **Status: work in progress.**
 > - **Done:** the boot chain is scripted and tested. cboot starts U-Boot from
 >   the recovery slot, and U-Boot starts mainline Linux, whose console stays
->   on HDMI.
-> - **Next:** USB, storage and networking in the device tree, then Arch Linux
->   ARM.
+>   on HDMI. Linux drives USB, Ethernet, Wi-Fi and Bluetooth, with NVIDIA's
+>   firmware taken from the recovery image.
+> - **Next:** Arch Linux ARM on the internal eMMC, then Omarchy.
 >
 > `NOTES.md` is the research log.
 
@@ -36,7 +36,6 @@ different boards and are not covered.
   has USB-C. A plain USB-A-to-C phone cable will not work, because your computer
   has to be the host end. This was confirmed on an Intel T2 MacBook: with that
   cable the laptop sees no USB device at all.
-- A USB 3 SSD or flash drive, 64 GB or more. It will be erased.
 - A USB keyboard or a SHIELD controller with a USB cable, for the bootloader
   menu (it has no Bluetooth). Plug it into the USB port **near** HDMI; the
   computer goes in the port **far** from HDMI. A USB keyboard (arrow keys +
@@ -187,9 +186,9 @@ with `scripts/09`, without going through Android.
 
 ### Next (not scripted yet)
 
-1. Extend the device tree: USB (keyboard, drive), Ethernet, Wi-Fi, HDMI
-   through tegra-drm, GPU (nouveau), fan.
-2. Put Arch Linux ARM on USB.
+1. Put Arch Linux ARM on the internal eMMC.
+2. Extend the device tree: HDMI through tegra-drm, GPU (nouveau), audio,
+   fan.
 3. Install `omarchy-arm`.
 
 ## Layout

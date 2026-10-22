@@ -18,9 +18,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/klog.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
+#include <sys/socket.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -44,7 +46,7 @@
  */
 #define DISPLAY_REPORT		0
 #define HIGHLIGHTS		16	/* kernel messages repeated at the end */
-#define BLUETOOTH_LINES		14	/* and the Bluetooth ones, separately */
+#define BLUETOOTH_LINES		8	/* and the Bluetooth ones, separately */
 #define SYSLOG_ACTION_READ_ALL	3
 
 static int kmsg = -1;
@@ -477,14 +479,63 @@ static void show_deferred(void)
 		say("deferred probes: none");
 }
 
+/* From the kernel's include/net/bluetooth/hci_sock.h */
+#define BTPROTO_HCI		1
+#define HCIGETDEVINFO		_IOR('H', 211, int)
+#define HCI_UP			0	/* bit in hci_dev_info.flags */
+
+struct hci_dev_info {
+	uint16_t dev_id;
+	char name[8];
+	uint8_t bdaddr[6];	/* least significant byte first */
+	uint32_t flags;
+	uint8_t type;
+	uint8_t features[8];
+	uint32_t pkt_type, link_policy, link_mode;
+	uint16_t acl_mtu, acl_pkts, sco_mtu, sco_pkts;
+	uint32_t stat[10];
+};
+
 /*
- * Bluetooth adapters, with the address the kernel reads from the chip, then
- * the way there: UARTD's driver, the serdev device hci_bcm binds to, probes
- * still waiting, and what the kernel said about all of it
+ * A Bluetooth adapter: the address the chip reports, and whether the
+ * kernel initialised it. It does not while the adapter lacks a valid
+ * address of its own ("unconfigured"), and only that init creates the
+ * adapter's debugfs files, features among them.
+ */
+static void show_adapter(int sock, const char *name)
+{
+	struct hci_dev_info di = { .dev_id = atoi(name + strlen("hci")) };
+	const uint8_t *a = di.bdaddr;
+	char dir[300], path[320];
+	const char *init;
+
+	if (sock < 0 || ioctl(sock, HCIGETDEVINFO, &di) < 0) {
+		say("bluetooth %s: cannot read its address: %m", name);
+		return;
+	}
+	/* The adapter's debugfs directory comes with it; features only with init */
+	snprintf(dir, sizeof(dir), "/sys/kernel/debug/bluetooth/%s", name);
+	snprintf(path, sizeof(path), "%s/features", dir);
+	if (access(dir, F_OK))
+		init = "initialisation unknown (no debugfs)";
+	else if (access(path, F_OK))
+		init = "not initialised (unconfigured?)";
+	else
+		init = "initialised";
+	say("bluetooth %s: %02X:%02X:%02X:%02X:%02X:%02X, %s, %s", name,
+	    a[5], a[4], a[3], a[2], a[1], a[0],
+	    di.flags & 1 << HCI_UP ? "up" : "down", init);
+}
+
+/*
+ * Bluetooth adapters, then the way there: UARTD's driver, the serdev
+ * device hci_bcm binds to, probes still waiting, and what the kernel said
+ * about all of it
  */
 static void show_bluetooth(void)
 {
-	char path[300], addr[32], driver[256], line[400];
+	int sock = socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI);
+	char path[300], driver[256], line[400];
 	DIR *d = opendir("/sys/class/bluetooth");
 	const char *name;
 	struct dirent *e;
@@ -493,14 +544,13 @@ static void show_bluetooth(void)
 	while (d && (e = readdir(d))) {
 		if (e->d_name[0] == '.' || strchr(e->d_name, ':'))
 			continue;
-		snprintf(path, sizeof(path), "/sys/kernel/debug/bluetooth/%s/identity",
-			 e->d_name);
-		read_line(path, addr, sizeof(addr));
-		say("bluetooth %s: %s", e->d_name, addr);
+		show_adapter(sock, e->d_name);
 		n++;
 	}
 	if (d)
 		closedir(d);
+	if (sock >= 0)
+		close(sock);
 	if (!n)
 		say("bluetooth: no adapters");
 
@@ -551,6 +601,78 @@ static void show_disks(void)
 		closedir(d);
 	if (!n)
 		say("disks: none besides the eMMC");
+}
+
+/* One KEY=value from a uevent file, "-" if missing */
+static void read_uevent(const char *path, const char *key, char *buf, int len)
+{
+	char line[256];
+	FILE *f = fopen(path, "r");
+	size_t keylen = strlen(key), n;
+
+	snprintf(buf, len, "-");
+	while (f && fgets(line, sizeof(line), f))
+		if (!strncmp(line, key, keylen) && line[keylen] == '=') {
+			n = strcspn(line + keylen + 1, "\n");
+			if (n > (size_t)len - 1)
+				n = len - 1;
+			memcpy(buf, line + keylen + 1, n);
+			buf[n] = 0;
+			break;
+		}
+	if (f)
+		fclose(f);
+}
+
+/*
+ * The eMMC as Linux reads it: its size and partition table, eight
+ * partitions to a line. The root filesystem is to live in one of them.
+ * Without MMC aliases in the device tree the eMMC is not always mmcblk0,
+ * so every whole MMC disk is listed.
+ */
+static void show_emmc(void)
+{
+	char path[300], size[32], name[40], line[400];
+	DIR *d = opendir("/sys/class/block");
+	struct dirent *e;
+	int i, disks = 0, parts;
+
+	while (d && (e = readdir(d))) {
+		if (strncmp(e->d_name, "mmcblk", 6) ||
+		    strspn(e->d_name + 6, "0123456789") != strlen(e->d_name + 6))
+			continue;
+		snprintf(path, sizeof(path), "/sys/class/block/%s/size", e->d_name);
+		read_line(path, size, sizeof(size));
+		say("emmc %s: %.1f GiB, partitions:", e->d_name,
+		    atof(size) / 2048 / 1024);
+		line[0] = 0;
+		parts = 0;
+		for (i = 1; i <= 128; i++) {
+			snprintf(path, sizeof(path), "/sys/class/block/%sp%d/uevent",
+				 e->d_name, i);
+			if (access(path, F_OK))
+				continue;
+			read_uevent(path, "PARTNAME", name, sizeof(name));
+			snprintf(path, sizeof(path), "/sys/class/block/%sp%d/size",
+				 e->d_name, i);
+			read_line(path, size, sizeof(size));
+			snprintf(line + strlen(line), sizeof(line) - strlen(line),
+				 "p%d %s %.0fM; ", i, name, atof(size) / 2048);
+			if (++parts % 8 == 0) {
+				say("  %s", line);
+				line[0] = 0;
+			}
+		}
+		if (parts % 8)
+			say("  %s", line);
+		if (!parts)
+			say("  none: Linux found no partition table");
+		disks++;
+	}
+	if (d)
+		closedir(d);
+	if (!disks)
+		say("emmc: no MMC disk");
 }
 
 /* Every regulator's voltage and state, four to a line */
@@ -624,6 +746,7 @@ int main(void)
 	show_usb();
 	show_inputs();
 	show_disks();
+	show_emmc();
 	show_net();
 	show_bluetooth();
 	show_display();
