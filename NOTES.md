@@ -921,7 +921,28 @@ Tegra30 name: same registers, timer 5 driving WDT 0, as U-Boot arms it.
   config table. The Wi-Fi MAC (`00:90:4c:16:70:01`) is the NVRAM file's
   placeholder.
 
-**The install** (`scripts/14`) writes `userdata` and `boot`. Android must
+**Decision (2026-10-22): the OS goes on the user's external NVMe SSD,** in
+a USB enclosure on the hub, so Android's partitions stay as they are. The
+hub on the port near HDMI makes room for both the keyboard and the disk.
+- `config.sh` `SYSTEM_ROOT=PARTLABEL=darcy-root`, which `scripts/12`
+  substitutes into `darcy-system.dts`. `PARTLABEL=UDA` remains the eMMC
+  option.
+- `scripts/15` writes the disk on the laptop, because fastboot only writes
+  the eMMC: one GPT partition named `darcy-root` (the arm64 root type), the
+  ext4 image `dd`'d in, then `e2fsck` and `resize2fs` to fill it.
+  - It takes only a whole, unmounted USB disk, and the user types its name.
+  - It needs root. This laptop runs no polkit agent, so `pkexec` can't ask
+    for a password, and `sudo` can't prompt without a terminal: the user
+    runs it.
+- `scripts/14` then writes only the boot partition. `--restore` puts
+  NVIDIA's `boot.img` back, and with it Android, data intact.
+- The disk has to come up behind the hub at boot: `rootwait=30`, and the
+  enclosure's power must hold through the hub. The partition report run
+  showed the hub but no disk; the report with the SSD attached has to
+  confirm it.
+
+**The install, on the eMMC instead** (`scripts/14` with `PARTLABEL=UDA`),
+writes `userdata` and `boot`. Android must
 never start again while Linux is on `userdata`: its file-based encryption
 would fail there and it would offer a wipe, and `vendor_flash_recovery`
 would put its recovery back. The recovery slot keeps the test payload, for

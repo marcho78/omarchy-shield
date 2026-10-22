@@ -90,6 +90,14 @@ VENDOR_FIRMWARE=(
   "bcm4350.hcd|brcm/BCM4354.hcd"
 )
 
+# Where the installed system's root filesystem lives; scripts/12 --system
+# puts it on the kernel command line:
+#   PARTLABEL=darcy-root  a USB disk that scripts/15 writes; Android's
+#                         partitions stay as they are, its data included
+#   PARTLABEL=UDA         the eMMC's userdata partition, which scripts/14
+#                         writes in place of Android's user data
+SYSTEM_ROOT=PARTLABEL=darcy-root
+
 # darcy's device tree names the board "nvidia,p2894-0050-a08" (the first
 # root compatible), and drivers look for board-specific firmware under that
 # name before the generic one: brcm/brcmfmac4354-sdio.nvidia,p2894-0050-a08.bin

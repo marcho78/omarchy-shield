@@ -6,7 +6,8 @@ Hyprland) natively on an NVIDIA SHIELD TV 2017, which uses the Tegra X1.
 The approach:
 1. NVIDIA's own bootloader (cboot) starts U-Boot.
 2. U-Boot starts a mainline Linux kernel with a device tree written for this board.
-3. The kernel boots Arch Linux ARM from the SHIELD's internal eMMC.
+3. The kernel boots Arch Linux ARM from a USB disk, or from the SHIELD's
+   internal eMMC in place of Android's data.
 4. The community [`omarchy-arm`](https://github.com/alexisraitano-myffu/omarchy-arm)
    port installs Omarchy on top.
 
@@ -17,8 +18,8 @@ Android stays installed, so you can go back.
 >   the recovery slot, and U-Boot starts mainline Linux, whose console stays
 >   on HDMI. Linux drives USB, Ethernet, Wi-Fi and Bluetooth, with NVIDIA's
 >   firmware taken from the recovery image.
-> - **Next:** the first boot of Arch Linux ARM from the internal eMMC (built
->   and scripted, not yet installed), then Omarchy.
+> - **Next:** the first boot of Arch Linux ARM from a USB disk (built and
+>   scripted, not yet installed), then Omarchy.
 >
 > `NOTES.md` is the research log.
 
@@ -203,19 +204,34 @@ with `scripts/09`, without going through Android.
   build, `SSID=...` and `PASSPHRASE=...`, and the SHIELD joins that network
   by itself. Otherwise, join from the TV with `iwctl`.
 
-The system payload boots that filesystem from the eMMC. U-Boot boots it
-again after a normal reboot, and stops at its log (then fastboot) only
-after a panic or a watchdog reset.
+The system payload boots that filesystem from where `config.sh`
+`SYSTEM_ROOT` says it is. U-Boot boots it again after a normal reboot, and
+stops at its log (then fastboot) only after a panic or a watchdog reset.
 
-### 10. Install (replaces Android)
+### 10. Install
 
-    CONFIRM_FLASH=yes scripts/14-install-system.sh
+The root filesystem goes on a USB disk, `SYSTEM_ROOT=PARTLABEL=darcy-root`
+(the default), and Android's partitions stay as they are:
 
-This writes the root filesystem over Android's user data and U-Boot with the
-system into the boot partition, so the SHIELD starts Linux from then on.
-Android must not start again while Linux is on the user data partition: it
-would offer to wipe it. NVIDIA's recovery image is the undo: its
-`flash-all.sh` puts Android's boot partition back.
+1. Plug the disk into the computer and write it. This **erases the disk**:
+
+       sudo scripts/15-write-usb-disk.sh /dev/sdX
+
+   It only takes a whole, unmounted USB disk, and asks you to type its name
+   first.
+2. Plug the disk into the SHIELD, through a hub on the port **near** HDMI (the
+   keyboard can share the hub). Get to the bootloader menu, then:
+
+       CONFIRM_FLASH=yes scripts/14-install-system.sh
+
+   This puts U-Boot and the system into the boot partition, so the SHIELD
+   starts Linux from then on. Android's system and data stay. To go back,
+   `CONFIRM_FLASH=yes scripts/14-install-system.sh --restore` puts NVIDIA's
+   boot partition back.
+
+Alternatively, `SYSTEM_ROOT=PARTLABEL=UDA` puts the root filesystem on the
+eMMC: `scripts/14` then writes it over Android's user data too. Android must
+not start again while Linux is there, because it would offer to wipe it.
 
 ### Next (not scripted yet)
 
