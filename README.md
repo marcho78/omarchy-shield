@@ -12,9 +12,14 @@ The approach:
 
 Android stays installed, so you can go back.
 
-> **Status: work in progress.** Phase 0 (identify the device, build the safety
-> net) is scripted and tested. Booting Linux is being brought up now. See
-> `NOTES.md` for the research log.
+> **Status: work in progress.**
+> - **Done:** the boot chain is scripted and tested. cboot starts U-Boot from
+>   the recovery slot, and U-Boot starts mainline Linux, whose console stays
+>   on HDMI.
+> - **Next:** USB, storage and networking in the device tree, then Arch Linux
+>   ARM.
+>
+> `NOTES.md` is the research log.
 
 ## Supported hardware
 
@@ -163,8 +168,9 @@ recovery back.
     CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-darcy.img
 
 Choose "Boot recovery kernel" again. U-Boot boots the FIT, and the kernel's
-console appears on the TV through the framebuffer U-Boot hands over. `/init`
-(`tools/darcy-init.c`) reports what Linux sees.
+console appears on the TV through the framebuffer U-Boot hands over: four
+penguins, then the kernel log. `/init` (`tools/darcy-init.c`) reports what
+Linux sees.
 
 Then the SHIELD comes back by itself, even if Linux lost the screen. Any of
 three things resets it:

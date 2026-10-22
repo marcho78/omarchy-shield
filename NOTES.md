@@ -582,6 +582,39 @@ few extra values, on both sides:
 
 If the picture still dies, these lines show what else changed.
 
+### Milestone: mainline Linux keeps the HDMI console (2026-10-22, run 4)
+
+The only change from run 3 was deleting the `sor` powergate. With it, the
+TV kept the picture for the whole run:
+- four penguins and the kernel log in TER16x32
+- then darcy-init's report:
+  - Linux 7.2.11, 4 CPUs
+  - MemTotal 2949832 kB
+  - eMMC DG4016 (boot0, boot1, rpmb)
+  - `display: fb0 simpledrmdrmfb, DRM card0 simple-framebuffer`
+  - every regulator as in run 3
+
+After 60 s darcy-init rebooted into the recovery slot, and U-Boot showed the
+log.
+
+The boot chain is complete: cboot, then U-Boot from the recovery slot, then
+mainline Linux with its console on HDMI. There is also a log channel back
+through ramoops for every boot.
+
+Before the next stages:
+- **The watchdog.** U-Boot arms it before every kernel
+  (`darcy_watchdog=150`). A real system must either set that to 0 or run a
+  kernel watchdog driver, or the board resets after 150 s. The watchdog
+  path itself is still unproven: darcy-init has always rebooted first.
+- **`pd_sor`** comes back when tegra-drm drives HDMI.
+- **`cpuidle.off=1`** can go once boots are routine.
+- **The other PMC partitions** (audio, video, XUSB and so on) are powered
+  down at probe. Their drivers power them up on demand.
+
+**Next:** the device tree for USB (keyboard, storage) and Ethernet (PCIe
+RTL8168), then Arch Linux ARM, then the GPU (tegra-drm and nouveau) for
+Hyprland.
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way
