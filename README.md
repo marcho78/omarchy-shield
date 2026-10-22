@@ -140,8 +140,14 @@ highlight, and Enter on "Continue" boots Android. Afterwards, finish Android set
 
 ### Next (not scripted yet)
 
-1. First test: `fastboot boot build/boot-uboot-probe.img`, then read U-Boot's
-   report on the TV and compare the CRC32 with `build/probe-ramdisk.crc32`.
+1. First test. `fastboot boot` freezes darcy's bootloader, so go through the
+   recovery slot instead:
+   - Run `CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-probe.img`.
+   - Choose "Recovery mode" in the bootloader menu.
+   - Read U-Boot's report on the TV, and compare its CRC32 with
+     `build/probe-ramdisk.crc32`.
+
+   `--restore` puts the stock recovery back.
 2. Bring up the mainline device tree and kernel, and build the FIT payload.
 3. Put Arch Linux ARM on USB.
 4. Install `omarchy-arm`.

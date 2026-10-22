@@ -39,6 +39,11 @@ elif (($#)); then
 fi
 
 mkbootimg "${args[@]}" --output "$out"
+size=$(stat -c %s "$out")
+if ((size > BOOTIMG_MAX_SIZE)); then
+  rm -f "$out"
+  die "boot image is $size bytes; the SHIELD's boot/recovery partitions hold $BOOTIMG_MAX_SIZE"
+fi
 unpack_bootimg --boot_img "$out" --out "$(mktemp -d)" |
   grep -E '^(kernel_size|ramdisk size|ramdisk load address|page size|boot image header version)' >&2
 log "wrote ${out#"$ROOT"/} ($(stat -c %s "$out") bytes)"

@@ -243,20 +243,36 @@ measures it before any real payload. Finding 6 is accepted as described above.
 
 ### First device test (after unlocking)
 
-    fastboot boot build/boot-uboot-probe.img
+**Unlock, 2026-10-22.** `scripts/08` erased userdata and cache, then printed
+"Bootloader is unlocked now". The Shield stayed in fastboot, reporting
+`unlocked: Yes`.
 
-Expect U-Boot's report on the TV. Check that the ramdisk CRC32 equals
-`build/probe-ramdisk.crc32` (`0fefffd9` for the pinned probe). A different
-value means something overwrote it before late init, so finding 2 needs work
-before any payload.
+**cboot limits.** `max-download-size` is 32 MiB, and the boot and recovery
+partitions are 0x1980000 bytes (25.5 MiB) each. A 33 MB image got
+`FAILED (remote: 'data too large')`. `config.sh` now caps boot images at
+25.5 MiB, `scripts/06` enforces it, and the probe ramdisk is 24 MiB.
 
-If `fastboot boot` is refused, use instead:
+**`fastboot boot` does not work on darcy.** cboot accepted the 24.4 MB probe
+image and answered "Booting OKAY". It then never booted it:
+- the TV stayed on the NVIDIA logo
+- USB still showed `0955:b442 NVIDIA Corp. Fastboot`, with no re-enumeration
+- fastboot stopped answering, so even `getvar` hung
 
-    fastboot flash recovery build/boot-uboot-probe.img
+A power cycle is needed to recover. This matches andreiw's 2018 note that
+"`fastboot boot` is kinda broken on newer firmware".
 
-then boot recovery from the bootloader menu. Afterwards restore stock with:
+Test images therefore go through the recovery slot (`scripts/09`):
 
-    fastboot flash recovery recovery/9.1.1/recovery.img
+    CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-probe.img
+
+Then choose "Recovery mode" in the bootloader menu. Expect U-Boot's report on
+the TV. Check that the ramdisk CRC32 equals `build/probe-ramdisk.crc32`, which
+is `6b05be7e` for the 24 MiB probe. A different value means something overwrote
+it before late init, so finding 2 needs work before any payload.
+
+Put stock recovery back with:
+
+    CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh --restore
 
 ## Never flash
 

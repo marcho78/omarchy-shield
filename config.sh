@@ -26,9 +26,16 @@ BOOTIMG_ARGS=(
   --base 0 --kernel_offset 0x00991680 --ramdisk_offset 0x01989680 --tags_offset 0x00989780
 )
 
-# Size of the dummy ramdisk in a probe boot image (scripts/06 --probe), about
-# what a kernel + initramfs FIT will weigh
-PROBE_RAMDISK_SIZE=$((32 * 1024 * 1024))
+# What cboot accepts (fastboot getvar on darcy, bootloader 32.00.2019.50):
+# "fastboot boot" downloads at most 32 MiB, and the boot and recovery
+# partitions hold 0x1980000 bytes (25.5 MiB). Every boot image must fit the
+# partition, so U-Boot + FIT payload stay under 25.5 MiB.
+FASTBOOT_MAX_DOWNLOAD=$((0x2000000))
+BOOTIMG_MAX_SIZE=$((0x1980000))
+
+# Size of the dummy ramdisk in a probe boot image (scripts/06 --probe): about
+# the largest FIT payload that still fits BOOTIMG_MAX_SIZE
+PROBE_RAMDISK_SIZE=$((24 * 1024 * 1024))
 
 # Third-party sources, fetched into vendor/<name> by scripts/03-fetch-sources.sh.
 # Format: name|git url|commit
