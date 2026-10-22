@@ -268,7 +268,7 @@ Test images therefore go through the recovery slot (`scripts/09`):
 
     CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-probe.img
 
-Then choose "Recovery mode" in the bootloader menu. Expect U-Boot's report on
+Then choose "Boot recovery kernel" in the bootloader menu. Expect U-Boot's report on
 the TV. Check that the ramdisk CRC32 equals `build/probe-ramdisk.crc32`, which
 is `6b05be7e` for the 24 MiB probe. A different value means something overwrote
 it before late init, so finding 2 needs work before any payload.
@@ -284,7 +284,7 @@ partition. That is what happened on the first try:
 - the probe was flashed, then the Shield was power-cycled into Android
 - `adb reboot recovery` then showed stock recovery's "No command"
 
-So after `scripts/09`, choose "Recovery mode" directly from the bootloader
+So after `scripts/09`, choose "Boot recovery kernel" directly from the bootloader
 menu.
 
 **Recovery-slot attempts (2026-10-22).** Each attempt flashed the image, then
@@ -440,6 +440,42 @@ source and not taken:
   source. HDMI on SOR1 does not use it.
 - **`panic=10` (n-codex).** A panic left on the TV is a better channel than
   a ramoops whose stock layout we cannot read.
+
+### First Linux boot: the screen went black (2026-10-22)
+
+U-Boot's FIT loading messages appeared, then the TV went black and stayed
+black. The SHIELD did not come back on USB. The "Fastboot" device still
+listed was the stale enumeration from the flash. So Linux was running, or
+hung, with no picture.
+
+After the power cycle nothing was left to read:
+- Android saw a cold boot.
+- Its dropbox had no `SYSTEM_LAST_KMSG`.
+- `/sys/fs/pstore` needs root.
+
+So the kernel's log now comes back through the recovery slot:
+- **Before the kernel starts**, in U-Boot's `board_quiesce_devices()`:
+  - PMC_SCRATCH0 gets Android's "recovery" reboot reason.
+  - Watchdog 0 is armed for `darcy_watchdog` seconds (150). It is paired
+    with timer 5, as Linux's `tegra_wdt.c` does.
+- **Any reset then lands in our U-Boot again:** darcy-init's reboot into
+  recovery after a minute, a panic (`panic=10`), or the watchdog.
+- **U-Boot shows the end of the kernel's log.** It finds the console zone
+  where the FIT's device tree puts it and checks two things:
+  - the zone's "DBGC" header
+  - the `darcy.chain=u-boot` tag U-Boot adds to the command line, so
+    Android's log is never shown
+
+  It then prints the last 56 lines, empties the zone, and stops.
+- **darcy-init reports into the kernel log** (`printk.devkmsg=on`):
+  - whether a driver took over the framebuffer
+  - at the end, the kernel messages that matter: errors, display,
+    regulators, PMC, reserved memory
+
+Unproven until the next test:
+- cboot follows the reboot reason after a watchdog or PSCI reset
+- the normal world can write the watchdog's registers
+- RAM survives those resets
 
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:

@@ -18,8 +18,12 @@
 		 * be switched off 30 seconds after boot. CPU idle is off for
 		 * the first boots, although the secure monitor implements the
 		 * C7 state (stock Android uses it).
+		 *
+		 * A panic resets the board after 10 s, back into the recovery
+		 * slot where U-Boot shows the log; darcy-init writes its
+		 * report into the log too (printk.devkmsg=on: unthrottled).
 		 */
-		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel";
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel panic=10 printk.devkmsg=on";
 	};
 
 	reserved-memory {

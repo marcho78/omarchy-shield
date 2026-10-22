@@ -164,8 +164,18 @@ recovery back.
 
 Choose "Boot recovery kernel" again. U-Boot boots the FIT, and the kernel's
 console appears on the TV through the framebuffer U-Boot hands over. `/init`
-(`tools/darcy-init.c`) prints what Linux sees, then its uptime every 30
-seconds.
+(`tools/darcy-init.c`) reports what Linux sees.
+
+Then the SHIELD comes back by itself, even if Linux lost the screen. Any of
+three things resets it:
+- `/init` reboots into the recovery slot after a minute.
+- A kernel panic resets the board after 10 s.
+- If Linux hangs, the watchdog U-Boot armed resets the board after 150 s
+  (`darcy_watchdog` in U-Boot's environment).
+
+Each time, cboot starts the recovery slot again. U-Boot then shows the end
+of the kernel's log, read from RAM (ramoops), instead of booting. Photograph
+it, then power-cycle the SHIELD to leave.
 
 ### Next (not scripted yet)
 

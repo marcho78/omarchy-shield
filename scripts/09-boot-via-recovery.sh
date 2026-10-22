@@ -2,13 +2,13 @@
 # Boot one of our images through the recovery slot. darcy's cboot answers
 # "fastboot boot" with OKAY, then never boots the image and stops answering
 # fastboot (power cycle needed), so test images go into the recovery
-# partition and start from the bootloader menu's "Recovery mode".
+# partition and start from the bootloader menu's "Boot recovery kernel".
 #
 # Writes ONLY the recovery partition. Android's normal boot partition is
 # untouched, so the SHIELD still boots Android, and --restore puts NVIDIA's
 # stock recovery back.
 #
-# Boot "Recovery mode" straight from the bootloader menu afterwards: every
+# Choose "Boot recovery kernel" straight from the bootloader menu afterwards: every
 # normal Android boot runs vendor_flash_recovery, which silently rewrites
 # the stock recovery over whatever is in the partition.
 #
@@ -47,6 +47,6 @@ timeout 300 fastboot -s "$fb" flash recovery "$img" ||
 if [[ $1 == --restore ]]; then
   log "stock recovery restored"
 else
-  log "now, on the TV, choose 'Recovery mode' in the bootloader menu (arrow keys + Enter)."
+  log "now, on the TV, choose 'Boot recovery kernel' in the bootloader menu (arrow keys + Enter)."
   log "Do not boot Android first: it would restore the stock recovery over this image."
 fi

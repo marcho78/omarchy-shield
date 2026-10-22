@@ -1,6 +1,6 @@
-From f70fd39b3107c6f841e8f8d3b15ea9ef130cf532 Mon Sep 17 00:00:00 2001
+From b54ff5833748cdf50b17cf6c881f80730940d289 Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 09:13:05 -0700
+Date: Thu, 22 Oct 2026 09:50:55 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
@@ -28,6 +28,13 @@ not overwrite it).
   the bootloader menu when no framebuffer was found, Android when one
   was found but unusable. The PMC is secure-only on the SHIELD, so the
   reboot reason goes through tegra_pmc_writel().
+- A kernel that loses the screen still leaves its log. Just before
+  the kernel starts, PMC_SCRATCH0 points any reset at the recovery
+  slot and the watchdog is armed (darcy_watchdog, 150 s). After the
+  reset, U-Boot finds the kernel's console log in ramoops, laid out as
+  the FIT's device tree says, and shows its end instead of booting.
+  The kernel command line is tagged darcy.chain=u-boot, to tell that
+  log from Android's.
 - The hush shell is enabled explicitly: darcy_boot needs if/then/fi, and
   turning BOOTSTD off had silently dropped it.
 - No GPU/VPR programming, networking, EFI, storage-write commands or
@@ -36,15 +43,15 @@ not overwrite it).
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  arch/arm/dts/Makefile                |   1 +
- arch/arm/dts/tegra210-p2894.dts      |  67 ++++
+ arch/arm/dts/tegra210-p2894.dts      |  67 +++
  arch/arm/mach-tegra/tegra210/Kconfig |   9 +
  board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 459 +++++++++++++++++++++++++++
- board/nvidia/p2894/p2894.env         |  17 +
- configs/p2894_defconfig              |  40 +++
- 9 files changed, 615 insertions(+)
+ board/nvidia/p2894/p2894.c           | 650 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.env         |  24 +
+ configs/p2894_defconfig              |  40 ++
+ 9 files changed, 813 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -207,10 +214,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..b762e5b9
+index 00000000..8f20989e
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,459 @@
+@@ -0,0 +1,650 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -232,12 +239,21 @@ index 00000000..b762e5b9
 + * nowhere, so the next boot carries the answer instead: back into the
 + * bootloader menu when no framebuffer was found, into Android when one was
 + * found but U-Boot could not use it.
++ *
++ * A kernel that loses the screen would leave nothing to read either, so its
++ * log comes back through the recovery slot. Just before the kernel starts,
++ * any reset is pointed at the recovery slot and the watchdog is armed
++ * (darcy_watchdog seconds). After the reset, U-Boot finds that kernel's
++ * console log in ramoops and shows its end instead of booting again.
 + */
 +
++#include <cpu_func.h>
 +#include <env.h>
 +#include <fdt_support.h>
 +#include <fdtdec.h>
++#include <image.h>
 +#include <init.h>
++#include <malloc.h>
 +#include <stdio.h>
 +#include <sysreset.h>
 +#include <video.h>
@@ -257,8 +273,38 @@ index 00000000..b762e5b9
 +#define DRAM_START	0x80000000ULL
 +#define DRAM_END	0x140000000ULL
 +
-+/* Android's reboot reason in PMC_SCRATCH0, which cboot acts on */
++/* Android's reboot reasons in PMC_SCRATCH0, which cboot acts on */
++#define PMC_SCRATCH0_MODE_RECOVERY	BIT(31)
 +#define PMC_SCRATCH0_MODE_BOOTLOADER	BIT(30)
++
++/*
++ * Watchdog 0 counting timer 5, set up as Linux's tegra_wdt.c does: the timer
++ * ticks every 250 ms and the watchdog resets the board on its fourth expiry,
++ * so the period field is in seconds. The reset keeps PMC_SCRATCH0 and RAM.
++ */
++#define TMR5_PTV			0x60005060UL
++#define  TMR_EN				BIT(31)
++#define  TMR_PERIODIC			BIT(30)
++#define WDT0_CFG			0x60005100UL
++#define  WDT_CFG_TIMER5			5
++#define  WDT_CFG_PERIOD_SHIFT		4
++#define  WDT_CFG_PMC2CAR_RST_EN		BIT(15)
++#define WDT0_CMD			0x60005108UL
++#define  WDT_CMD_START_COUNTER		BIT(0)
++
++/* A persistent RAM zone's header, as Linux writes it (fs/pstore/ram_core.c) */
++struct ramoops_zone {
++	u32 sig;
++	u32 start;		/* where the next byte goes */
++	u32 size;		/* bytes held, up to the zone's buffer size */
++	u8 data[];
++};
++
++#define RAMOOPS_SIG	0x43474244	/* "DBGC", the console zone's */
++
++/* Added to the kernel command line, to tell its log from Android's */
++#define LOG_TAG		"darcy.chain=u-boot"
++#define LOG_LINES	56
 +
 +/* Display controller A drives HDMI (SOR1) on darcy */
 +#define CAR_RST_DEVICES_L		0x60006004UL
@@ -559,8 +605,8 @@ index 00000000..b762e5b9
 +	return false;
 +}
 +
-+/* Returns whether the ramdisk holds a FIT image to boot */
-+static bool report_ramdisk(const void *fdt)
++/* Returns the FIT image to boot, if the ramdisk holds one */
++static const void *report_ramdisk(const void *fdt)
 +{
 +	const void *buf;
 +	u64 start, end, size;
@@ -569,14 +615,14 @@ index 00000000..b762e5b9
 +	    fdt_read_u64(fdt, "/chosen", "linux,initrd-end", &end) ||
 +	    end <= start) {
 +		printf("  ramdisk:     none\n");
-+		return false;
++		return NULL;
 +	}
 +
 +	size = end - start;
 +	printf("  ramdisk:     0x%llx, %llu bytes", start, size);
 +	if (!in_dram(start, size)) {
 +		printf(", not inside RAM: ignored\n");
-+		return false;
++		return NULL;
 +	}
 +
 +	buf = (const void *)(uintptr_t)start;
@@ -584,10 +630,104 @@ index 00000000..b762e5b9
 +
 +	if (start % 8 || fdt_check_header(buf) || fdt_totalsize(buf) > size) {
 +		printf("               not a FIT image, so not booting it\n");
-+		return false;
++		return NULL;
 +	}
 +
 +	env_set_hex("cboot_fit_start", start);
++	return buf;
++}
++
++/*
++ * The kernel's console zone in ramoops, found the way Linux lays it out
++ * (fs/pstore/ram.c): whole dump records first, then the console. The sizes
++ * come from the device tree in the FIT, so they match the kernel that wrote
++ * the log.
++ */
++static struct ramoops_zone *ramoops_console(const void *fit, u32 *bufsize)
++{
++	const fdt32_t *reg;
++	const void *fdt;
++	size_t fdt_size;
++	u64 base, size, record, console, other, dump, records;
++	int node, len;
++
++	node = fit_conf_get_node(fit, NULL);
++	if (node >= 0)
++		node = fit_conf_get_prop_node(fit, node, FIT_FDT_PROP,
++					      IH_PHASE_NONE);
++	if (node < 0 || fit_image_get_data(fit, node, &fdt, &fdt_size) ||
++	    fdt_check_header(fdt))
++		return NULL;
++
++	node = fdt_node_offset_by_compatible(fdt, -1, "ramoops");
++	reg = node < 0 ? NULL : fdt_getprop(fdt, node, "reg", &len);
++	if (!reg || len != 4 * sizeof(u32) ||
++	    fdt_getprop(fdt, node, "ecc-size", NULL))
++		return NULL;
++
++	base = (u64)fdt32_to_cpu(reg[0]) << 32 | fdt32_to_cpu(reg[1]);
++	size = (u64)fdt32_to_cpu(reg[2]) << 32 | fdt32_to_cpu(reg[3]);
++	record = fdtdec_get_uint(fdt, node, "record-size", 0);
++	console = fdtdec_get_uint(fdt, node, "console-size", 0);
++	other = (u64)fdtdec_get_uint(fdt, node, "pmsg-size", 0) +
++		fdtdec_get_uint(fdt, node, "ftrace-size", 0);
++	if (console <= sizeof(struct ramoops_zone) || console + other > size ||
++	    !in_dram(base, size))
++		return NULL;
++
++	dump = size - console - other;
++	records = record ? dump / record : 0;
++	if (records)
++		base += records * ALIGN_DOWN(dump / records, 2);
++
++	*bufsize = console - sizeof(struct ramoops_zone);
++	return (struct ramoops_zone *)(uintptr_t)base;
++}
++
++static char log_char(const struct ramoops_zone *zone, u32 i)
++{
++	return zone->data[(zone->start + i) % zone->size];
++}
++
++/*
++ * After a reset from a kernel U-Boot started, shows the end of that kernel's
++ * log, then empties the zone so it is shown once. Returns whether it did.
++ */
++static bool report_last_log(const void *fit)
++{
++	static const char tag[] = LOG_TAG;
++	struct ramoops_zone *zone;
++	u32 bufsize, i, j, from, lines = 0;
++	bool tagged = false;
++	char c;
++
++	zone = ramoops_console(fit, &bufsize);
++	if (!zone || zone->sig != RAMOOPS_SIG || !zone->size ||
++	    zone->size > bufsize || zone->start > zone->size)
++		return false;
++
++	for (i = 0; !tagged && i + sizeof(tag) - 1 <= zone->size; i++) {
++		for (j = 0; tag[j] && log_char(zone, i + j) == tag[j]; j++)
++			;
++		tagged = !tag[j];
++	}
++	if (!tagged)
++		return false;
++
++	for (from = zone->size; from > 0; from--)
++		if (log_char(zone, from - 1) == '\n' && ++lines > LOG_LINES)
++			break;
++
++	printf("\nThe end of the last kernel's log, from before the reset:\n");
++	for (i = from; i < zone->size; i++) {
++		c = log_char(zone, i);
++		putc(c == '\n' || (c >= ' ' && c <= '~') ? c : '?');
++	}
++	printf("\n--- End of the log. Power-cycle the SHIELD to leave.\n");
++
++	zone->start = 0;
++	zone->size = 0;
++	flush_dcache_range((ulong)zone, (ulong)zone + 64);
 +	return true;
 +}
 +
@@ -607,11 +747,34 @@ index 00000000..b762e5b9
 +	sysreset_walk_halt(SYSRESET_WARM);
 +}
 +
++/*
++ * Called by bootm just before the kernel starts. From here on any reset comes
++ * back into the recovery slot, where report_last_log() shows the kernel's
++ * log, and the watchdog makes sure a reset comes. Linux has no driver for
++ * it, so it cannot stop it; darcy_watchdog=0 leaves it off.
++ */
++void board_quiesce_devices(void)
++{
++	ulong secs = env_get_ulong("darcy_watchdog", 10, 0);
++
++	tegra_pmc_writel(tegra_pmc_readl(PMC_SCRATCH0) |
++			 PMC_SCRATCH0_MODE_RECOVERY, PMC_SCRATCH0);
++	if (!secs)
++		return;
++
++	secs = min(secs, 255UL);
++	printf("Watchdog armed: the board resets in %lu s\n", secs);
++	writel(1000000 / 4 | TMR_EN | TMR_PERIODIC, TMR5_PTV);
++	writel(WDT_CFG_TIMER5 | secs << WDT_CFG_PERIOD_SHIFT |
++	       WDT_CFG_PMC2CAR_RST_EN, WDT0_CFG);
++	writel(WDT_CMD_START_COUNTER, WDT0_CMD);
++}
++
 +void nvidia_board_late_init(void)
 +{
 +	const void *fdt = cboot_fdt();
++	const void *fit = NULL;
 +	const char *dts, *args;
-+	bool fit = false;
 +
 +	printf("\nSHIELD TV 2017 (P2894): U-Boot relocated to 0x%lx\n",
 +	       gd->relocaddr);
@@ -633,19 +796,54 @@ index 00000000..b762e5b9
 +		printf("cboot handed over no device tree\n");
 +	}
 +
++	/* Back from a kernel U-Boot started: show its log, don't boot it again */
++	if (fit && report_last_log(fit)) {
++		env_set("cboot_fit_start", NULL);
++		return;
++	}
++
 +	if (fit || (fb_in_use() && video_is_active()))
 +		return;
 +
 +	signal_by_reboot(!dc_fb.source && !cboot_fb.source);
 +}
 +
-+/* Hand the console framebuffer on to the kernel and keep it reserved */
++/* Tag the kernel command line, so report_last_log() knows the log again */
++static int tag_bootargs(void *blob)
++{
++	const char *args;
++	char *tagged;
++	int node, err;
++
++	node = fdt_find_or_add_subnode(blob, 0, "chosen");
++	if (node < 0)
++		return node;
++
++	args = fdt_getprop(blob, node, "bootargs", NULL);
++	tagged = malloc((args ? strlen(args) + 1 : 0) + sizeof(LOG_TAG));
++	if (!tagged)
++		return -FDT_ERR_NOSPACE;
++
++	sprintf(tagged, "%s%s" LOG_TAG, args ? args : "", args ? " " : "");
++	err = fdt_setprop_string(blob, node, "bootargs", tagged);
++	free(tagged);
++
++	return err;
++}
++
++/*
++ * Tag the kernel command line, and hand the console framebuffer on to the
++ * kernel, reserved
++ */
 +int ft_board_setup(void *blob, struct bd_info *bd)
 +{
 +	static const char compat[] = "simple-framebuffer";
 +	const struct fb_mode *fb = fb_in_use();
 +	struct fdt_memory mem;
 +	int node;
++
++	if (tag_bootargs(blob))
++		printf("warning: could not tag the kernel command line\n");
 +
 +	if (!fb || !video_is_active())
 +		return 0;
@@ -672,10 +870,10 @@ index 00000000..b762e5b9
 +}
 diff --git a/board/nvidia/p2894/p2894.env b/board/nvidia/p2894/p2894.env
 new file mode 100644
-index 00000000..d420a430
+index 00000000..ac49822d
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.env
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,24 @@
 +/*
 + * NVIDIA SHIELD TV 2017 (darcy). cboot loads the Android boot image's
 + * ramdisk; when it holds a FIT image (kernel, device tree, initramfs),
@@ -686,6 +884,13 @@ index 00000000..d420a430
 + * place inside the FIT and grow it over the next image, so it is cleared
 + * to make bootm copy the device tree out first.
 + */
++/*
++ * Seconds a kernel gets before the watchdog resets the board back into the
++ * recovery slot, where U-Boot shows the end of the kernel's log (p2894.c).
++ * 0 leaves the watchdog off.
++ */
++darcy_watchdog=150
++
 +darcy_boot=
 +	if test -n "${cboot_fit_start}"; then
 +		setenv fdt_high;
