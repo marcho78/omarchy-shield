@@ -7,9 +7,18 @@
 # hub or USB-C adapter with USB-A ports) to the SHIELD port farthest from
 # HDMI, with "Allow USB debugging" accepted on the TV.
 #
-# Usage: scripts/07-check-fastboot.sh
+# Usage: scripts/07-check-fastboot.sh [--stay]
+#   --stay  leave the SHIELD in its bootloader menu, e.g. to check that a USB
+#           controller in the port near HDMI can move the highlight and
+#           select "Continue" (the unlock confirmation needs exactly that).
+#           Unplugging the SHIELD's power also returns to Android.
 source "$(dirname "$0")/lib.sh"
 need adb fastboot
+
+stay=false
+if [[ ${1:-} == --stay ]]; then
+  stay=true
+fi
 
 serial=$(adb devices | awk '$2 == "device" && $1 !~ /:/ { print $1; exit }')
 [[ -n $serial ]] ||
@@ -39,6 +48,12 @@ mkdir -p "$out"
   fastboot -s "$fb" oem dtbname
 } > "$out/fastboot.txt" 2>&1 || true
 grep -iE 'unlocked|secure|product|version-bootloader|dtb' "$out/fastboot.txt" || true
+
+if $stay; then
+  log "left in the bootloader menu: move the highlight with the controller and select"
+  log "'Continue' to boot Android, or unplug the SHIELD's power"
+  exit 0
+fi
 
 log "rebooting back to Android"
 # darcy's cboot answers "FAILED (remote: 'unknown reason')" yet restarts
