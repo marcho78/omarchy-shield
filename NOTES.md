@@ -669,8 +669,17 @@ U-Boot, and run 4's panic proved the log survives it.
 So the dev loop is:
 1. darcy-init reboots into **recovery**.
 2. U-Boot shows the log, then after `darcy_log_secs` reboots into the menu.
-   That is the U-Boot fallback, still to be seen working.
 3. The next image is flashed from there, without Android.
+
+**Proof 2, the U-Boot fallback, works.** In the first image flashed
+without Android:
+- Linux rebooted into recovery at 13:04:48.
+- U-Boot showed the log for 60 s.
+- At 13:06:13 the board was back in the bootloader menu with fastboot.
+
+Both ways back to fastboot are now proven. Before Android is removed,
+one path is still unproven: **the watchdog**, for a Linux that hangs
+silently. A panic already comes back by itself (`panic=10`).
 
 **Decision (2026-10-22): the root filesystem goes on the internal eMMC.**
 - **The goal** is a stripped-down media center, which fits in the 11–13

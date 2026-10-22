@@ -180,8 +180,10 @@ three things resets it:
   (`darcy_watchdog` in U-Boot's environment).
 
 Each time, cboot starts the recovery slot again. U-Boot then shows the end
-of the kernel's log, read from RAM (ramoops), instead of booting. Photograph
-it, then power-cycle the SHIELD to leave.
+of the kernel's log, read from RAM (ramoops), instead of booting.
+Photograph it. After 60 s (`darcy_log_secs`) U-Boot reboots into the
+bootloader menu by itself, so the next image can be flashed straight away
+with `scripts/09`, without going through Android.
 
 ### Next (not scripted yet)
 
