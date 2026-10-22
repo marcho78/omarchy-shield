@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #define REBOOT_AT		60	/* seconds of uptime */
-#define HIGHLIGHTS		30	/* kernel messages repeated at the end */
+#define HIGHLIGHTS		20	/* kernel messages repeated at the end */
 #define SYSLOG_ACTION_READ_ALL	3
 
 static int kmsg = -1;
@@ -133,10 +133,15 @@ static void show_display(void)
 #define  CAR_L_DISP1		27
 #define CAR_PLLD_BASE		0x0d0
 #define CAR_PLLD2_BASE		0x4b8
+#define CAR_PLLD2_MISC0		0x4bc
 #define CAR_PLLDP_BASE		0x590
 #define CAR_CLK_SOURCE_DISP1	0x138
 #define CAR_CLK_SOURCE_SOR1	0x410
 #define DC_BASE			0x54200000UL
+/* The HDMI pins' pinmux words; bit 5 parks the pin */
+#define PINMUX_BASE		0x70003000UL
+#define PINMUX_HDMI_CEC		0x198
+#define PINMUX_HDMI_HPD		0x19c
 #define DC_CMD_DISPLAY_COMMAND		0x032
 #define DC_CMD_DISPLAY_POWER_CONTROL	0x036
 #define DC_CMD_STATE_CONTROL		0x041
@@ -166,7 +171,7 @@ static volatile uint32_t *map_regs(int fd, unsigned long base, size_t size)
 static void show_display_hw(void)
 {
 	int fd = open("/dev/mem", O_RDONLY | O_SYNC);
-	volatile uint32_t *car, *dc;
+	volatile uint32_t *car, *dc, *pins;
 	char line[256] = "";
 	unsigned int i, bank, bit, len = 0;
 
@@ -187,10 +192,13 @@ static void show_display_hw(void)
 				car[car_rst[bank] / 4] >> bit & 1);
 	}
 	say("clocks: %s(clock on/in reset)", line);
-	say("PLLs: D %08x D2 %08x DP %08x, DISP1 src %08x, SOR1 src %08x",
+	say("PLLs: D %08x D2 %08x (misc0 %08x) DP %08x, DISP1 src %08x, SOR1 src %08x",
 	    car[CAR_PLLD_BASE / 4], car[CAR_PLLD2_BASE / 4],
-	    car[CAR_PLLDP_BASE / 4], car[CAR_CLK_SOURCE_DISP1 / 4],
-	    car[CAR_CLK_SOURCE_SOR1 / 4]);
+	    car[CAR_PLLD2_MISC0 / 4], car[CAR_PLLDP_BASE / 4],
+	    car[CAR_CLK_SOURCE_DISP1 / 4], car[CAR_CLK_SOURCE_SOR1 / 4]);
+	if ((pins = map_regs(fd, PINMUX_BASE, 0x1000)))
+		say("pins: HDMI HPD pin %08x, CEC pin %08x",
+		    pins[PINMUX_HDMI_HPD / 4], pins[PINMUX_HDMI_CEC / 4]);
 
 	/* Display controller A, only while it is clocked and out of reset */
 	if (car[CAR_CLK_OUT_ENB_L / 4] >> CAR_L_DISP1 & 1 &&
@@ -401,6 +409,7 @@ int main(void)
 	say("cpus online: %d", count_cpus());
 	show("memory", "/proc/meminfo", 2);
 	show_display();
+	show_regulators();
 	show_dir("crash logs kept from the previous boot", "/sys/fs/pstore");
 
 	while ((up = uptime()) < REBOOT_AT) {
@@ -411,7 +420,6 @@ int main(void)
 
 	/* The most telling lines last: U-Boot shows the end of the log */
 	show_highlights();
-	show_regulators();
 	show_clks();
 	show_genpd();
 	show_powergates();

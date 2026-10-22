@@ -94,6 +94,52 @@
 };
 
 /*
+ * The PMC driver powers down every power partition it finds on, so that a
+ * driver later powers it up from a known state (tegra_powergate_add() in
+ * drivers/soc/tegra/pmc.c; pd_ignore_unused does not cover this). For the
+ * SOR partition that cuts the HDMI encoder cboot left running, and the TV
+ * loses the signal. Until tegra-drm drives HDMI itself, the partition is
+ * kept away from the PMC driver: no power-domains references, no node.
+ */
+&dpaux1 {
+	/delete-property/ power-domains;
+};
+
+&{/host1x@50000000/vi@54080000/csi@838} {
+	/delete-property/ power-domains;
+};
+
+&dsia {
+	/delete-property/ power-domains;
+};
+
+&dsib {
+	/delete-property/ power-domains;
+};
+
+&sor0 {
+	/delete-property/ power-domains;
+};
+
+&sor1 {
+	/delete-property/ power-domains;
+};
+
+&dpaux {
+	/delete-property/ power-domains;
+};
+
+&{/hda@70030000} {
+	/delete-property/ power-domains;
+};
+
+&mipi {
+	/delete-property/ power-domains;
+};
+
+/delete-node/ &pd_sor;
+
+/*
  * The PMC is secure-only on the SHIELD. Linux needs no property for that:
  * on Tegra210 it probes for it and goes through the secure monitor
  * (maybe_tz_only in drivers/soc/tegra/pmc.c).

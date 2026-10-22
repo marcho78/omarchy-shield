@@ -553,6 +553,32 @@ darcy-init adds three views from inside Linux:
 - genpd's power domains
 - the clock framework's view of the display clocks
 
+**The cause, found in the source by the review round
+(`research/*hdmi-link*`):** in this kernel, `tegra_powergate_add()`
+(`drivers/soc/tegra/pmc.c:1361-1391`) powers down every DT powergate that
+is on when the PMC driver probes (at 0.16 s). The point is that a driver
+later powers it up from a known state. It does this by asserting the
+resets, disabling the clocks, and switching the partition off through the
+secure monitor. It then registers the domain as off.
+
+`pd_ignore_unused` only skips a later pass, so it does not help. `pd_sor`
+holds SOR1, the HDMI encoder cboot left running, so HDMI dies early in
+every boot.
+
+n-codex and n-grok found this independently. The fix is in our DT: the
+`sor` node is deleted from the PMC's powergates, along with all nine
+`power-domains = <&pd_sor>` references. Until tegra-drm drives HDMI, Linux
+leaves that partition as cboot set it. The other partitions (audio, video,
+XUSB and so on) are still powered down at probe, which is harmless.
+
+That fix is the only change from run 3. U-Boot and darcy-init also print a
+few extra values, on both sides:
+- PLL_D2's MISC0
+- the HDMI HPD and CEC pin words (parked bit 5)
+- in U-Boot, the PMC's raw powergate status
+
+If the picture still dies, these lines show what else changed.
+
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
 - Linux in `boot`, with Android given up or reachable some other way

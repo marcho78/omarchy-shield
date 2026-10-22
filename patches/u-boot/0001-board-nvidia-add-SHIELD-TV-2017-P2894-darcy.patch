@@ -1,6 +1,6 @@
-From 7d1edf7be8083b19738ff803c71ff8dc67a14e1f Mon Sep 17 00:00:00 2001
+From f6d98a40402a69fec2d64c5d78d32de0979798f7 Mon Sep 17 00:00:00 2001
 From: marcho78 <marcho78@users.noreply.github.com>
-Date: Thu, 22 Oct 2026 10:38:58 -0700
+Date: Thu, 22 Oct 2026 10:51:27 -0700
 Subject: [PATCH] board: nvidia: add SHIELD TV 2017 (P2894, darcy)
 
 U-Boot runs as a second stage after NVIDIA's cboot, which starts it as
@@ -22,8 +22,9 @@ not overwrite it).
   reports, and arm64 Linux will not ioremap a buffer left in its linear
   map (a /memreserve/ would leave it there).
 - The report also shows the display hardware as cboot left it: the
-  display blocks' clocks and resets, the display PLLs, and whether
-  display controller A runs. darcy-init prints the same lines under
+  display blocks' clocks and resets, the display PLLs, the PMC's
+  powergate status, the HDMI pins, and whether display controller A
+  runs. darcy-init prints the same lines under
   Linux, to compare.
 - The ramdisk is booted only if it lies inside RAM and holds a whole FIT
   image. fdt_high is cleared first so bootm copies the device tree out of
@@ -52,10 +53,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  board/nvidia/p2894/Kconfig           |  13 +
  board/nvidia/p2894/MAINTAINERS       |   6 +
  board/nvidia/p2894/Makefile          |   3 +
- board/nvidia/p2894/p2894.c           | 707 +++++++++++++++++++++++++++
+ board/nvidia/p2894/p2894.c           | 716 +++++++++++++++++++++++++++
  board/nvidia/p2894/p2894.env         |  24 +
  configs/p2894_defconfig              |  40 ++
- 9 files changed, 870 insertions(+)
+ 9 files changed, 879 insertions(+)
  create mode 100644 arch/arm/dts/tegra210-p2894.dts
  create mode 100644 board/nvidia/p2894/Kconfig
  create mode 100644 board/nvidia/p2894/MAINTAINERS
@@ -218,10 +219,10 @@ index 00000000..e6339f1e
 +obj-y	+= p2894.o
 diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
 new file mode 100644
-index 00000000..a7b80be9
+index 00000000..8ac357d8
 --- /dev/null
 +++ b/board/nvidia/p2894/p2894.c
-@@ -0,0 +1,707 @@
+@@ -0,0 +1,716 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * NVIDIA SHIELD TV 2017 ("darcy", board P2894)
@@ -317,10 +318,15 @@ index 00000000..a7b80be9
 +#define  CAR_L_DISP1			BIT(27)
 +#define CAR_PLLD_BASE			0x0d0
 +#define CAR_PLLD2_BASE			0x4b8
++#define CAR_PLLD2_MISC0			0x4bc
 +#define CAR_PLLDP_BASE			0x590
 +#define CAR_CLK_SOURCE_DISP1		0x138
 +#define CAR_CLK_SOURCE_SOR1		0x410
 +#define DC_BASE				0x54200000UL
++#define PMC_PWRGATE_STATUS		0x038
++/* The HDMI pins' pinmux words; bit 5 parks the pin */
++#define PINMUX_HDMI_CEC			0x70003198UL
++#define PINMUX_HDMI_HPD			0x7000319cUL
 +
 +/* CAR clock-enable and reset registers of the clock banks L, H, U, V, W, X, Y */
 +static const u16 car_enb[] = { 0x010, 0x014, 0x018, 0x360, 0x364, 0x280, 0x298 };
@@ -610,11 +616,15 @@ index 00000000..a7b80be9
 +		       readl(CAR_BASE + car_rst[bank]) >> bit & 1);
 +	}
 +	printf("(clock on/in reset)\n");
-+	printf("  PLLs:        D %08x D2 %08x DP %08x, DISP1 src %08x, SOR1 src %08x\n",
++	printf("  PLLs:        D %08x D2 %08x (misc0 %08x) DP %08x, DISP1 src %08x, SOR1 src %08x\n",
 +	       readl(CAR_BASE + CAR_PLLD_BASE), readl(CAR_BASE + CAR_PLLD2_BASE),
++	       readl(CAR_BASE + CAR_PLLD2_MISC0),
 +	       readl(CAR_BASE + CAR_PLLDP_BASE),
 +	       readl(CAR_BASE + CAR_CLK_SOURCE_DISP1),
 +	       readl(CAR_BASE + CAR_CLK_SOURCE_SOR1));
++	printf("  PMC, pins:   powergates %08x, HDMI HPD pin %08x, CEC pin %08x\n",
++	       tegra_pmc_readl(PMC_PWRGATE_STATUS), readl(PINMUX_HDMI_HPD),
++	       readl(PINMUX_HDMI_CEC));
 +	if (readl(CAR_CLK_OUT_ENB_L) & CAR_L_DISP1 &&
 +	    !(readl(CAR_RST_DEVICES_L) & CAR_L_DISP1))
 +		printf("  DC A:        command %08x power %08x state %08x clock %08x\n",
