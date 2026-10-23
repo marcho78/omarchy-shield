@@ -9,15 +9,32 @@ which speeds the refresh up, switches on emc->refresh: as the DRAM's
 MR4 reports it hotter, the poller asks for 2x and 4x refresh, and the
 timing stays at nominal. Store it before the timing is adjusted.
 
+That uncovers REFRESH_SPEEDUP() multiplying what it should divide: the
+low half of EMC_REFRESH, EMC_PRE_REFRESH_REQ_CNT and
+EMC_DYN_SELF_REF_CONTROL is an interval (EMC_REFRESH at 1600 MHz on a
+SHIELD TV: 0x1820, 6176 cycles, LPDDR4's 3.9 us tREFI), so "4x refresh"
+refreshed a quarter as often. Divide it.
+
 Throttling also falls back to the nominal table, at nominal refresh,
 when the board has no derated table. Use 4x refresh then, the most the
 timing allows.
 ---
 diff --git a/drivers/memory/tegra/tegra210-emc-core.c b/drivers/memory/tegra/tegra210-emc-core.c
-index e8d4cd8fd..91beaf364 100644
+index e8d4cd8fd..594d7b9b5 100644
 --- a/drivers/memory/tegra/tegra210-emc-core.c
 +++ b/drivers/memory/tegra/tegra210-emc-core.c
-@@ -777,11 +777,21 @@ int tegra210_emc_set_refresh(struct tegra210_emc *emc,
+@@ -81,8 +81,9 @@
+ 	  EMC_PMACRO_OB_DDLL_LONG_DQ_RANK ## rank ## _ ## reg ##	\
+ 	  _OB_DDLL_LONG_DQ_RANK ## rank ## _BYTE ## byte2 ## _MASK))
+ 
++/* The low half holds an interval: refreshing more often divides it */
+ #define REFRESH_SPEEDUP(value, speedup) \
+-		(((value) & 0xffff0000) | ((value) & 0xffff) * (speedup))
++		(((value) & 0xffff0000) | ((value) & 0xffff) / (speedup))
+ 
+ #define LPDDR2_MR4_SRR GENMASK(2, 0)
+ 
+@@ -777,11 +778,21 @@ int tegra210_emc_set_refresh(struct tegra210_emc *emc,
  	if (refresh > TEGRA210_EMC_REFRESH_THROTTLE)
  		return -EINVAL;
  

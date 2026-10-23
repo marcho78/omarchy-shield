@@ -2218,6 +2218,35 @@ lock at 15:41, `dpmsStatus` false): Hyprland throttles the frame
 callbacks of a hidden window, so those runs don't count. STK needs the
 session unlocked on the TV.
 
+**A soak at 1600 MHz** (15:51 to 16:27, 36 minutes):
+memtester over 1 GiB, four loops, with glmark2 off-screen (terrain and
+texture at 1080p) running alongside: 72 checks ok, no failure, no MC,
+SMMU, nouveau, lockup or OOM message. CPU 54 to 64 °C, GPU 52 to 58, mem
+54 to 59; the DRAM's MR4 state 3 under load (JEDEC's 1x refresh; 2 at
+idle).
+
+**The refresh at high temperature, tested, and a second bug.** With the
+EMC cooling device (`cooling_device1`) forced on and debugfs
+`emc/temperature` faking MR4 states, kernel #18 wrote: normal
+`EMC_REFRESH` 0x1820, state 4 ("2x") 0x3040, states 5 and 6 ("4x", and
+throttle mapped to 4x) 0x6080, state 3 back to 0x1820; and the same
+scaling for `PRE_REFRESH_REQ_CNT` (0x608) and the low half of
+`DYN_SELF_REF_CONTROL` (0x308c). 0x1820 is 6176 cycles, 3.9 µs at
+1600 MHz: LPDDR4's refresh interval (EMC_REFRESH bits 15:6 are the
+interval, 5:0 REFRESH_LO). `REFRESH_SPEEDUP()` multiplies it, so "4x
+refresh" refreshed a quarter as often, exactly wrong for hot DRAM (JEDEC:
+MR4 4 halves tREFI, 5 quarters it). Mainline's first bug, the refresh
+never stored, kept the second from ever running; 0007 had made it
+reachable (above the 70 °C trip, with MR4 at 4 or more: not reached, 59 °C
+at most so far). `patches/linux/0007` now divides (kernel #19).
+
+Kernel #19, the same test at 1600 MHz: normal 0x1820, state 4 0x0c10
+(2x), states 5 and 6 0x0608 (4x), state 3 back to 0x1820; and
+`PRE_REFRESH_REQ_CNT` 0x608, 0x304, 0x182, `DYN_SELF_REF_CONTROL`'s low
+half 0x308c, 0x1846, 0x0c23. The table from that boot again matched
+`tools/emc-table.py` byte for byte, and `tools/emc-rate.sh` took the EMC
+from 800 to 1600 MHz in one switch (PLLMB).
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
