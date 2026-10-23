@@ -24,10 +24,10 @@ Android stays installed, so you can go back.
 > - **Done too:** the real display driver, tegra-drm, drives HDMI from
 >   boot. The GPU's driver, nouveau, loads by hand (Mesa: OpenGL ES 3.2).
 > - **Done too:** cooling and power management. The fan runs, idle cores
->   sleep, the CPU scales its clock and voltage (for now up to 1.02 GHz),
->   and the kernel slows it when it runs hot.
-> - **Next:** the CPU up to stock's 2.0 GHz, the GPU at boot for a
->   desktop, then Omarchy.
+>   sleep, the CPU scales its clock and voltage up to stock's 2.0 GHz, and
+>   the kernel slows it when it runs hot. Ten minutes on all four cores at
+>   2.0 GHz levels off at 62 °C.
+> - **Next:** the GPU at boot for a desktop, then Omarchy.
 >
 > `NOTES.md` is the research log.
 

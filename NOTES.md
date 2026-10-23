@@ -1587,11 +1587,32 @@ a warm reboot):
   measured at the 1.02 GHz cap is not reproducible now, so it came from
   the rest of the board (SSD, Wi-Fi, fan), not the CPU.
 
-**Wi-Fi dropped once** (00:16:55): the access point deauthenticated the
-SHIELD (reason 1). Four quick reconnects failed (status 16), and iwd's
-next full try came 90 s later. Older boots with CPU idle off show the same
-drops and failed connects, so it is not the power work. It still matters,
-since Wi-Fi is the main link: an open item.
+- **2.0145 GHz, stock's top** (`patches/linux/0003`, final): 19 rates.
+  Three minutes on all four cores: the monitor reads 1989–2052 MHz against
+  2014.5 MHz, 11.8–13.1 W. Swings, warnings and a warm reboot (35 s) are
+  clean.
+- **A soak of 10.5 minutes at 2014.5 MHz on all four cores:** the CPU
+  levels off at 61–62 °C from the third minute (GPU 57, PLLX 54, memory
+  55 °C), at 12.5–13.0 W. The fan stays at level 2, the 65 °C step never
+  comes, and the cpufreq cooling state stays 0. Thirty seconds after the
+  load, the CPU is at 49 °C. So the SHIELD keeps its top rate with 20 °C
+  to spare before passive cooling. The soak outlived a Wi-Fi drop (below):
+  its load loops kept running without the SSH session, and a
+  `systemd-run` timer on the SHIELD ended them.
+
+**Wi-Fi drops, twice in an hour** (00:16:55, 01:11:43). Each time:
+- The access point deauthenticated the SHIELD (reason 1, `from_ap`).
+- Within a second, iwd's quick reconnects to all four BSSes of `secnet`
+  failed with status 16 (authentication timeout).
+- iwd blacklisted each one (`[Blacklist] InitialTimeout`, 60 s by
+  default, longer after repeated failures) and reconnected 88–90 s later.
+
+The first drop came at idle, the second under full load, and older boots
+with CPU idle off show the same pattern, so it is not the power work. It
+matters, since Wi-Fi is the main link. A shorter blacklist (iwd.config:
+`InitialTimeout`, `Multiplier`, `MaximumTimeout`) would cut the outage.
+Why the access point deauthenticates is still open, Wi-Fi power saving
+for one.
 
 ## Never flash
 
