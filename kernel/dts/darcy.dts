@@ -8,6 +8,7 @@
 /dts-v1/;
 
 #include "nvidia/tegra210-p2894-0050-a08.dts"
+#include <dt-bindings/thermal/thermal.h>
 
 / {
 	chosen {
@@ -246,8 +247,7 @@
 
 /*
  * The fan follows the CPU's temperature: stock darcy's "cool" profile starts
- * it at 50 C. These start it at 45 C, and add two more steps up to 95 C,
- * while the CPU runs without DVFS.
+ * it at 50 C. These start it at 45 C, and add two more steps up to 95 C.
  */
 &{/thermal-zones/cpu-thermal} {
 	trips {
@@ -317,6 +317,56 @@
 		fan-95 {
 			trip = <&fan6>;
 			cooling-device = <&fan 6 6>;
+		};
+	};
+};
+
+/*
+ * Passive cooling: from 82 C on the CPU sensor or 85 C on the memory
+ * sensor, the thermal core lowers the CPUs' highest rate a step at a time
+ * (cpufreq cooling), while the fan runs at its top levels. The four cores
+ * share one cpufreq policy, which registers a single cooling device for
+ * cpu@0. The memory zone polls once a second while above a passive trip,
+ * as the CPU zone does; its own passive trip at 50 C maps only to the EMC,
+ * which has no driver here yet. The soctherm hardware throttle (98.5 C)
+ * and the thermal guard (rootfs/) stay in place behind this.
+ */
+&{/cpus/cpu@0} {
+	#cooling-cells = <2>;
+};
+
+&{/thermal-zones/cpu-thermal} {
+	trips {
+		cpu_passive: cpu-passive {
+			temperature = <82000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+	};
+
+	cooling-maps {
+		cpu-passive {
+			trip = <&cpu_passive>;
+			cooling-device = <&{/cpus/cpu@0} THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
+&{/thermal-zones/mem-thermal} {
+	polling-delay-passive = <1000>;
+
+	trips {
+		mem_passive: mem-passive-cpu {
+			temperature = <85000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+	};
+
+	cooling-maps {
+		mem-passive-cpu {
+			trip = <&mem_passive>;
+			cooling-device = <&{/cpus/cpu@0} THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 		};
 	};
 };

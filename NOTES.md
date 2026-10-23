@@ -1530,6 +1530,25 @@ after the scaler, which also means the DVCO itself runs at about 1058 MHz.
   device stable at any DVCO input voltage" (`clk-dfll.c:987-991`). It
   costs a little power at low rates.
 
+**4. Passive cooling through cpufreq** (`darcy.dts`: `#cooling-cells` on
+`cpu@0` only, as n-codex advised, since the four cores share one policy
+and so one cooling device; passive trips at 82 °C on `cpu-thermal` and
+85 °C on `mem-thermal`, whose passive polling goes from 0 to 1000 ms):
+- `cpufreq-cpu0` registers with 8 states (9 rates). It is bound to
+  cpu-thermal's trip 8 (82 °C) and mem-thermal's trip 4 (85 °C). The
+  memory zone's own 50 °C trip stays unbound (EMC, no driver).
+- **Tried with real heat**, not emulation: cpu-thermal's passive trip was
+  lowered to 44 °C through sysfs (soctherm programs only hot and critical
+  trips into hardware, `soctherm.c:592-632`), with all four cores loaded.
+  The cooling state went to 1–2 (ceiling 918/816 MHz) and held the CPU at
+  44 °C. Idle, it went back to 0 below 42 °C, and the trip went back to
+  82 °C.
+- `emul_temp` (`CONFIG_THERMAL_EMULATION=y`) would also work, but the
+  core then sets soctherm's hardware interrupt thresholds around the
+  emulated value (`tegra_thermctl_set_trips()`). With the real sensor far
+  below them, it is unclear what the comparators do, so the real-heat test
+  was used instead.
+
 **Wi-Fi dropped once** (00:16:55): the access point deauthenticated the
 SHIELD (reason 1). Four quick reconnects failed (status 16), and iwd's
 next full try came 90 s later. Older boots with CPU idle off show the same
