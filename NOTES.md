@@ -979,7 +979,18 @@ nothing with `-D` here).
 - **The clock is wrong.** The journal's dates read 2026-10-18: no RTC time,
   and no network time yet.
 - **The first boot's log ends with `usb 1-3.1: reset high-speed USB device`**
-  (the SSD), around when the power was pulled. Watch for it. Android must
+  (the SSD), around when the power was pulled. Watch for it.
+
+**Step 2 works (2026-10-22):**
+- **The way back to the menu works end to end for the installed system.**
+  Powered on without the SSD: the kernel waited 30 s (`rootwait=30`) and
+  panicked. U-Boot found the panic's dump record, showed the log, and
+  rebooted into the bootloader menu by itself.
+- **The screen fix works.** With the boot image carrying
+  `module_blacklist=tegra_drm`, the picture stays on through boot, all the
+  way to the `darcy login:` prompt.
+- **Next is step 3 (Wi-Fi):** the new kernel with iwd's crypto and the
+  country, plus its matching modules on the SSD (`scripts/16`). Android must
 never start again while Linux is on `userdata`: its file-based encryption
 would fail there and it would offer a wipe, and `vendor_flash_recovery`
 would put its recovery back. The recovery slot keeps the test payload, for
