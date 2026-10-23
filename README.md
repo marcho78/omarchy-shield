@@ -21,8 +21,9 @@ Android stays installed, so you can go back.
 > - **Done too:** Arch Linux ARM runs from a USB SSD, with the console on
 >   HDMI, Wi-Fi (2.4 and 5 GHz), SSH and Bluetooth. New builds go on over
 >   the network, with nothing to press on the TV.
-> - **In progress:** tegra-drm drives HDMI (loaded by hand for now), then
->   the GPU and Omarchy.
+> - **Done too:** the real display driver, tegra-drm, drives HDMI from
+>   boot.
+> - **Next:** the GPU (nouveau) for a desktop, then Omarchy.
 >
 > `NOTES.md` is the research log.
 
@@ -258,9 +259,7 @@ To see them all again until the next boot, run this on the SHIELD:
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. Extend the device tree: tegra-drm at boot (it already drives HDMI when
-   loaded by hand: `modprobe --ignore-install tegra_drm`), GPU (nouveau), audio,
-   fan.
+2. Extend the device tree: GPU (nouveau), audio, fan.
 3. Install `omarchy-arm`.
 
 ## Layout

@@ -1183,12 +1183,24 @@ quarter of a second:
 - CRTC 0 active at 1920x1080@60, 148.5 MHz, 2200×1125 (the CEA timing).
 - No warnings, and no memory-controller or SMMU faults.
 
+**On the TV:** the user logged in on the console with no visible problem
+with the picture. A black-and-white text console can't show the colour
+range, though; that waits for a desktop.
+
+**Milestone: tegra-drm drives HDMI from boot (2026-10-22).** The
+modprobe.d file is gone from the SSD and from `scripts/13`, so udev loads
+tegra-drm at boot:
+- simpledrm takes cboot's framebuffer at 13.17 s. tegra-drm takes over at
+  15.67–15.84 s, with 0.16 s on the dummy console in between.
+- fb0 is `tegradrmfb`, HDMI-A-1 is connected and on, nothing is left
+  deferred (I2C4 bound once DPAUX1 loaded), and no unit failed.
+- The user: "screen looks normal after boot".
+
 **Open:**
-- the TV's view of it
-- loading it at boot (drop the modprobe.d file)
 - the colour range: full-range RGB, where cboot sent limited range
-- darcy's drive current, if the picture needs it
-- then the GPU
+- darcy's drive current, if a picture ever shows sparkles
+- 4K and HDMI 2.0 scrambling: this TV ("LG FHD") stops at 1080p
+- the GPU (nouveau), for a desktop
 
 ## Never flash
 

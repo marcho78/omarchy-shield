@@ -18,13 +18,10 @@
 		 * the log after the reset.
 		 *
 		 * tegra-drm takes the screen over from the simple framebuffer
-		 * the console is on: loading it blanks the TV until it has set
-		 * a mode itself. Until it is proven, the root filesystem keeps
-		 * it from loading at boot (modprobe.d, scripts/13), and it is
-		 * tried by hand over SSH; module_blacklist= would refuse that
-		 * too.
-		 * video= holds its console at 1080p, the mode cboot uses, rather
-		 * than the TV's preferred mode.
+		 * the console is on, when udev loads it: the TV blanks for a
+		 * moment while it sets a mode itself. video= holds its console
+		 * at 1080p, the mode cboot uses, rather than the TV's preferred
+		 * mode (4K would also need HDMI 2.0 scrambling, untested here).
 		 *
 		 * Unlike darcy.dts, no ignore_loglevel: the boot shows on the
 		 * TV, and once systemd is up the rootfs lowers the console

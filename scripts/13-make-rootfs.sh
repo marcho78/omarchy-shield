@@ -186,17 +186,6 @@ chmod 440 "$rootfs/etc/sudoers.d/10-wheel"
 # until the next boot: echo Y > /sys/module/printk/parameters/ignore_loglevel
 echo 'kernel.printk = 3 4 1 7' > "$rootfs/etc/sysctl.d/20-quiet-console.conf"
 
-# Until HDMI through tegra-drm is proven, nothing loads it at boot: the
-# console stays on cboot's picture, and it is tried by hand over SSH
-cat > "$rootfs/etc/modprobe.d/20-darcy-tegra-drm.conf" << 'EOF'
-# Loading tegra-drm blanks the TV until it sets a mode itself, so not at
-# boot while that is being proven. "blacklist" stops udev loading it for a
-# device; "install" also stops host1x's soft dependency (post: tegra-drm),
-# which names the module. By hand: modprobe --ignore-install tegra_drm
-blacklist tegra_drm
-install tegra_drm /bin/true
-EOF
-
 mkdir -p "$rootfs/etc/systemd/system.conf.d"
 cat > "$rootfs/etc/systemd/system.conf.d/10-watchdog.conf" << 'EOF'
 # Keep the watchdog U-Boot armed (tegra_wdt): a hung system resets
