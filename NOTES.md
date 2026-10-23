@@ -1268,6 +1268,72 @@ through the secure monitor before.
 - TF-A's PMC handler filters offsets for reads and writes alike, so the
   write is very likely accepted too.
 
+### The GPU: the first register read needs the fuse clock (2026-10-22)
+
+**The change in `darcy.dts`** (reviewed by n-codex, n-grok and antigravity,
+`research/*gpu-review*`):
+- the `pwm` controller, with a default pin state muxing `lcd_gpio2_pv4` to
+  `pwm1`
+- `vdd_gpu`, Jetson TX1's pwm-regulator node (PWM channel 1, 710–1320 mV,
+  PMIC GPIO 6)
+- the GPU node with `vdd-supply`
+- the root filesystem blocks nouveau at boot (`blacklist` plus
+  `install nouveau /bin/true`)
+
+Before the test, the state was as planned: `pwm-tegra` bound, the pin on
+PWM1, `vdd-gpu` registered and off, GPIO 6 an output driven low.
+
+**`modprobe --ignore-install nouveau` froze the board** before nouveau
+printed a line. The 60 s watchdog reset it, and U-Boot showed the log and
+went to the bootloader menu. The kernel log, streamed to the laptop, ended
+at the test's marker.
+
+**`tools/gpu-power-probe`** repeats nouveau's power-up a step at a time,
+logging and pausing between steps:
+- the rail on
+- the gpu, ref and pwr clocks
+- the reset asserted
+- the clamps removed through the secure monitor (`GPU_RG_CNTRL` 1 → 0:
+  the monitor takes the write)
+- the reset released
+- the first register read
+
+The first five steps pass. The read of `BOOT_1` stalled the bus at 710 mV,
+and again at 1.0 V (`PWM_CSR_1` `0x807b0000`, regulator 1002800 µV).
+Recovery took 2½ min, which is the watchdog path, not a panic.
+
+**Ruled out by measurement:**
+- **A rail that doesn't come up:** PMIC GPIO 6 reads `0x09` (high) by
+  direct I2C, and darcy's INA3221 (now in `darcy.dts`, on I2C2, whose pins
+  cboot leaves muxed) shows VDD_SYS (18.9 V input) going 348 → 389 mA as
+  the rail turns on (+0.77 W).
+- **A MAX77621 instead of the PWM regulator:** nothing answers at `0x1c`.
+- **The memory controller's hot reset:** the GPU's request bit is 0. Its
+  status bit goes 1 → 0 as the GPU comes up, the interface waking.
+- **Clock and reset:** CAR bank X bit 24 enabled, reset released, at
+  step 5.
+
+**NVIDIA's own sequence works.** nvgpu's `gm20b_tegra_unrailgate()`
+(L4T r32, `platform_gk20a_tegra.c`) differs from nouveau's in three ways:
+- the SoC **fuse clock** is on (its `clk[3]`)
+- the reset is released with the gpu gate clock stopped
+- the GPU's MC client is flushed and released
+
+With all three in the probe module, `BOOT_0` read `0x12b000a1` (GM20B).
+With **only the fuse clock**, it read the same. The fuse clock is gated
+otherwise: the fuse driver turns it on only around its own reads (runtime
+PM, `fuse-tegra.c:259-276`).
+
+**Upstream knows** (found by n-codex): a v2 series on dri-devel (October
+2026) reports the same failure on Jetson TX1 (garbage `BOOT_0`, stalled
+first reads). It adds the fuse clock to the Tegra210 GPU node and has
+nouveau keep it on while the GPU is powered. One TX1 that failed on every
+boot passed 38 of 40. It is posted, not merged: not in 7.2.11.
+
+**Also measured:** the board draws 6.6 W at idle (348 mA × 18.9 V), at
+88 °C CPU, 87 °C GPU and 89.5 °C memory. cpufreq doesn't probe, and the
+command line has `cpuidle.off=1`. That's to be looked at.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

@@ -8,7 +8,7 @@
  *
  *   insmod pmc-read.ko offsets=0x38,0x2d4
  *
- * Build: tools/pmc-read/build.sh (output in build/pmc-read/)
+ * Build: tools/build-module.sh pmc-read
  */
 #include <linux/arm-smccc.h>
 #include <linux/module.h>

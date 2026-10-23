@@ -180,6 +180,98 @@
 };
 
 /*
+ * The GPU (GM20B) for nouveau. Its rail is the stock darcy one (gpu_ovr_reg,
+ * tegra210-ers-power-dvfs-e2174-1101-a00.dtsi): an open-loop regulator set
+ * by PWM channel 1 and switched by PMIC GPIO 6, with the range, period and
+ * delays of Jetson TX1's vdd_gpu (tegra210-p2180.dtsi). cboot leaves the GPU
+ * off: GPIO 6 an input, channel 1 disabled, the clamps on. With channel 1
+ * disabled the rail starts at its 710 mV floor when nouveau enables it, as
+ * on Jetson TX1.
+ *
+ * cboot also leaves the PWM pin, lcd_gpio2_pv4, on its DISPLAYB function;
+ * Android's kernel muxes it to pwm1 with the rest of its pinmux. Here the
+ * PWM controller applies just that pin, as its default state: without it
+ * the duty cycle would never reach the regulator.
+ *
+ * The controller also runs channel 0 for cboot, the lightbar LED, which
+ * nothing in Linux claims: the driver gates the controller's clock while no
+ * Linux user has a channel on (tegra_pwm_runtime_suspend()), so the LED can
+ * freeze while the GPU is off.
+ */
+&pinmux {
+	gpu_pwm_default: pinmux-gpu-pwm {
+		lcd_gpio2_pv4 {
+			nvidia,pins = "lcd_gpio2_pv4";
+			nvidia,function = "pwm1";
+			nvidia,pull = <TEGRA_PIN_PULL_NONE>;
+			nvidia,tristate = <TEGRA_PIN_DISABLE>;
+			nvidia,enable-input = <TEGRA_PIN_DISABLE>;
+			nvidia,open-drain = <TEGRA_PIN_DISABLE>;
+		};
+	};
+};
+
+&pwm {
+	pinctrl-names = "default";
+	pinctrl-0 = <&gpu_pwm_default>;
+	status = "okay";
+};
+
+/ {
+	vdd_gpu: regulator-vdd-gpu {
+		compatible = "pwm-regulator";
+		pwms = <&pwm 1 8000>;
+		regulator-name = "vdd-gpu";
+		regulator-min-microvolt = <710000>;
+		regulator-max-microvolt = <1320000>;
+		enable-gpios = <&pmic 6 GPIO_ACTIVE_HIGH>;
+		regulator-ramp-delay = <80>;
+		regulator-enable-ramp-delay = <2000>;
+		regulator-settling-time-us = <160>;
+	};
+};
+
+&{/gpu@57000000} {
+	vdd-supply = <&vdd_gpu>;
+	status = "okay";
+};
+
+/*
+ * The power monitor, as the stock darcy device tree has it
+ * (tegra210-darcy-p2894-common.dtsi): an INA3221 on I2C2, its three inputs
+ * behind 5 mOhm shunts. cboot leaves the bus's pins on I2C2. VDD_SYS is the
+ * system input, which shows whether a rail (the GPU's, say) really draws.
+ */
+&{/i2c@7000c400} {
+	status = "okay";
+
+	power-sensor@40 {
+		compatible = "ti,ina3221";
+		reg = <0x40>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		input@0 {
+			reg = <0x0>;
+			label = "VDD_NOOP";
+			shunt-resistor-micro-ohms = <5000>;
+		};
+
+		input@1 {
+			reg = <0x1>;
+			label = "VDD_IO";
+			shunt-resistor-micro-ohms = <5000>;
+		};
+
+		input@2 {
+			reg = <0x2>;
+			label = "VDD_SYS";
+			shunt-resistor-micro-ohms = <5000>;
+		};
+	};
+};
+
+/*
  * USB: the port near HDMI as a host, wired as in the stock darcy device tree
  * (USB 2 lane 2, with UPHY lane pcie-5 for SuperSpeed as usb3-1), with the
  * supplies NVIDIA's darcy power tree names
