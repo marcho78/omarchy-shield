@@ -6,10 +6,17 @@ Subject: [PATCH] Add the Tegra210 platform (SHIELD TV, Jetson TX1 and Nano)
 Tegra210 boards fell through to generic-aarch64, which installs the
 virtual machine's Vulkan drivers and the stock Hyprland look. Detect
 them from the nvidia,tegra210 compatible as "tegra210", with an
-omarchy-hw-tegra predicate. Install no Vulkan driver (NVK has no Tegra
-support yet), and give Hyprland the Pi's light defaults plus a pointer
-drawn in software, in the session and in SDDM's greeter: Tegra210's
-cursor plane takes only RGBA8888.
+omarchy-hw-tegra predicate, and:
+- install no Vulkan driver: NVK has no Tegra support yet
+- give Hyprland the Pi's light defaults and a pointer drawn in
+  software, in the session and in SDDM's greeter, which reads the
+  device tree itself since Hyprland reaps its children: Tegra210's
+  cursor plane takes only RGBA8888
+- point aquamarine at tegra-drm's card before Hyprland starts, from
+  UWSM's environment for the session and an SDDM drop-in for the
+  greeter: that's how it was tested
+- leave linux-modules-cleanup off: it deletes module trees pacman
+  doesn't own, and these boards' kernels come from outside pacman
 
 Tested on a SHIELD TV 2017 (darcy) with mainline Linux and Mesa's tegra
 driver; both need fixes that aren't upstream yet (Mesa merge request
@@ -103,25 +110,46 @@ index 0000000..382cb13
 +  },
 +})
 diff --git a/default/sddm/hyprland.lua b/default/sddm/hyprland.lua
-index 977ae17..e7765d8 100644
+index 977ae17..049d40c 100644
 --- a/default/sddm/hyprland.lua
 +++ b/default/sddm/hyprland.lua
-@@ -11,3 +11,15 @@ hl.config({
+@@ -11,3 +11,20 @@ hl.config({
      enabled = false,
    },
  })
 +
 +-- Tegra210's cursor plane takes only RGBA8888, so the pointer is drawn in
 +-- software there, as default/hypr/platform/tegra.lua does for the session.
-+-- (On success os.execute gives true from Lua 5.2 on, and 0 in LuaJIT.)
-+local tegra = os.execute("/usr/share/omarchy/bin/omarchy-hw-tegra")
-+if tegra == true or tegra == 0 then
++-- The device tree is read here rather than asking omarchy-hw-tegra: Hyprland
++-- reaps its children, so this config can't see an exit status.
++local dt = io.open("/proc/device-tree/compatible", "rb")
++local compatible = dt and dt:read("a") or ""
++if dt then
++  dt:close()
++end
++if compatible:find("nvidia,tegra210", 1, true) then
 +  hl.config({
 +    cursor = {
 +      no_hardware_cursors = 1,
 +    },
 +  })
 +end
+diff --git a/default/uwsm/env.d/10-omarchy b/default/uwsm/env.d/10-omarchy
+index d5395dd..9eaa072 100644
+--- a/default/uwsm/env.d/10-omarchy
++++ b/default/uwsm/env.d/10-omarchy
+@@ -15,5 +15,11 @@ fi
+ # Optional user overrides kept for compatibility with older installs.
+ [ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
+ 
++# Tegra210 (SHIELD TV, Jetson TX1 and Nano): Hyprland drives tegra-drm's card.
++# nouveau's has no display, and aquamarine skips it, but this is how it was
++# tested. The path has no colon, so it suits AQ_DRM_DEVICES' list syntax.
++[ -e /dev/dri/by-path/platform-50000000.host1x-card ] &&
++  export AQ_DRM_DEVICES=/dev/dri/by-path/platform-50000000.host1x-card
++
+ # Activate mise if present on the system
+ omarchy-cmd-present mise && eval "$(mise activate bash --shims)"
 diff --git a/install.sh b/install.sh
 index 97ffdb2..98581bf 100755
 --- a/install.sh
@@ -146,6 +174,21 @@ index 97ffdb2..98581bf 100755
    generic-aarch64)
      ok "Platform: generic aarch64 (virtual machine or unrecognised board)"
      ;;
+diff --git a/install/config/enable-services.sh b/install/config/enable-services.sh
+index b7e2ba8..d954d8c 100644
+--- a/install/config/enable-services.sh
++++ b/install/config/enable-services.sh
+@@ -3,7 +3,9 @@
+ systemctl enable cups.service
+ systemctl enable cups-browsed.service
+ systemctl enable avahi-daemon.service
+-systemctl enable linux-modules-cleanup.service
++# It deletes the /usr/lib/modules trees no package owns. A Tegra210 board's
++# kernel and modules come from outside pacman (the SHIELD TV port's builds).
++omarchy-hw-tegra || systemctl enable linux-modules-cleanup.service
+ systemctl enable docker.socket
+ systemctl enable systemd-resolved.service
+ systemctl enable NetworkManager.service
 diff --git a/install/hardware/all.sh b/install/hardware/all.sh
 index 4e0eb9d..92ece1d 100644
 --- a/install/hardware/all.sh
@@ -160,10 +203,10 @@ index 4e0eb9d..92ece1d 100644
  run_logged_x86 "$OMARCHY_INSTALL/hardware/intel/lpmd.sh"
 diff --git a/install/hardware/arm/tegra.sh b/install/hardware/arm/tegra.sh
 new file mode 100644
-index 0000000..bd66faa
+index 0000000..9e1f58f
 --- /dev/null
 +++ b/install/hardware/arm/tegra.sh
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,25 @@
 +# NVIDIA Tegra210 quirks (SHIELD TV, Jetson TX1 and Nano).
 +#
 +# The display is tegra-drm's and the GPU is nouveau's; Mesa's tegra driver
@@ -176,6 +219,15 @@ index 0000000..bd66faa
 +source "$OMARCHY_INSTALL/arm/platform.sh"
 +
 +omarchy-hw-tegra || return 0
++
++# SDDM's greeter is a Hyprland of its own (etc/sddm.conf.d/10-wayland.conf),
++# started before any session, so it gets tegra-drm's card in its command line,
++# as the session does in default/uwsm/env.d/10-omarchy.
++mkdir -p /etc/sddm.conf.d
++cat >/etc/sddm.conf.d/20-omarchy-tegra.conf <<'EOF'
++[Wayland]
++CompositorCommand=env AQ_DRM_DEVICES=/dev/dri/by-path/platform-50000000.host1x-card start-hyprland -- --config /usr/share/sddm/hyprland.lua
++EOF
 +
 +state_dir="${OMARCHY_STATE_DIR:-/var/lib/omarchy}"
 +mkdir -p "$state_dir"
@@ -197,10 +249,10 @@ index 097ec12..0255bc1 100644
      # A VM with no accelerated GPU: virtio-gpu with Venus, and the software
      # rasterizer as the fallback that keeps Hyprland able to start at all.
 diff --git a/test/shell.d/arm64-gating-test.sh b/test/shell.d/arm64-gating-test.sh
-index 9a48a40..1bafa82 100755
+index 9a48a40..a8b836e 100755
 --- a/test/shell.d/arm64-gating-test.sh
 +++ b/test/shell.d/arm64-gating-test.sh
-@@ -38,7 +38,7 @@ for leaf in "${x86_only[@]}"; do
+@@ -38,13 +38,28 @@ for leaf in "${x86_only[@]}"; do
  done
  pass "every x86-only hardware leaf is gated"
  
@@ -209,6 +261,27 @@ index 9a48a40..1bafa82 100755
    grep -q "run_logged_arm \"\$OMARCHY_INSTALL/$leaf\"" "$all" ||
      fail "$leaf runs on aarch64 only"
    [[ -f $ROOT/install/$leaf ]] || fail "$leaf exists"
+ done
+ pass "the ARM hardware leaves are wired and present"
+ 
++# SDDM's greeter is a Hyprland of its own and loads none of default/hypr, so
++# Tegra210 gets its pointer and its DRM device separately there.
++grep -q 'nvidia,tegra210' "$ROOT/default/sddm/hyprland.lua" &&
++  grep -q 'no_hardware_cursors' "$ROOT/default/sddm/hyprland.lua" ||
++  fail "SDDM's greeter draws the pointer in software on Tegra210"
++pass "SDDM's greeter draws the pointer in software on Tegra210"
++
++grep -q 'AQ_DRM_DEVICES=/dev/dri/by-path/platform-50000000.host1x-card' "$ROOT/install/hardware/arm/tegra.sh" ||
++  fail "the Tegra leaf gives SDDM's greeter tegra-drm's card"
++pass "the Tegra leaf gives SDDM's greeter tegra-drm's card"
++
++grep -q 'omarchy-hw-tegra || systemctl enable linux-modules-cleanup.service' "$ROOT/install/config/enable-services.sh" ||
++  fail "module cleanup stays off on Tegra210, whose kernel isn't pacman's"
++pass "module cleanup stays off on Tegra210, whose kernel isn't pacman's"
++
+ # snapper is wired to limine on x86 (config/all.sh enables
+ # limine-snapper-sync.service alongside it) and snapper itself is not in the
+ # ARM package set, so the leaf would abort omarchy-apply-system on the very
 diff --git a/test/shell.d/arm64-platform-test.sh b/test/shell.d/arm64-platform-test.sh
 index b183e0a..d7c9cc4 100755
 --- a/test/shell.d/arm64-platform-test.sh

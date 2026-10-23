@@ -8,14 +8,17 @@
 #   2. Wi-Fi through the switch: Omarchy moves networking from iwd and
 #      systemd-networkd to NetworkManager at the next boot. Each network iwd
 #      knows (/var/lib/iwd/*.psk) gets a NetworkManager profile first, so the
-#      SHIELD comes back on Wi-Fi. The secrets stay on the SHIELD.
+#      SHIELD comes back on Wi-Fi, with the permanent MAC and networkd's DHCP
+#      client ID, so the router hands out the same address. The secrets stay
+#      on the SHIELD. scripts/21 tries the switch before any reboot.
 #   3. omarchy-arm, reset to its pin and patched, goes to the user's home,
 #      and its install.sh runs as the user in a service (it outlives a dropped
 #      SSH session), with sudo needing no password for that user meanwhile.
 #      With --dry-run, install.sh only prints its plan, and steps 1-2 are
 #      shown, not done.
-#   4. Nothing reboots: NetworkManager and the SDDM login screen take over
-#      at the next boot.
+#   4. A report: sshd, the firewall's SSH and mDNS rules, and the network
+#      services the next boot starts. Nothing reboots: NetworkManager and the
+#      SDDM login screen take over at the next boot (scripts/21 first).
 #
 # Needs SSH as root with device-info/ssh/id_ed25519 (scripts/13).
 #
@@ -57,6 +60,12 @@ else
 set -eu
 d=/etc/NetworkManager/system-connections
 install -d -m 700 "$d"
+# networkd's DHCPv4 client ID on the Wi-Fi (RFC 4361: 0xff, IAID, DUID), so
+# that NetworkManager asks the router for the same lease
+cid=$(networkctl status wlan0 --json=short 2>/dev/null | python3 -c '
+import json, sys
+c = json.load(sys.stdin).get("DHCPv4Client", {}).get("ClientIdentifier")
+print(":".join("%02x" % b for b in c) if c else "")' 2>/dev/null || true)
 for f in /var/lib/iwd/*.psk; do
   [ -e "$f" ] || continue
   ssid=$(basename "$f" .psk)
@@ -65,6 +74,7 @@ for f in /var/lib/iwd/*.psk; do
   psk=$(sed -n 's/^Passphrase=//p' "$f")
   [ -n "$psk" ] || psk=$(sed -n 's/^PreSharedKey=//p' "$f")
   [ -n "$psk" ] || { echo "skipping $ssid: no key in $f"; continue; }
+  case $psk in *\\*) echo "skipping $ssid: its key needs escaping; set it up in NetworkManager"; continue ;; esac
   umask 077
   cat > "$d/$ssid.nmconnection" <<NM
 [connection]
@@ -75,6 +85,8 @@ autoconnect=true
 [wifi]
 mode=infrastructure
 ssid=$ssid
+cloned-mac-address=permanent
+security=802-11-wireless-security
 
 [wifi-security]
 key-mgmt=wpa-psk
@@ -82,6 +94,7 @@ psk=$psk
 
 [ipv4]
 method=auto
+${cid:+dhcp-client-id=$cid}
 
 [ipv6]
 method=auto
@@ -101,11 +114,13 @@ flags=-y
 $dry_run && flags=--dry-run
 log "install.sh $flags as $user (the log: /home/$user/omarchy-install.log)"
 sudoers=/etc/sudoers.d/99-darcy-omarchy-install
-on_shield "echo '$user ALL=(ALL) NOPASSWD: ALL' > $sudoers && chmod 440 $sudoers"
+on_shield "echo '$user ALL=(ALL) NOPASSWD: ALL' > $sudoers.new && chmod 440 $sudoers.new &&
+  visudo -cqf $sudoers.new && mv $sudoers.new $sudoers"
+# The service removes it when it ends, and this does too, in case SSH dropped
 trap 'on_shield "rm -f $sudoers" || warn "remove $sudoers on the SHIELD by hand"' EXIT
 # A logind session (PAMName) gives it the user's runtime directory and manager
 on_shield "systemctl reset-failed darcy-omarchy-install 2>/dev/null; systemd-run --quiet --unit=darcy-omarchy-install \
-  --uid=$user -p PAMName=login --working-directory=/home/$user/omarchy-arm \
+  --uid=$user -p PAMName=login --working-directory=/home/$user/omarchy-arm -p ExecStopPost=+/usr/bin/rm\ -f\ $sudoers \
   -p StandardOutput=file:/home/$user/omarchy-install.log -p StandardError=inherit /home/$user/omarchy-arm/install.sh $flags"
 while :; do
   sleep 30
@@ -120,6 +135,14 @@ on_shield "grep -q -E 'Dry run complete|Omarchy is installed|==> Done' /home/$us
   die "install.sh didn't finish (above: the end of /home/$user/omarchy-install.log)"
 if $dry_run; then
   log "dry run done"
-else
-  log "installed; reboot the SHIELD (systemctl reboot) for NetworkManager and the login screen"
+  exit 0
 fi
+
+log "what the next boot will run"
+on_shield 'for u in sshd NetworkManager systemd-resolved avahi-daemon sddm iwd systemd-networkd; do
+    printf "    %-18s %s\n" $u "$(systemctl is-enabled $u 2>/dev/null)"; done
+  echo "    firewall: $(ufw status 2>/dev/null | head -1)"
+  ufw show added 2>/dev/null | grep -E "22|ssh" | sed "s/^/    /" || echo "    no SSH rule in ufw"
+  grep -q "5353" /etc/ufw/before.rules 2>/dev/null && echo "    mDNS (5353) let in" || echo "    no mDNS rule in ufw"
+  ls /etc/NetworkManager/system-connections/ | sed "s/^/    NetworkManager profile: /"' >&2
+log "installed; next: scripts/21-switch-to-networkmanager.sh, then reboot into the login screen"

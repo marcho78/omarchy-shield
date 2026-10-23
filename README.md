@@ -286,13 +286,29 @@ The kernel needs `patches/linux/0004` and `0005` for the GPU: without them
 nouveau rejects command batches after a second's wait, and the TV shows
 half-drawn frames.
 
+### 13. Omarchy
+
+The omarchy-arm port at its pin, with a Tegra210 platform
+(`patches/omarchy-arm/`), for the desktop user `config.sh` names
+(`OMARCHY_USER`, created with a temporary password: change it with
+`passwd`):
+
+    scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # the plan, nothing changes
+    scripts/20-install-omarchy.sh <the SHIELD's address>             # 30-60 minutes
+    scripts/21-switch-to-networkmanager.sh <the SHIELD's address>    # Wi-Fi, with a way back
+    ssh ... root@<address> systemctl reboot                          # into the login screen
+
+Omarchy runs on NetworkManager. `scripts/20` gives it the Wi-Fi networks
+iwd knows, asking for the same address, and `scripts/21` tries the switch
+before any reboot: unless SSH comes back through NetworkManager within two
+minutes, the SHIELD goes back to iwd.
+
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. The GPU's clock policy (`NOTES.md`, "B1"), then plain Hyprland, then
-   nouveau at boot; audio. The plan is in `NOTES.md`, "The GPU and the
-   desktop".
-3. Install `omarchy-arm`, with a `tegra` platform added to it.
+2. Audio.
+3. The memory clock (EMC scaling up to 1600 MHz, from stock darcy's
+   tables), for the GPU and video.
 
 ## Layout
 
@@ -304,6 +320,7 @@ half-drawn frames.
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
 | `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress semaphore, tegra-drm's imported buffers |
 | `patches/mesa/` | Mesa's tegra driver fixes: upstream merge request !45355 (0001) and ours (0002-0007) |
+| `patches/omarchy-arm/` | omarchy-arm's Tegra210 platform: detection, no Vulkan, the light look and a software pointer, tegra-drm's card for Hyprland and SDDM's greeter |
 | `packages/mesa-darcy/` | The Mesa package `scripts/19` builds: Arch Linux ARM's release for Tegra210, with `patches/mesa` |
 | `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
 | `rootfs/` | Files `scripts/13` and `scripts/18` put in the installed system as they are: the thermal guard (`darcy-thermal-guard`, slows the CPUs at 86 °C, reboots at 92 °C) |

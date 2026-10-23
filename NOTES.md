@@ -1855,6 +1855,53 @@ links). The boot takes 17.8 s (11.2 s kernel). No new warnings. Idle:
 5.49 W, 43 °C, the GPU at 76.8 MHz and 838 mV on `simple_ondemand`, the
 thermal guard running.
 
+### B4: Omarchy, the plan after n-codex's review (2026-10-23)
+
+The desktop user is `devsecai` (the user's choice; config.sh
+`OMARCHY_USER`), in wheel, with a temporary password equal to the name
+(the user deferred passwords; SSH takes keys only, so it counts at the TV
+alone). omarchy-arm's `install.sh --dry-run`: 124 repository packages
+(Chromium, Docker, clang and CUPS among them), 2 AUR ones (`mise-bin`,
+`ufw-docker`, built with yay), 13 with no aarch64 build left out, the boot
+chain's files skipped ("not ours on ARM").
+
+`patches/omarchy-arm/0001` adds a `tegra210` platform: detection from
+`nvidia,tegra210`, `omarchy-hw-tegra`, no Vulkan packages (NVK has no
+Tegra support), the Pi's light Hyprland look and a software pointer, in the
+session (`default/hypr/platform/tegra.lua`) and in SDDM's greeter.
+omarchy-arm's tests pass, with new ones for it; the dry run on the SHIELD
+reports "Platform: NVIDIA Tegra210".
+
+n-codex's review (`research/ncodex-omarchy-review.md`), each point checked:
+- **Networking moves at the next boot.** `install/hardware/network.sh`
+  disables iwd and networkd, `install/config/enable-services.sh` enables
+  NetworkManager (and resolved, avahi, SDDM, Docker's socket, CUPS). Only
+  enabled, so the install keeps SSH, but NetworkManager would come up
+  without the Wi-Fi. `scripts/20` writes it a profile from iwd's, with the
+  permanent MAC and networkd's DHCPv4 client ID
+  (`ff:de:41:47:63:00:02:00:00:ab:11:c9:55:1e:cf:b6:a7:c5:6e`: 0xff, IAID,
+  systemd's DUID) so the router hands out the same lease, and
+  `scripts/21` tries the switch live, with a timer that puts iwd and
+  networkd back unless SSH comes back through NetworkManager.
+- **The firewall** denies incoming connections from the next boot; the SSH
+  exception depends on sshd being enabled (it is). `scripts/20` reports the
+  rule and mDNS before any reboot.
+- **SDDM's greeter can't run a predicate:** Hyprland reaps its children,
+  so `os.execute()` gets no exit status (`default/hypr/helpers.lua:21-22`).
+  The greeter config reads `/proc/device-tree/compatible` itself.
+- **`AQ_DRM_DEVICES` stays,** as tested, set before Hyprland starts: in
+  UWSM's environment for the session (when tegra-drm's by-path device
+  exists) and in an SDDM drop-in the Tegra leaf writes for the greeter.
+- **`linux-modules-cleanup.service`** deletes module trees no package owns;
+  ours aren't pacman's, so it stays off on Tegra210.
+- **Kernel #13 has neither PSI nor zram,** which Omarchy's zram swap and
+  systemd-oomd need: `kernel/darcy.config` gains `CONFIG_PSI=y`,
+  `CONFIG_ZRAM=m`, `CONFIG_ZRAM_BACKEND_ZSTD=y` (kernel #14).
+- The temporary NOPASSWD sudo rule for the install is checked with
+  `visudo`, and the install service's `ExecStopPost` removes it even if SSH
+  drops.
+- `mesa` isn't in Omarchy's lists, so nothing replaces `mesa-darcy`.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
