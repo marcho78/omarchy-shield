@@ -1202,6 +1202,25 @@ tegra-drm at boot:
 - 4K and HDMI 2.0 scrambling: this TV ("LG FHD") stops at 1080p
 - the GPU (nouveau), for a desktop
 
+### pacman on the SHIELD needs Landlock (2026-10-22)
+
+pacman couldn't download anything on the installed system:
+- "restricting filesystem access failed because Landlock is not supported
+  by the kernel!", then "switching to sandbox user 'alpm' failed!".
+- pacman 7 downloads in a sandbox that confines itself with Landlock.
+  `scripts/13` never hit this: it turns the sandbox off while pacman runs
+  under QEMU.
+
+`kernel/darcy.config` now has `CONFIG_SECURITY_LANDLOCK=y`. The default
+`CONFIG_LSM` list already starts with `landlock`, and seccomp was already
+on. With kernel #7 (modules swapped in by `scripts/17`):
+- `/sys/kernel/security/lsm` reads `capability,landlock`.
+- `pacman -Sy` works, and Mesa 26.2.5 downloads.
+
+That Mesa has what the GPU step needs: `tegra_dri.so` (render-only,
+tegra-drm's display with nouveau's rendering), `nouveau_dri.so` and GBM.
+`vulkan-nouveau` is a separate package.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
