@@ -2060,6 +2060,30 @@ on Tegra everything is GART), with the GMMU's page tables in instmem behind
 the SMMU ("imem: using IOMMU"); no compression; EMC at 800 MHz, half of
 stock's top rate. Brief: `research/gpu-slow-brief.md`.
 
+n-codex's brainstorm (`research/ncodex-gpu-slow-review.md`), its source
+claims checked where marked:
+- STK's G-buffer is two RGBA8 targets; the lighting writes two
+  R11G11B10F targets with additive blending (up to 32 point lights in one
+  instanced draw, each fragment sampling normal and depth), and the combine
+  reads six textures into an RGBA16F target. Both float formats are native
+  and blendable on NVC0: no software fallback, just a heavy pass.
+- **No compression on GM20B** (checked: `ltc/gf100.c:163-166`, "No VRAM,
+  no tags for now", `num_tags = 0`). ZCULL and the L2 are set up; clock
+  gating, ELPG and the tegra wrapper are unlikely causes.
+- Our fixes don't add GPU work: 0006's longer fence wait is the same GPU
+  time, now reached sooner by the CPU.
+- Next measurements, cheapest first: the benchmark with dynamic lighting on
+  and `MESA_EXTENSION_OVERRIDE=-GL_EXT_color_buffer_float` (STK then uses
+  RGBA8 targets; a big gain means float blending and bandwidth); a
+  resolution sweep with lighting on and off; GPU timer queries in a small
+  GLES test (`GL_EXT_disjoint_timer_query`, 64-bit results), as STK's read 0;
+  Mesa's GM200 SM counters through `GALLIUM_HUD`, checked on a simple shader
+  first. Then the larger jobs: EMC at 1600 MHz (mainline needs
+  firmware-trained `tegra210_emc_timing` records in reserved memory, not the
+  downstream `emc-table` nodes), the GPU without `iommus` (tests the page
+  tables' SMMU layer only), and big GPU pages last (a new allocation and
+  mapping path, not just lifting the `PAGE_SHIFT` checks).
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
