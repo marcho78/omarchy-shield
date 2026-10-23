@@ -324,7 +324,7 @@ password: it logs in as that user.
 | `scripts/` | Numbered steps; `lib.sh` holds shared helpers |
 | `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
-| `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress semaphore, tegra-drm's imported buffers |
+| `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress semaphore, tegra-drm's imported buffers, nouveau's cache cleaning on every submit |
 | `patches/mesa/` | Mesa's tegra driver fixes: upstream merge request !45355 (0001) and ours (0002-0007) |
 | `patches/omarchy-arm/` | omarchy-arm's Tegra210 platform: detection, no Vulkan, the light look and a software pointer, tegra-drm's card for Hyprland and SDDM's greeter; and the shell's colours under Qt 6.12, whose own `Color` hid them |
 | `packages/mesa-darcy/` | The Mesa package `scripts/19` builds: Arch Linux ARM's release for Tegra210, with `patches/mesa` |
@@ -337,6 +337,7 @@ password: it logs in as that user.
 | `tools/power-status.sh` | What the SHIELD's power management does, read-only, over SSH: CPU idle, CPU frequency and the DFLL, cooling, temperatures, fan and power |
 | `tools/gpu-smoke.c` | The smallest picture a compositor needs (KMS, GBM, EGL, GLES2) on the TV, printing each step before it runs |
 | `tools/hyprland-try.sh` | Plain Hyprland on the TV over SSH, before Omarchy: packages, a minimal config for `alarm`, console 7; `--stop` ends it |
+| `tools/stk-benchmark.sh` | SuperTuxKart's built-in benchmark on the TV over SSH, with temperatures, power and clocks recorded: numbers that compare across kernels, Mesa builds and settings |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |

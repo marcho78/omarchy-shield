@@ -1992,10 +1992,73 @@ locked it, with the TV's screen off) killed the lock client. The new shell
 took the lock and reported it secure within 7 s, but `omarchy-restart-shell`
 still gave up after 30 s ("the session lock was not re-secured"), and when
 the screen came back on, Hyprland showed its "lockscreen app died" screen
-for up to half a minute before the shell's lock screen. Not looked into
-further. Check `omarchy-hyprland-session-locked` before restarting the shell:
+for up to half a minute before the shell's lock screen. n-codex's reading
+(`research/ncodex-omarchy-color-review.md`): `omarchy-restart-shell` asks the
+old shell for its lock state with a 0.5 s timeout and errors discarded, and
+takes any answer but "secure or requested" for a dead lock screen, so a
+slow or failed answer gets a healthy lock screen killed. Unlock first, then
+restart the shell. Check `omarchy-hyprland-session-locked` before restarting:
 it needs `HYPRLAND_INSTANCE_SIGNATURE` over SSH, or `hyprctl` fails and it
 reports the session unlocked.
+
+### B6: Gaming performance: SuperTuxKart (2026-10-23)
+
+The user asked for a game to test the GPU with. SuperTuxKart 1.5 is in
+Arch Linux ARM (663 MB) and has a benchmark: `supertuxkart --benchmark`
+replays a race on its most demanding track, the same every time, and saves
+its result and a CPU profile per frame in `~/.config/supertuxkart/
+config-0.10/`. `tools/stk-benchmark.sh` runs it in the desktop over SSH,
+records temperatures, power and clocks, and prints the lot. The game draws
+through the GPU (renderer "tegra", OpenGL ES 3.2, our Mesa), in a 1054x1054
+window, with its graphics at low but for dynamic lighting.
+
+| kernel, settings | FPS | frames in | per frame |
+|---|---|---|---|
+| #15, dynamic lighting | 3.4 | 762 in 221 s | 293 ms: draw 140, draw-call generation 97, sync stall 90 |
+| #16, dynamic lighting | 3.2 | 762 in 236 s | 307 ms: sync stall 241, draw 39 |
+| #16, no dynamic lighting | 17.9 | 792 in 44 s | 57 ms: draw 32, draw-call generation 9 |
+
+**Kernel #15: the CPU cleaned caches.** `perf record -a -g` (perf 7.2.11,
+the Cortex-A57 PMU works) mid-race: 69% of the game's samples in
+`dcache_clean_poc`, from `nouveau_bo_sync_for_device()` in
+`nouveau_bo_validate()`, from the pushbuf ioctl. On every pushbuf nouveau
+cleaned the data cache over every page of every non-coherent BO it used,
+because the GPU doesn't snoop the CPU's caches; textures and render
+targets the CPU never writes included. `patches/linux/0006` (kernel #16)
+syncs only BOs the CPU may have written: one a CPU mapping ever touched (a
+userspace fault, kmap, vmap, ptrace), or one whose pages are new since its
+last validation (a move). n-codex's review (`research/ncodex-nouveau-sync-review.md`)
+found it sound for this stack, with two points before it goes upstream:
+`CPU_FINI` should take the reservation the new fields are documented under,
+and page population (`nouveau_ttm_tt_populate()`) should mark the BO too,
+not only moves. Mesa maps buffer resources (vertex, uniform) directly, so
+those keep being cleaned: the 26% of samples left.
+
+**Kernel #16: the GPU is the limit.** The CPU went 86% idle and the GPU
+sat at 998 MHz (pstate AC; board power 10.3 W against 6 W idle), and STK's
+fence wait took 241 ms per frame. Its GPU timers read 0, so the passes
+can't be timed from the game. Without dynamic lighting (STK's forward
+renderer) the same replay ran 5.6 times faster: the deferred pipeline is
+the slow path here, though SSAO, shadows, glow, bloom, light shafts and
+MLAA were off. STK stays without dynamic lighting for the user
+(`config.xml.bak-dynamic-lights` has the old settings).
+
+glmark2-es2-wayland `--off-screen` (no compositor), FPS:
+
+| size | terrain | texture | build |
+|---|---|---|---|
+| 1920x1080 | 15 | 201 | 217 |
+| 960x540 | 28 | 707 | 680 |
+| 480x270 | 44 | 1727 | 1277 |
+| 240x135 | 51 | 3477 | 1412 |
+
+A trivial textured scene scales with the pixels (about 415 Mpix/s at
+1080p); terrain keeps about 20 ms per frame at any size. Suspects for the
+GPU side, none measured yet: every GPU mapping uses 4 KiB pages (for GART
+BOs nouveau skips page sizes above PAGE_SHIFT, `nouveau_bo.c:281-283`, and
+on Tegra everything is GART), with the GMMU's page tables in instmem behind
+the SMMU ("imem: using IOMMU"); no compression; EMC at 800 MHz, half of
+stock's top rate. Brief: `research/gpu-slow-brief.md`.
 
 ## Never flash
 
