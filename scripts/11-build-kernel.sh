@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Build the Linux kernel for the SHIELD TV 2017: the pinned stable release,
-# arm64's defconfig with every platform but Tegra switched off, and
-# kernel/darcy.config merged in. What the boot needs is built in; the
-# modules are for the root filesystem (scripts/13).
+# Build the Linux kernel for the SHIELD TV 2017: the pinned stable release
+# plus our patches in patches/linux/, arm64's defconfig with every platform
+# but Tegra switched off, and kernel/darcy.config merged in. The source tree
+# is reset to the pinned commit first, so every build starts from the same
+# code. What the boot needs is built in; the modules are for the root
+# filesystem (scripts/13).
 #
 # Output: build/linux/arch/arm64/boot/Image.gz, and the modules in build/linux
 #
@@ -14,6 +16,13 @@ need make aarch64-linux-gnu-gcc bc flex bison
 src="$ROOT/vendor/linux"
 out="$ROOT/build/linux"
 kmake=(make -C "$src" O="$out" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-)
+
+log "resetting vendor/linux and applying patches/linux/"
+git -C "$src" -c advice.detachedHead=false checkout -q -f "$(source_commit linux)"
+git -C "$src" clean -q -fd
+for p in "$ROOT"/patches/linux/*.patch; do
+  git -C "$src" apply --whitespace=nowarn "$p"
+done
 
 mkdir -p "$out"
 log "configuring: defconfig, Tegra only, kernel/darcy.config"

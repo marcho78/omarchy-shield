@@ -1334,6 +1334,28 @@ boot passed 38 of 40. It is posted, not merged: not in 7.2.11.
 88 °C CPU, 87 °C GPU and 89.5 °C memory. cpufreq doesn't probe, and the
 command line has `cpuidle.off=1`. That's to be looked at.
 
+**Milestone: nouveau loads (2026-10-22).**
+`patches/linux/0001-drm-nouveau-tegra-keep-the-fuse-clock-on-while-the-G.patch`
+follows the upstream series' design:
+- an optional `fuse` clock
+- enabled before the rail goes on, disabled after it goes off
+
+`darcy.dts` gives the GPU node `TEGRA210_CLK_FUSE` as `fuse`. `scripts/11`
+now resets `vendor/linux` to the pinned commit and applies
+`patches/linux/`, as `scripts/05` does for U-Boot.
+
+`modprobe --ignore-install nouveau` over SSH, with the rollback armed:
+- `NVIDIA GM20B (12b000a1)`, `imem: using IOMMU`, `VRAM: 0 MiB`
+- `[drm] Initialized nouveau 1.4.2 for 57000000.gpu on minor 0`
+- card0 (nouveau), card1 (tegra) and two render nodes
+- nouveau set the rail to its floor: `vdd-gpu` at 838100 µV (`PWM_CSR_1`
+  `0x80360000`, 54/256 of 710–1320 mV)
+- nothing more in the log, and the board stays up
+
+The applied patch makes the release string `7.2.11-ga2de78ee6ed8-dirty`.
+`scripts/17` copies the modules under that name. Out-of-tree modules
+(`tools/`) must be rebuilt against it.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

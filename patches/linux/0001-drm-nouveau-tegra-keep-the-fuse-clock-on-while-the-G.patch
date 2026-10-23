@@ -1,0 +1,111 @@
+From 951886bceb6fe345a0c720ede5efbd3051705377 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:45:15 -0700
+Subject: [PATCH] drm/nouveau/tegra: keep the fuse clock on while the GPU is
+ powered
+
+On the SHIELD TV 2017 (Tegra210, GM20B), nouveau's first GPU register
+read stalls the bus, and the board hangs until the watchdog resets it.
+By then the rail, the gpu/ref/pwr clocks, the reset and the clamps are
+all in place. What is missing is the SoC fuse clock, which the fuse
+driver gates between its own reads (runtime PM). With it on, BOOT_0
+reads 0x12b000a1. NVIDIA's nvgpu enables it in its Tegra210 unrailgate
+path too.
+
+Take an optional "fuse" clock and keep it enabled from before the rail
+goes on until after it goes off. A device tree without the clock works
+as before.
+
+This follows the design of Sasha Levin's posted series "Keep the fuse
+clock enabled while the Tegra GPU is powered" (v2, dri-devel,
+2026-10-16), patch 6/6, which reports the same failure on Jetson TX1.
+Drop this patch once that series is merged.
+
+Link: https://www.mail-archive.com/dri-devel@lists.freedesktop.org/msg644766.html
+---
+ .../gpu/drm/nouveau/include/nvkm/core/tegra.h |  1 +
+ .../drm/nouveau/nvkm/engine/device/tegra.c    | 28 +++++++++++++++----
+ 2 files changed, 23 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/nouveau/include/nvkm/core/tegra.h b/drivers/gpu/drm/nouveau/include/nvkm/core/tegra.h
+index 6aaa30ef1..018904338 100644
+--- a/drivers/gpu/drm/nouveau/include/nvkm/core/tegra.h
++++ b/drivers/gpu/drm/nouveau/include/nvkm/core/tegra.h
+@@ -15,6 +15,7 @@ struct nvkm_device_tegra {
+ 	struct clk *clk;
+ 	struct clk *clk_ref;
+ 	struct clk *clk_pwr;
++	struct clk *clk_fuse;
+ 
+ 	struct regulator *vdd;
+ 
+diff --git a/drivers/gpu/drm/nouveau/nvkm/engine/device/tegra.c b/drivers/gpu/drm/nouveau/nvkm/engine/device/tegra.c
+index 3c8d08788..0b505c4f1 100644
+--- a/drivers/gpu/drm/nouveau/nvkm/engine/device/tegra.c
++++ b/drivers/gpu/drm/nouveau/nvkm/engine/device/tegra.c
+@@ -32,6 +32,15 @@ nvkm_device_tegra_power_up(struct nvkm_device_tegra *tdev)
+ {
+ 	int ret;
+ 
++	/*
++	 * The GPU's first register accesses stall while the fuse clock is
++	 * gated, which the fuse driver does between its own reads. Keep it
++	 * on for as long as the GPU is powered.
++	 */
++	ret = clk_prepare_enable(tdev->clk_fuse);
++	if (ret)
++		return ret;
++
+ 	if (tdev->vdd) {
+ 		ret = regulator_enable(tdev->vdd);
+ 		if (ret)
+@@ -76,26 +85,26 @@ nvkm_device_tegra_power_up(struct nvkm_device_tegra *tdev)
+ 	if (tdev->vdd)
+ 		regulator_disable(tdev->vdd);
+ err_power:
++	clk_disable_unprepare(tdev->clk_fuse);
+ 	return ret;
+ }
+ 
+ static int
+ nvkm_device_tegra_power_down(struct nvkm_device_tegra *tdev)
+ {
+-	int ret;
++	int ret = 0;
+ 
+ 	clk_disable_unprepare(tdev->clk_pwr);
+ 	clk_disable_unprepare(tdev->clk_ref);
+ 	clk_disable_unprepare(tdev->clk);
+ 	udelay(10);
+ 
+-	if (tdev->vdd) {
++	if (tdev->vdd)
+ 		ret = regulator_disable(tdev->vdd);
+-		if (ret)
+-			return ret;
+-	}
+ 
+-	return 0;
++	clk_disable_unprepare(tdev->clk_fuse);
++
++	return ret;
+ }
+ 
+ static void
+@@ -308,6 +317,13 @@ nvkm_device_tegra_new(const struct nvkm_device_tegra_func *func,
+ 		goto free;
+ 	}
+ 
++	/* Optional, so that a device tree without it works as before */
++	tdev->clk_fuse = devm_clk_get_optional(&pdev->dev, "fuse");
++	if (IS_ERR(tdev->clk_fuse)) {
++		ret = PTR_ERR(tdev->clk_fuse);
++		goto free;
++	}
++
+ 	tdev->pmc = devm_tegra_pmc_get(&pdev->dev);
+ 	if (IS_ERR(tdev->pmc)) {
+ 		ret = PTR_ERR(tdev->pmc);
+-- 
+2.56.0
+

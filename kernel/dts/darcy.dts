@@ -231,7 +231,18 @@
 	};
 };
 
+/*
+ * The GPU's clocks are the SoC file's plus the fuse clock. nouveau keeps it
+ * on while the GPU is powered (patches/linux/0001): with it gated, the
+ * GPU's first register read stalls the bus (NOTES.md). The same is posted
+ * upstream for every Tegra210 board.
+ */
 &{/gpu@57000000} {
+	clocks = <&tegra_car TEGRA210_CLK_GPU>,
+		 <&tegra_car TEGRA210_CLK_PLL_P_OUT5>,
+		 <&tegra_car TEGRA210_CLK_PLL_G_REF>,
+		 <&tegra_car TEGRA210_CLK_FUSE>;
+	clock-names = "gpu", "pwr", "ref", "fuse";
 	vdd-supply = <&vdd_gpu>;
 	status = "okay";
 };
