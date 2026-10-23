@@ -121,7 +121,7 @@ trap 'on_shield "rm -f $sudoers" || warn "remove $sudoers on the SHIELD by hand"
 # A logind session (PAMName) gives it the user's runtime directory and manager
 on_shield "systemctl reset-failed darcy-omarchy-install 2>/dev/null; systemd-run --quiet --unit=darcy-omarchy-install \
   --uid=$user -p PAMName=login --working-directory=/home/$user/omarchy-arm -p ExecStopPost=+/usr/bin/rm\ -f\ $sudoers \
-  -p StandardOutput=file:/home/$user/omarchy-install.log -p StandardError=inherit /home/$user/omarchy-arm/install.sh $flags"
+  -p StandardOutput=truncate:/home/$user/omarchy-install.log -p StandardError=inherit /home/$user/omarchy-arm/install.sh $flags"
 while :; do
   sleep 30
   status=0

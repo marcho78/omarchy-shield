@@ -1902,6 +1902,24 @@ n-codex's review (`research/ncodex-omarchy-review.md`), each point checked:
   drops.
 - `mesa` isn't in Omarchy's lists, so nothing replaces `mesa-darcy`.
 
+**The first install (kernel #14) stopped at the firewall.** 586 packages
+(1.19 GB down, 4.9 GB installed), yay, the AUR packages, the deploy, the
+settings and 150 shipped defaults went through in 13 minutes. Then
+`install/config/firewall.sh` failed: `ufw` "Couldn't determine iptables
+version", because Arch's `iptables` is `xtables-nft-multi` ("Failed to
+initialize nft: Protocol not supported") and the kernel had no
+`CONFIG_NF_TABLES` (nor NAT, which Docker needs). It left the system half
+set up: NetworkManager enabled by `enable-services.sh`, while
+`hardware/network.sh`, which disables iwd and networkd, hadn't run yet. A
+reboot then would have started both. The install service's
+`ExecStopPost` removed the temporary sudo rule as planned. Kernel #15
+takes the netfilter options of Arch Linux ARM's `linux-aarch64` config
+(nf_tables and its xtables compatibility, conntrack, NAT, veth, bridge,
+overlayfs), less four that need Open vSwitch or IPsec. A bug found on the
+way: systemd's `StandardOutput=file:` doesn't truncate, so the first lines
+of the new log overwrote the dry run's and left its tail in place;
+`scripts/20` uses `truncate:` now.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
