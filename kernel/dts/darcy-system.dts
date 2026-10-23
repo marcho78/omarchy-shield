@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * The installed system: the board as darcy.dts describes it, booting Arch
- * Linux ARM from the eMMC (scripts/13) instead of darcy-init. Its
- * initramfs only carries the firmware the built-in drivers load before the
- * root filesystem is up; with no /init in it, the kernel mounts root=
- * itself and starts systemd.
+ * Linux ARM from the USB SSD (scripts/13, scripts/15) instead of
+ * darcy-init. Its initramfs only carries the firmware the built-in drivers
+ * load before the root filesystem is up; with no /init in it, the kernel
+ * mounts root= itself and starts systemd.
  */
 #include "darcy.dts"
 
@@ -27,8 +27,12 @@
 		 * TV, and once systemd is up the rootfs lowers the console
 		 * level (sysctl.d/20-quiet-console.conf, scripts/13), so later
 		 * kernel messages stay off the login prompt.
+		 *
+		 * And CPU idle is on: an idle core enters the C7 state through
+		 * the secure monitor (PSCI), as on stock Android. The cores'
+		 * timers are the always-on Tegra timers, which C7 keeps.
 		 */
-		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=10 printk.devkmsg=on video=HDMI-A-1:1920x1080@60 cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused panic=10 printk.devkmsg=on video=HDMI-A-1:1920x1080@60 cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
 
 		/*
 		 * U-Boot boots it again after a reboot, and shows its log only

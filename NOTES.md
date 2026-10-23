@@ -1368,6 +1368,13 @@ hot" (the user). The last readings, 2 min before, were 92.5 °C CPU,
 88.5 °C GPU, 93.5 °C memory, still rising. Unplugged and plugged back in, it
 booted normally.
 
+**What switched it off is not on record.** That boot's journal ends in the
+middle of the SSH session, with no shutdown and no thermal line: the last
+minutes never reached the SSD. cboot hadn't armed the PMC's thermal reset
+(`PMC_SENSOR_CTRL` `0x1b0` and SCRATCH53–55 read 0 through the secure
+monitor), so most likely Linux's critical trip (102.5 °C) powered it off. A
+power-off latches the board off until it is unplugged.
+
 **Why it runs hot: our system has no CPU power management yet.**
 - `cpuidle.off=1`, a precaution from the first boots (commit 371a6dc), so
   idle CPUs never enter C7. The boot log says "failed to register cpuidle
@@ -1431,6 +1438,45 @@ GPIO G0. AFTVnews' teardown of the 2nd-gen SHIELD TV shows the fan too.
 2. the DFLL in PWM mode, capped (mainline allows 2.2185 GHz for CPU speedo
    2; stock darcy stops at 2.0145 GHz)
 3. passive cooling through cpufreq
+
+### CPU power management (2026-10-23)
+
+**The plan, reviewed by n-codex** (`research/plan2-brief.md`,
+`research/ncodex-plan2-review.md`), one change per boot, each measured with
+`tools/power-status.sh`:
+1. CPU idle on
+2. a thermal guard in userspace (cap the CPU at 86 °C, warm reboot at
+   92 °C)
+3. the DFLL capped at 1.020 GHz
+4. passive cooling through cpufreq
+5. only then the DFLL's cap at stock's 2.0145 GHz
+
+**This chip's speedo.** Speedo revision 4, so the fuse is the value itself:
+CPU speedo value 2041 (`FUSE_CPU_SPEEDO_0` = `0x7f9`), CPU process 0, GPU
+speedo value 2056, SoC 1925. SKU `0x87` makes it CPU speedo ID 2, and the
+DFLL driver's table for that is `speedo_id = 2, process_id = 0`
+(`clk-tegra124-dfll-fcpu.c:515-524`), 870–1227 mV. With the PWM rail's
+708 mV + n × 19.2 mV steps (`cvb.c`'s arithmetic):
+
+| CPU | 204–918 MHz | 1020 | 1224 | 1428 | 1632 | 1836 | 1912.5–2218.5 |
+|---|---|---|---|---|---|---|---|
+| OPP voltage (mV) | 880 (the floor) | 919 | 976 | 1053 | 1130 | 1207 | 1226 (the ceiling) |
+
+Today the CPU runs at 1017.6 MHz on 1.0 V, above what 1020 MHz needs. The
+DFLL's closed loop runs the CPU from an oscillator on the CPU rail itself,
+so a voltage that falls short slows the clock rather than breaking timing.
+Below 918 MHz it skips clock pulses at 880 mV.
+
+**1. CPU idle is on** (`cpuidle.off=1` dropped from `darcy-system.dts`):
+- `psci_idle` with the menu governor; each core enters `cpu-sleep`
+  (PSCI `0x40000007`, C7) and is asleep 99% of an idle minute.
+- 1–4% of the entries come back rejected from the secure monitor; the core
+  then goes round the idle loop again. That costs nothing.
+- No RCU stalls, lockups or oopses over 30 s of load on all four cores and
+  the idle after it. A warm reboot works (SSH back after about 40 s).
+- Power and heat are unchanged within the meter's noise: 5.1 W on average,
+  42–45 °C, fan cycling at level 0–1. The cores were already clock-gated
+  in WFI, and the cluster itself has no idle state in mainline.
 
 ## Never flash
 

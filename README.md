@@ -275,6 +275,7 @@ To see them all again until the next boot, run this on the SHIELD:
 | `tools/mmio-read.c` | Reads hardware registers on the SHIELD, read-only, to compare what cboot set with what Linux sets |
 | `tools/pmc-read/` | A kernel module that reads power-controller registers through the secure monitor (the SHIELD's PMC is secure-only), read-only |
 | `tools/gpu-power-probe/` | A kernel module that powers the GPU up step by step, as nouveau does, logging each step (`tools/build-module.sh` builds both) |
+| `tools/power-status.sh` | What the SHIELD's power management does, read-only, over SSH: CPU idle, CPU frequency and the DFLL, cooling, temperatures, fan and power |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |
