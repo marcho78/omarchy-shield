@@ -1,0 +1,108 @@
+From 796b3a493ee6142409b1e74a87c7d366c68f6a69 Mon Sep 17 00:00:00 2001
+From: Igor Pecovnik <igor@armbian.com>
+Date: Sun, 18 Oct 2026 20:21:20 +0200
+Subject: [PATCH] tegra: unwrap framebuffer and clear surfaces
+
+While working on the Jetson Nano, I ran into Mesa issues that
+prevented the desktop from starting.
+
+Framebuffer surfaces are stored by value, and drivers no longer create
+surfaces. tegra passed its own resources to the GPU driver, or read the
+surface as a tegra_surface. nouveau then crashed in nvc0_validate_fb()
+on the first clear.
+
+Unwrap the resource of each surface before calling into the GPU driver.
+
+Assisted-by: Claude Code (Claude Opus 5.5)
+Signed-off-by: Igor Pecovnik <igor@armbian.com>
+---
+ src/gallium/drivers/tegra/tegra_context.c  | 22 ++++++++++++++++++----
+ src/gallium/drivers/tegra/tegra_resource.h | 20 +++++---------------
+ 2 files changed, 23 insertions(+), 19 deletions(-)
+
+diff --git a/src/gallium/drivers/tegra/tegra_context.c b/src/gallium/drivers/tegra/tegra_context.c
+index 9e122dfb4b0f..aa8091b79623 100644
+--- a/src/gallium/drivers/tegra/tegra_context.c
++++ b/src/gallium/drivers/tegra/tegra_context.c
+@@ -496,6 +496,20 @@ tegra_set_framebuffer_state(struct pipe_context *pcontext,
+                             const struct pipe_framebuffer_state *fb)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
++   struct pipe_framebuffer_state state;
++   unsigned int i;
++
++   if (fb) {
++      state = *fb;
++
++      for (i = 0; i < fb->nr_cbufs; i++)
++         state.cbufs[i] = tegra_surface_unwrap(&fb->cbufs[i]);
++
++      state.zsbuf = tegra_surface_unwrap(&fb->zsbuf);
++      state.resolve = tegra_resource_unwrap(fb->resolve);
++
++      fb = &state;
++   }
+ 
+    context->gpu->set_framebuffer_state(context->gpu, fb);
+ }
+@@ -735,9 +749,9 @@ tegra_clear_render_target(struct pipe_context *pcontext,
+                           bool render_condition)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
+-   struct tegra_surface *dst = to_tegra_surface(pdst);
++   struct pipe_surface dst = tegra_surface_unwrap(pdst);
+ 
+-   context->gpu->clear_render_target(context->gpu, dst->gpu, color, dstx,
++   context->gpu->clear_render_target(context->gpu, &dst, color, dstx,
+                                      dsty, width, height, render_condition);
+ }
+ 
+@@ -754,9 +768,9 @@ tegra_clear_depth_stencil(struct pipe_context *pcontext,
+                           bool render_condition)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
+-   struct tegra_surface *dst = to_tegra_surface(pdst);
++   struct pipe_surface dst = tegra_surface_unwrap(pdst);
+ 
+-   context->gpu->clear_depth_stencil(context->gpu, dst->gpu, flags, depth,
++   context->gpu->clear_depth_stencil(context->gpu, &dst, flags, depth,
+                                      stencil, dstx, dsty, width, height,
+                                      render_condition);
+ }
+diff --git a/src/gallium/drivers/tegra/tegra_resource.h b/src/gallium/drivers/tegra/tegra_resource.h
+index 892afaf5e0fa..afb038279bf6 100644
+--- a/src/gallium/drivers/tegra/tegra_resource.h
++++ b/src/gallium/drivers/tegra/tegra_resource.h
+@@ -54,24 +54,14 @@ tegra_resource_unwrap(struct pipe_resource *resource)
+    return to_tegra_resource(resource)->gpu;
+ }
+ 
+-struct tegra_surface {
+-   struct pipe_surface base;
+-   struct pipe_surface *gpu;
+-};
+-
+-static inline struct tegra_surface *
+-to_tegra_surface(struct pipe_surface *surface)
++static inline struct pipe_surface
++tegra_surface_unwrap(const struct pipe_surface *surface)
+ {
+-   return (struct tegra_surface *)surface;
+-}
++   struct pipe_surface gpu = *surface;
+ 
+-static inline struct pipe_surface *
+-tegra_surface_unwrap(struct pipe_surface *surface)
+-{
+-   if (!surface)
+-      return NULL;
++   gpu.texture = tegra_resource_unwrap(surface->texture);
+ 
+-   return to_tegra_surface(surface)->gpu;
++   return gpu;
+ }
+ 
+ #endif /* TEGRA_RESOURCE_H */
+-- 
+GitLab
+

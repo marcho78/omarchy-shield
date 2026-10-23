@@ -1683,6 +1683,99 @@ once a second while memory is above 50 °C (`thermal_core.c:289-295,
 polling is one sensor read a second, under load only: memory idles at
 44.5 °C.
 
+### B1: Mesa's tegra driver crashes on the first draw (2026-10-23)
+
+nouveau loads by hand as before (`card0` nouveau, `card1` tegra,
+`renderD128` tegra, `renderD129` nouveau, by-path links for each). Then:
+
+1. **`glmark2-es2-drm --fullscreen`** stops before drawing: "glwindow has
+   never been initialized". That's a glmark2 2023.01 bug. The DRM backend's
+   `window()` always reports the screen's mode as a full-screen window, so
+   with `--fullscreen` the canvas thinks its window exists and never creates
+   the GBM surface (`canvas-generic.cpp:269-276`). The DRM backend draws at
+   the mode's size anyway, so the flag can go.
+2. **Without it**, glmark2 segfaults in `libgallium` before its banner
+   (systemd-coredump; Arch Linux ARM ships no debug symbols).
+3. **`tools/gpu-smoke.c`**, KMS + GBM + EGL + GLES2 the way a compositor
+   uses them, with each step printed before it runs. Everything up to
+   `glViewport` works: GBM on tegra-drm, `gbm_surface_create` (XRGB8888,
+   scanout + rendering), EGL 1.5, the context, the window surface,
+   `eglMakeCurrent`, and `glGetString` ("tegra", "OpenGL ES 3.2 Mesa
+   26.2.5-arch1.1"). Then the first `glClear` segfaults, in the same
+   `libgallium` frames as glmark2.
+
+**The cause, in Mesa's source (tag `mesa-26.2.5`):**
+- Mesa commit 2eb45daa ("gallium: de-pointerize pipe_surface", 2025-05-23)
+  made the framebuffer's surfaces values (`p_state.h:411-452`). It also
+  deleted the tegra driver's unwrapping in `tegra_set_framebuffer_state`.
+  Since then, nouveau gets tegra's wrapped resources as the surfaces'
+  textures and crashes validating the framebuffer.
+- 1af551ed ("tegra: delete pipe_context surface hooks", 2026-03-23) left
+  `tegra_clear_render_target` and `tegra_clear_depth_stencil` reading
+  plain surfaces as `tegra_surface`s.
+- Every OpenGL program on Tegra crashes this way since Mesa 25.2, Hyprland
+  included.
+- Upstream knows: issue #14640 (Jetson TX1, open since January) and **merge
+  request !45355**, "tegra: unwrap framebuffer and clear surfaces" (Igor
+  Pecovnik, tested on a Jetson Nano with 26.1.6). It's open, not merged.
+
+**The fix here,** until a release has it:
+- `patches/mesa/0001` is !45355's patch. It applies to 26.2.5 as it is.
+- `packages/mesa-darcy/PKGBUILD`: Arch Linux ARM's 26.2.5 (same tarball
+  checksum) for Tegra210 alone: gallium nouveau, tegra and softpipe; no
+  Vulkan (NVK has no Tegra support yet, issue #14105), no LLVM; GLES1 off
+  as in Arch's.
+- `scripts/19-build-mesa.sh` builds it on the SHIELD as user `build`
+  (makepkg won't run as root), with 4 GiB of temporary swap, and puts it
+  in place of `mesa`. `pacman -S mesa` brings Arch Linux ARM's back.
+
+The tegra driver has older gaps too: `tegra_set_shader_buffers` and
+`tegra_set_shader_images` pass resources without unwrapping, and
+`set_global_binding` and `launch_grid` say "XXX unwrap". Those are storage
+buffers, images and compute, which plain GLES 2/3.0 compositing probably
+doesn't use (a guess, put to n-codex). antigravity couldn't look: its quota
+ran out (resets in about 6 days).
+
+**With the fix,** Mesa from the package tree (`LD_LIBRARY_PATH`,
+`__EGL_VENDOR_LIBRARY_FILENAMES`, `GBM_BACKENDS_PATH`), before installing:
+- `tools/gpu-smoke`: 1200 and 1800 frames, clean; "tegra, OpenGL ES 3.2
+  Mesa 26.2.5-darcy1.1", linear buffers (modifier 0). The user saw the
+  colour fade and the triangle, colours right.
+- glmark2 draws every scene, but with the GPU on its default clock policy
+  28-42 command batches per run come back "kernel rejected pushbuf:
+  Connection timed out" (`nv50cal_space: -110`): the kernel waits at most
+  1 s for room in the GPU's command ring (`nvif/chan.c:55-91`,
+  `nouveau_gem.c:864-869`). One run then segfaulted in Mesa's nouveau
+  winsys: `eglSwapBuffers` → `dri_flush` → `nouveau_fence_wait` → …
+  → `pushbuf_flush`, through a garbage pointer.
+
+**The GPU's clock is load-driven.** `gk20a_devfreq.c` gives nouveau's
+Tegra GPUs devfreq: `simple_ondemand`, a decision every 50 ms, up at 45%
+load (`:253-292`). It sets nouveau's user pstate (`:196-197`), so writes to
+the debugfs `pstate` file don't stick. Sampled once a second under
+gpu-smoke, the clock jumps among 76.8 and 998.4 MHz and the steps between;
+idle, it stays at 76.8 MHz. Pinned at 998.4 MHz (`userspace` governor,
+`/sys/class/devfreq/57000000.gpu/userspace/set_freq`), glmark2 has **no
+rejected batch and no crash**, scores 308 (119 on the default policy), and
+stays at or below 53 °C (GPU 50 °C), 10.5-12.4 W. So the flapping clock,
+not the GPU, caused the timeouts, and the timeouts the crash.
+
+The GPU's voltage per step (vdd-gpu, read back):
+
+| MHz | 76.8-537.6 | 614.4 | 691.2 | 768 | 844.8 | 921.6 | 998.4 |
+|---|---|---|---|---|---|---|---|
+| mV | 838 | 880 | 923 | 966 | 1008 | 1051 | 1094 |
+
+Idle power (VDD_SYS, 40 s): 5.83 W on the default policy (at 76.8 MHz),
+6.34 W pinned at 614.4 MHz, 8.08 W pinned at 998.4 MHz. 537.6 MHz is the
+fastest step at the voltage floor.
+
+**Still open:** glmark2's terrain scene runs at 15 fps at 76.8 MHz and at
+998.4 MHz alike, so something other than the GPU's clock holds each frame,
+and the user sees it flicker; the other scenes look right. tegra-drm waits
+for the GPU's fences before showing a frame (`tegra/plane.c:200-209`,
+`drm_gem_plane_helper_prepare_fb`).
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

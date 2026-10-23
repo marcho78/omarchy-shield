@@ -267,11 +267,25 @@ Once the system is up, the TV console shows only critical kernel messages.
 To see them all again until the next boot, run this on the SHIELD:
 `echo Y > /sys/module/printk/parameters/ignore_loglevel`.
 
+### 12. Mesa for the GPU
+
+Arch Linux ARM's Mesa crashes every OpenGL program on Tegra on its first
+draw (`NOTES.md`, "B1"). `scripts/19` builds the same release with
+upstream's fix on the SHIELD itself, in about 20 minutes, and puts it in
+place of `mesa`:
+
+    scripts/19-build-mesa.sh <the SHIELD's address>
+
+With `--no-install` it stops after the build, so the package can be tried
+from its build tree first. `pacman -S mesa` brings Arch Linux ARM's back.
+nouveau still loads only by hand (`modprobe --ignore-install nouveau`).
+
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. The GPU on the TV (glmark2), then plain Hyprland, then nouveau at boot;
-   audio. The plan is in `NOTES.md`, "The GPU and the desktop".
+2. The GPU's clock policy (`NOTES.md`, "B1"), then plain Hyprland, then
+   nouveau at boot; audio. The plan is in `NOTES.md`, "The GPU and the
+   desktop".
 3. Install `omarchy-arm`, with a `tegra` platform added to it.
 
 ## Layout
@@ -282,6 +296,9 @@ To see them all again until the next boot, run this on the SHIELD:
 | `scripts/` | Numbered steps; `lib.sh` holds shared helpers |
 | `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
+| `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate |
+| `patches/mesa/` | Mesa's tegra driver fix, upstream merge request !45355 |
+| `packages/mesa-darcy/` | The Mesa package `scripts/19` builds: Arch Linux ARM's release for Tegra210, with `patches/mesa` |
 | `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
 | `rootfs/` | Files `scripts/13` and `scripts/18` put in the installed system as they are: the thermal guard (`darcy-thermal-guard`, slows the CPUs at 86 °C, reboots at 92 °C) |
 | `tools/darcy-init.c` | The first payload's `/init` |
@@ -289,6 +306,7 @@ To see them all again until the next boot, run this on the SHIELD:
 | `tools/pmc-read/` | A kernel module that reads power-controller registers through the secure monitor (the SHIELD's PMC is secure-only), read-only |
 | `tools/gpu-power-probe/` | A kernel module that powers the GPU up step by step, as nouveau does, logging each step (`tools/build-module.sh` builds both) |
 | `tools/power-status.sh` | What the SHIELD's power management does, read-only, over SSH: CPU idle, CPU frequency and the DFLL, cooling, temperatures, fan and power |
+| `tools/gpu-smoke.c` | The smallest picture a compositor needs (KMS, GBM, EGL, GLES2) on the TV, printing each step before it runs |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |

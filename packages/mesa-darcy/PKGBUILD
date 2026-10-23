@@ -1,0 +1,77 @@
+# Mesa for the SHIELD TV 2017 (darcy): the release Arch Linux ARM ships,
+# built for Tegra210 alone (tegra-drm shows, nouveau draws, Mesa's tegra
+# driver joins them), with patches/mesa on top. scripts/19 builds it on the
+# SHIELD and puts it in place of Arch Linux ARM's mesa.
+#
+# patches/mesa/0001 is Mesa merge request !45355 (issue #14640), not in a
+# release yet. Without it every OpenGL program crashes on its first draw:
+# since Mesa 25.2, the tegra driver hands nouveau its own wrapped resources
+# in the framebuffer (NOTES.md).
+pkgname=mesa-darcy
+pkgver=26.2.5
+pkgrel=1
+epoch=1
+pkgdesc="Mesa for the SHIELD TV 2017: OpenGL, OpenGL ES, EGL and GBM through nouveau and tegra"
+arch=(aarch64)
+url=https://www.mesa3d.org/
+license=('MIT AND BSD-3-Clause AND SGI-B-2.0')
+depends=(expat gcc-libs glibc libdrm libglvnd libx11 libxcb libxext libxfixes
+         libxshmfence libxxf86vm wayland zlib zstd)
+makedepends=(bison flex meson ninja python-mako python-packaging python-yaml
+             wayland-protocols xorgproto)
+# What Arch Linux ARM's mesa provides, less the video drivers
+provides=("mesa=$epoch:$pkgver-$pkgrel" "mesa-libgl=$epoch:$pkgver-$pkgrel"
+          opengl-driver)
+conflicts=(mesa mesa-libgl)
+options=(!lto !debug)
+source=("https://archive.mesa3d.org/mesa-$pkgver.tar.xz"
+        0001-tegra-unwrap-framebuffer-and-clear-surfaces.patch)
+# The tarball's is Arch Linux ARM's (its PKGBUILD checks the release's
+# signature)
+sha256sums=('794b3d1729075dae7ebd47c7283b7ca0cdb5dec668f7f11cc0a5d82f6138a0a5'
+            'fd4f51078c2e0848371a99dd05d927ba39a2580251bb76f9d09513aacdc70b63')
+
+prepare() {
+  cd mesa-$pkgver
+  patch -Np1 -i ../0001-tegra-unwrap-framebuffer-and-clear-surfaces.patch
+  # The version string, and libgallium's file name, say which build this is
+  echo "$pkgver-darcy$epoch.$pkgrel" >VERSION
+}
+
+build() {
+  # arch-meson turns every "auto" feature on, so the ones this build
+  # doesn't need are off by name
+  arch-meson mesa-$pkgver build \
+    --optimization 2 \
+    -D b_ndebug=true \
+    -D gallium-drivers=nouveau,tegra,softpipe \
+    -D vulkan-drivers= \
+    -D vulkan-layers= \
+    -D platforms=x11,wayland \
+    -D glx=dri \
+    -D gles1=disabled \
+    -D llvm=disabled \
+    -D shared-llvm=disabled \
+    -D gallium-va=disabled \
+    -D gallium-mediafoundation=disabled \
+    -D gallium-d3d12-video=disabled \
+    -D gallium-d3d12-graphics=disabled \
+    -D microsoft-clc=disabled \
+    -D spirv-tools=disabled \
+    -D intel-rt=disabled \
+    -D android-libbacktrace=disabled \
+    -D android-libperfetto=disabled \
+    -D power8=disabled \
+    -D xlib-lease=disabled \
+    -D display-info=disabled \
+    -D valgrind=disabled \
+    -D libunwind=disabled \
+    -D lmsensors=disabled
+  # 4 jobs, not ninja's 6: the SHIELD has 3 GB of RAM
+  meson compile -C build -j 4
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+  install -Dm644 mesa-$pkgver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}
