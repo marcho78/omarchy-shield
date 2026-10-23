@@ -52,4 +52,6 @@ log "on NetworkManager, reached at $host"
 on_shield 'nmcli -t -f DEVICE,STATE,CONNECTION device | grep -v -E ":unmanaged|^lo:" | sed "s/^/    /"
   ip -4 -br addr show wlan0 | sed "s/^/    /"
   ip route show default | sed "s/^/    /"
+  # NetworkManager hands resolved the DNS servers a moment after it connects
+  for i in 1 2 3 4 5; do resolvectl query archlinux.org >/dev/null 2>&1 && break; sleep 2; done
   resolvectl query archlinux.org 2>&1 | head -1 | sed "s/^/    DNS: /"' >&2

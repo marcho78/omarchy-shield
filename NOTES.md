@@ -1917,8 +1917,26 @@ takes the netfilter options of Arch Linux ARM's `linux-aarch64` config
 (nf_tables and its xtables compatibility, conntrack, NAT, veth, bridge,
 overlayfs), less four that need Open vSwitch or IPsec. A bug found on the
 way: systemd's `StandardOutput=file:` doesn't truncate, so the first lines
-of the new log overwrote the dry run's and left its tail in place;
-`scripts/20` uses `truncate:` now.
+of the new log overwrote the dry run's and left its tail in place. Before
+the kernel-#15 reboot, NetworkManager and SDDM were disabled again by hand,
+so the half-set-up system booted on iwd as before.
+
+**The second install (kernel #15) completed,** in 2.5 minutes (the packages
+were there), with no failed step. `truncate:` then emptied the log at the
+end, because systemd reopens a service's output for `ExecStopPost` too;
+`scripts/20` now empties it first, appends, and ends it with install.sh's
+exit code. The state for the next boot: sshd, NetworkManager, resolved,
+avahi, SDDM, ufw (with `allow 22/tcp`, and mDNS in `before.rules`), oomd and
+Docker's socket enabled; iwd, networkd and `linux-modules-cleanup` not;
+`/var/lib/omarchy/platform` is `tegra210`, and the greeter's drop-in is in
+place.
+
+**`scripts/21` switched the Wi-Fi to NetworkManager live:** `wlan0`
+connected to the network at **the same address** (the router recognised
+networkd's client ID), SSH came back, and the rollback was cancelled.
+NetworkManager gave resolved the router's DNS (192.168.1.1) a moment after
+connecting: the first lookup, made at once, failed. networkd's old default
+route stays until the reboot.
 
 ## Never flash
 

@@ -118,10 +118,16 @@ on_shield "echo '$user ALL=(ALL) NOPASSWD: ALL' > $sudoers.new && chmod 440 $sud
   visudo -cqf $sudoers.new && mv $sudoers.new $sudoers"
 # The service removes it when it ends, and this does too, in case SSH dropped
 trap 'on_shield "rm -f $sudoers" || warn "remove $sudoers on the SHIELD by hand"' EXIT
-# A logind session (PAMName) gives it the user's runtime directory and manager
-on_shield "systemctl reset-failed darcy-omarchy-install 2>/dev/null; systemd-run --quiet --unit=darcy-omarchy-install \
-  --uid=$user -p PAMName=login --working-directory=/home/$user/omarchy-arm -p ExecStopPost=+/usr/bin/rm\ -f\ $sudoers \
-  -p StandardOutput=truncate:/home/$user/omarchy-install.log -p StandardError=inherit /home/$user/omarchy-arm/install.sh $flags"
+# A logind session (PAMName) gives it the user's runtime directory and
+# manager. The log is emptied here and appended to: systemd reopens a
+# service's output for each command, ExecStopPost's included, so truncate:
+# would empty it at the end. The last line gives install.sh's exit code.
+log_file=/home/$user/omarchy-install.log
+on_shield "systemctl reset-failed darcy-omarchy-install 2>/dev/null; rm -f $log_file
+  systemd-run --quiet --unit=darcy-omarchy-install --uid=$user -p PAMName=login \
+    --working-directory=/home/$user/omarchy-arm -p ExecStopPost=+/usr/bin/rm\ -f\ $sudoers \
+    -p StandardOutput=append:$log_file -p StandardError=inherit \
+    /bin/sh -c '/home/$user/omarchy-arm/install.sh $flags; echo \"install.sh exit \$?\"'"
 while :; do
   sleep 30
   status=0
@@ -130,9 +136,9 @@ while :; do
   # 255: no SSH (the SHIELD's Wi-Fi drops now and then); ask again
   ((status == 255)) || break
 done
-on_shield "tail -n 12 /home/$user/omarchy-install.log" >&2 || true
-on_shield "grep -q -E 'Dry run complete|Omarchy is installed|==> Done' /home/$user/omarchy-install.log" ||
-  die "install.sh didn't finish (above: the end of /home/$user/omarchy-install.log)"
+on_shield "tail -n 12 $log_file" >&2 || true
+on_shield "tail -n 1 $log_file | grep -qx 'install.sh exit 0'" ||
+  die "install.sh failed (above: the end of $log_file; /var/log/omarchy-install.log has its system steps)"
 if $dry_run; then
   log "dry run done"
   exit 0
