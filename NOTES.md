@@ -1776,6 +1776,28 @@ and the user sees it flicker; the other scenes look right. tegra-drm waits
 for the GPU's fences before showing a frame (`tegra/plane.c:200-209`,
 `drm_gem_plane_helper_prepare_fb`).
 
+**The clock wasn't the cause.** Pinned clocks didn't stop the rejected
+batches: 537.6 MHz had 10 in a run, 614.4 MHz 26, and a 30 s run of the
+build scene alone at 998.4 MHz one every 1.05 s throughout (44 fps instead
+of 467). Each submission waited the whole second, so the kernel saw no
+progress at all, yet the light gpu-smoke right after ran clean. The user
+saw the spinning objects stop, and the terrain scene's first frames show a
+flashing geometric pattern before the landscape (not monitor flicker).
+
+**A nouveau bug, fixed by `patches/linux/0004`.** Since commit
+862450a85b85 ("drm/nouveau/gf100-: track chan progress with non-WFI
+semaphore release", Linux 6.16), the kernel reads a channel's progress
+from a semaphore the GPU releases into a GART buffer
+(`nvif/chan906f.c:54-63`). That buffer is allocated without
+`NOUVEAU_GEM_DOMAIN_COHERENT` (`nouveau_chan.c:202-203`), unlike the push
+buffer (`:168`) and the fence buffer (`nv84_fence.c:222`). Tegra's GPU
+doesn't snoop the CPU's caches, so the CPU read the semaphore through a
+cached mapping, and the 1 s wait spun on a stale line. Upstream master
+still has it. With the flag (`nouveau_bo.c:237-243` makes the buffer
+uncached on Tegra), kernel #12: the build scene runs 30 s at 998.4 MHz at
+468 fps, with no rejected batch, and the user sees the horse turn without
+stopping.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

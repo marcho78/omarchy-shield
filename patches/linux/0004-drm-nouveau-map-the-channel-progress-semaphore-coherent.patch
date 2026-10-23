@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:30:00 -0700
+Subject: [PATCH] drm/nouveau: Map the channel's progress semaphore coherent
+
+Since commit 862450a85b85 ("drm/nouveau/gf100-: track chan progress with
+non-WFI semaphore release"), the kernel learns how far a Fermi+ channel
+has got from a semaphore that the GPU releases into a GART buffer. That
+buffer is allocated without NOUVEAU_GEM_DOMAIN_COHERENT, unlike the
+channel's push buffer and the fence buffer. On Tegra, where the GPU
+doesn't snoop the CPU's caches, the CPU reads it through a cached
+mapping and can keep seeing a stale value: nvif_chan_gpfifo_wait() spins
+on it for a second, and the pushbuf ioctl fails with
+"nv50cal_space: -110" although the GPU has moved on.
+
+Allocate it coherent, as the push buffer is.
+---
+diff --git a/drivers/gpu/drm/nouveau/nouveau_chan.c b/drivers/gpu/drm/nouveau/nouveau_chan.c
+index f142f6310..513069137 100644
+--- a/drivers/gpu/drm/nouveau/nouveau_chan.c
++++ b/drivers/gpu/drm/nouveau/nouveau_chan.c
+@@ -199,7 +199,8 @@ nouveau_channel_prep(struct nouveau_cli *cli,
+ 		chan->push.addr = chan->push.vma->addr;
+ 
+ 		if (device->info.family >= NV_DEVICE_INFO_V0_FERMI) {
+-			return nouveau_bo_new_map_gpu(cli, NOUVEAU_GEM_DOMAIN_GART, PAGE_SIZE,
++			return nouveau_bo_new_map_gpu(cli, NOUVEAU_GEM_DOMAIN_GART |
++						      NOUVEAU_GEM_DOMAIN_COHERENT, PAGE_SIZE,
+ 						      &chan->sema.bo, &chan->sema.vma);
+ 		}
+ 
