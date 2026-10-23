@@ -1798,6 +1798,22 @@ uncached on Tegra), kernel #12: the build scene runs 30 s at 998.4 MHz at
 468 fps, with no rejected batch, and the user sees the horse turn without
 stopping.
 
+**The terrain pattern: half-drawn frames, fixed by `patches/linux/0005`.**
+The user's photo shows the landscape cut by a straight-edged wedge of the
+background colour, frames alternating between that and the full picture:
+frames scanned out before nouveau finished them. tegra-drm's
+`tegra_bo_import()` (`tegra/gem.c:458-497`) gives an imported dma-buf's
+GEM object its own, empty reservation object, where the generic
+`drm_gem_prime_import_dev()` takes the dma-buf's (`drm_prime.c:1008-1009`).
+`drm_gem_plane_helper_prepare_fb()` then finds no fence of nouveau's to
+wait for, and the page flip goes ahead mid-render. That shows only when a
+frame takes longer to draw than the flip: terrain (about 69 ms a frame),
+and effect2d at 76.8 MHz. Upstream master is the same. Kernel #13 shares
+the dma-buf's reservation object: terrain at 15 fps, no rejected batch,
+and the user sees no flicker ("not smooth but it's moving"). Terrain's
+15 fps likely comes from memory bandwidth: the EMC runs at a fixed
+800 MHz (no EMC scaling yet).
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

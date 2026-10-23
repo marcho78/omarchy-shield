@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:40:00 -0700
+Subject: [PATCH] drm/tegra: Share the reservation object of imported dma-bufs
+
+tegra_bo_import() gives the GEM object of an imported dma-buf its own,
+empty reservation object, where drm_gem_prime_import_dev() takes the
+dma-buf's. drm_gem_plane_helper_prepare_fb() then finds no fence to
+wait for, so flipping to a buffer that another driver is still rendering
+into (nouveau, through Mesa's tegra driver) scans out a half-drawn
+frame. Use the dma-buf's reservation object.
+---
+diff --git a/drivers/gpu/drm/tegra/gem.c b/drivers/gpu/drm/tegra/gem.c
+index 436394e04..b088f942c 100644
+--- a/drivers/gpu/drm/tegra/gem.c
++++ b/drivers/gpu/drm/tegra/gem.c
+@@ -494,6 +494,12 @@ static struct tegra_bo *tegra_bo_import(struct drm_device *drm,
+ 	get_dma_buf(buf);
+ 	bo->dma_buf = buf;
+ 
++	/*
++	 * Share the exporter's reservation object, as drm_gem_prime_import()
++	 * does, so that page flips wait for the exporter's rendering.
++	 */
++	bo->gem.resv = buf->resv;
++
+ 	return bo;
+ 
+ detach:
