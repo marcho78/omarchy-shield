@@ -41,7 +41,24 @@
 			pmsg-size = <0x40000>;
 			no-map;
 		};
+
+		/*
+		 * The EMC table, which U-Boot fills at each boot from the one
+		 * cboot trains (patches/u-boot): room for the 16 rates
+		 * tegra210-emc reads. Left zeroed, it keeps the EMC at the
+		 * rate cboot left.
+		 */
+		emc_table: emc-table@b0200000 {
+			compatible = "nvidia,tegra210-emc-table";
+			reg = <0x0 0xb0200000 0x0 0x14000>;
+			no-map;
+		};
 	};
+};
+
+&emc {
+	memory-region = <&emc_table>;
+	memory-region-names = "nominal";
 };
 
 /*

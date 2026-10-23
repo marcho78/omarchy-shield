@@ -2124,9 +2124,99 @@ The board's RAM code is 1 (`APB_MISC_PP_STRAPPING_OPT_A` 0x00001c10, bits
 struct's fields (`nvidia,trained_dram_clktree_c0d0u0` and so on).
 
 At 1600 MHz the table asks for `nvidia,emc-min-mv` 887 (vdd-core is fixed
-at 1125 mV, enough) and `nvidia,gk20a-min-mv` 1100: a floor for the GPU's
-rail at that rate, which mainline's driver doesn't apply (vdd-gpu goes down
-to 838 mV here). To be resolved before running above 800 MHz.
+at 1125 mV, enough) and `nvidia,gk20a-min-mv` 1100, the same at every
+rate, 800 MHz included, where vdd-gpu runs down to 838 mV without trouble:
+not a floor for the higher rates (mainline doesn't apply it either).
+
+Every rate from 665.6 MHz up runs from `pllm_ud`, undivided
+(`src-sel-reg` 0x80188000), so each needs PLLM or its twin PLLMB at the
+rate itself; `clk-tegra210-emc.c` retunes the idle one and hands the EMC
+over. 408 MHz runs from `pllp_ud`, 204 MHz and below from `pllp_out0`.
+
+**The handoff.** `patches/u-boot/0003` fills a reserved region of our
+device tree (`emc-table@b0200000`, 0x14000 bytes, no-map, right after
+ramoops; `&emc` takes it as `memory-region-names = "nominal"`) at each
+boot, from cboot's table for the straps' RAM code, as an array of Linux's
+struct (61 fields, 1232 words, checked at build). It checks every property
+is there at its exact length, every string whole, every count within its
+array, one revision throughout, and every rate above 204 MHz trained, and
+sorts the rates. Anything amiss leaves the region zeroed: the driver then
+finds no entry for the current rate and leaves the EMC alone. A copy goes
+in `/chosen/darcy,emc-table`, and `tools/emc-table.py` builds the expected
+table independently (the layout from the kernel's header, cboot's tree
+through its own FDT parser) and compares. The driver is a module
+(`CONFIG_TEGRA210_EMC=m`; the table handler is built in), and probe is
+passive: it parses, attaches to the EMC clock and arms no timer; the rate
+moves only through debugfs `emc/min_rate` and `max_rate`.
+
+n-codex's review (`research/ncodex-emc-review.md`): the conversion matches
+the ABI and the region is safe, but two hazards in mainline's driver came
+first:
+- **Refresh at high DRAM temperature never changed** (checked):
+  `tegra210_emc_set_refresh()` compares with `emc->refresh` but never
+  stores it, and `tegra210_emc_adjust_timing()` switches on it, so the
+  MR4 poller's 2x/4x requests left the timing at nominal; and with no
+  derated table (cboot has none) the hottest state fell back to nominal
+  too. `patches/linux/0007` stores it before adjusting, and maps
+  throttling to 4x refresh without a derated table. The poller runs only
+  once the EMC cooling device is active (70 °C in tegra210.dtsi).
+- **A clock change can hang with interrupts off:** r21021's DLL prelock
+  polls with no timeout under `spin_lock_irqsave()`, where a sysrq timer
+  can't fire. Kernel #18 adds the soft and buddy hard-lockup detectors
+  with `BOOTPARAM_HARDLOCKUP_PANIC`: a stuck CPU panics through its buddy,
+  and `panic=10` reboots. If the DRAM itself stops, the hardware watchdog
+  (systemd, 60 s) resets.
+
+Its plan, adopted: probe-only at 800 MHz first, with the table compared
+from the same boot; a register snapshot (PLLM, PLLMB, `CLK_SOURCE_EMC`,
+and the PMC's PLLM override through `tools/pmc-read`, as the PMC is
+secure-only) before and after the first switch; 800 to 1065.6 MHz and
+back several times before going further; at each rate memory, GPU and
+display loads together, for 30 to 60 minutes, and hours at 1600 MHz;
+watch for hash mismatches, crashes, MC/SMMU errors, display underflow;
+cold and warm boots; and a service that sets the rate only last.
+
+**Kernel #18 at 800 MHz (probe only).** The region came up
+(`emc-table@b0200000`, 80 KiB, no-map), tegra210-emc took it with no
+error, the clock stayed at 800 MHz from `pll_m_ud`, and debugfs lists the
+ten rates. The table in `/chosen/darcy,emc-table` (54,208 bytes) is
+identical to `tools/emc-table.py`'s from the same boot's cboot tree. cboot
+retrains at each boot: the trained clock-tree values moved by one between
+two boots (0x14b to 0x14c, 0x157 to 0x158, 0x14f to 0x150), which is why
+U-Boot converts the table at each boot. The snapshot before the first
+switch: PLLM M 3, N 125, P 1 (1600 MHz, halved: the EMC's 800), PLLMB M 3,
+N 125, P 0, enabled and locked at 1600 MHz, `CLK_SOURCE_EMC` 0x80188000;
+the PMC's `PLLP_WB0_OVERRIDE` (0xf8, read through `tools/pmc-read`)
+0x00018416, with PLLM_OVERRIDE (bit 11) and PLLM_ENABLE (bit 12) clear: no
+PLLM override, the CAR registers rule. The safety nets on: the buddy
+hard-lockup detector with `hardlockup_panic` (10 s), the 1-minute hardware
+watchdog, and a 3-minute sysrq reboot timer around each switch.
+
+**The switches.** 800 to 1065.6 MHz moved the EMC to `pll_mb_ud` (PLLMB
+retuned) in 7 ms. The clock framework keeps the rate it last set as its
+target, so lowering `min_rate` again left it at 1065.6: a lowered
+`max_rate` brings it down (`tools/emc-rate.sh` raises the floor to go up,
+lowers the ceiling to go down, and restores the full range). Then
+800 and 1065.6 MHz three times each way, 2 to 7 ms a switch, alternating
+PLLM and PLLMB, then 1331.2 (PLLMB) and 1600 MHz (`pll_m_ud`: PLLM
+reprogrammed). memtester over 256 MiB, one loop, passed at each: 133 s at
+1065.6, 122 s at 1331.2, 115 s at 1600 MHz, 18 checks ok, no failure, no
+MC, SMMU, display or nouveau message. At 1600 MHz the DRAM's MR4
+temperature state read 2 (nominal) at 48 °C.
+
+glmark2-es2-wayland `--off-screen` at 1600 MHz, against 800:
+
+| size | terrain | texture | build |
+|---|---|---|---|
+| 1920x1080 | 24 (15) | 353 (201) | 433 (217) |
+| 960x540 | 42 (28) | 1200 (707) | 1177 (680) |
+
+The memory was the GPU's main limit: 50 to 100% more. STK's benchmark
+read 10.0 FPS at 1600 MHz and 9.6 at 800, with 51 ms per frame in
+"EndScene", but both ran with the session locked and the TV off (the idle
+lock at 15:41, `dpmsStatus` false): Hyprland throttles the frame
+callbacks of a hidden window, so those runs don't count. STK needs the
+session unlocked on the TV.
 
 ## Never flash
 

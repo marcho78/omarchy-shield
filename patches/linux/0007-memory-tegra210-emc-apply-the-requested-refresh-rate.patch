@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:10:00 -0700
+Subject: [PATCH] memory: tegra210-emc: Apply the requested refresh rate
+
+tegra210_emc_set_refresh() compares the requested refresh with
+emc->refresh but never stores it, and tegra210_emc_adjust_timing(),
+which speeds the refresh up, switches on emc->refresh: as the DRAM's
+MR4 reports it hotter, the poller asks for 2x and 4x refresh, and the
+timing stays at nominal. Store it before the timing is adjusted.
+
+Throttling also falls back to the nominal table, at nominal refresh,
+when the board has no derated table. Use 4x refresh then, the most the
+timing allows.
+---
+diff --git a/drivers/memory/tegra/tegra210-emc-core.c b/drivers/memory/tegra/tegra210-emc-core.c
+index e8d4cd8fd..91beaf364 100644
+--- a/drivers/memory/tegra/tegra210-emc-core.c
++++ b/drivers/memory/tegra/tegra210-emc-core.c
+@@ -777,11 +777,21 @@ int tegra210_emc_set_refresh(struct tegra210_emc *emc,
+ 	if (refresh > TEGRA210_EMC_REFRESH_THROTTLE)
+ 		return -EINVAL;
+ 
++	/*
++	 * Throttling moves to the derated table. Without one, refresh as often
++	 * as the timing allows instead: the DRAM is at its hottest.
++	 */
++	if (refresh == TEGRA210_EMC_REFRESH_THROTTLE && !emc->derated)
++		refresh = TEGRA210_EMC_REFRESH_4X;
++
+ 	if (refresh == emc->refresh)
+ 		return 0;
+ 
+ 	spin_lock_irqsave(&emc->lock, flags);
+ 
++	/* tegra210_emc_adjust_timing() reads it, here and at clock changes */
++	emc->refresh = refresh;
++
+ 	if (refresh == TEGRA210_EMC_REFRESH_THROTTLE && emc->derated)
+ 		timings = emc->derated;
+ 	else

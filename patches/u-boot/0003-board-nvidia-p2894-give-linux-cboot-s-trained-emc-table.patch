@@ -1,0 +1,385 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:40:00 -0700
+Subject: [PATCH] board: nvidia: p2894: Give Linux cboot's trained EMC table
+
+Mainline's tegra210-emc driver changes the memory clock only with a
+table of the rates the bootloader trained, in a reserved-memory region
+(nvidia,tegra210-emc-table) holding an array of its
+struct tegra210_emc_timing. cboot keeps the same table as device tree
+properties named after the struct's fields, one table per RAM code, and
+trains the one for the board's RAM code at boot.
+
+Where the kernel's device tree has such a region, fill it at each boot
+from cboot's table for the RAM code the straps give: every property at
+its exact length, every string whole, every count within its array, one
+revision throughout, every rate above 204 MHz trained, in rising order
+of rate. Anything amiss leaves the region zeroed, so the driver finds no
+entry for the current rate and the memory clock stays as cboot left it.
+A copy goes in /chosen/darcy,emc-table, for checking from Linux
+(tools/emc-table.py --compare).
+---
+diff --git a/board/nvidia/p2894/p2894.c b/board/nvidia/p2894/p2894.c
+index 87e55351..3d41e227 100644
+--- a/board/nvidia/p2894/p2894.c
++++ b/board/nvidia/p2894/p2894.c
+@@ -47,8 +47,10 @@
+ #include <video.h>
+ #include <asm/global_data.h>
+ #include <asm/io.h>
++#include <asm/arch-tegra/apb_misc.h>
+ #include <asm/arch-tegra/cboot.h>
+ #include <asm/arch-tegra/pmc.h>
++#include <asm/arch-tegra/tegra.h>
+ #include <linux/delay.h>
+ #include <linux/libfdt.h>
+ #include <linux/sizes.h>
+@@ -797,6 +799,338 @@ static int pass_cboot_fdt(void *blob)
+ 	return fdt_setprop(blob, node, "darcy,cboot-fdt", fdt, fdt_totalsize(fdt));
+ }
+ 
++/*
++ * One rate of the EMC table that mainline's tegra210-emc driver takes from
++ * a reserved-memory region (nvidia,tegra210-emc-table): Linux's
++ * struct tegra210_emc_timing (drivers/memory/tegra/tegra210-emc.h), field
++ * for field. cboot's device tree has the same table as properties named
++ * after these fields, and trains the one for the board's RAM code at boot.
++ */
++struct emc_timing {
++	u32 revision;
++	char dvfs_ver[60];
++	u32 rate;
++	u32 min_volt;
++	u32 gpu_min_volt;
++	char clock_src[32];
++	u32 clk_src_emc;
++	u32 needs_training;
++	u32 training_pattern;
++	u32 trained;
++
++	u32 periodic_training;
++	u32 trained_dram_clktree[8];
++	u32 current_dram_clktree[8];
++	u32 run_clocks;
++	u32 tree_margin;
++
++	u32 num_burst;
++	u32 num_burst_per_ch;
++	u32 num_trim;
++	u32 num_trim_per_ch;
++	u32 num_mc_regs;
++	u32 num_up_down;
++	u32 vref_num;
++	u32 training_mod_num;
++	u32 dram_timing_num;
++
++	u32 ptfv_list[12];
++
++	u32 burst_regs[221];
++	u32 burst_reg_per_ch[8];
++	u32 shadow_regs_ca_train[221];
++	u32 shadow_regs_quse_train[221];
++	u32 shadow_regs_rdwr_train[221];
++
++	u32 trim_regs[138];
++	u32 trim_perch_regs[10];
++
++	u32 vref_perch_regs[4];
++
++	u32 dram_timings[5];
++	u32 training_mod_regs[20];
++	u32 save_restore_mod_regs[12];
++	u32 burst_mc_regs[33];
++	u32 la_scale_regs[24];
++
++	u32 min_mrs_wait;
++	u32 emc_mrw;
++	u32 emc_mrw2;
++	u32 emc_mrw3;
++	u32 emc_mrw4;
++	u32 emc_mrw9;
++	u32 emc_mrs;
++	u32 emc_emrs;
++	u32 emc_emrs2;
++	u32 emc_auto_cal_config;
++	u32 emc_auto_cal_config2;
++	u32 emc_auto_cal_config3;
++	u32 emc_auto_cal_config4;
++	u32 emc_auto_cal_config5;
++	u32 emc_auto_cal_config6;
++	u32 emc_auto_cal_config7;
++	u32 emc_auto_cal_config8;
++	u32 emc_cfg_2;
++	u32 emc_sel_dpd_ctrl;
++	u32 emc_fdpd_ctrl_cmd_no_ramp;
++	u32 dll_clk_src;
++	u32 clk_out_enb_x_0_clk_enb_emc_dll;
++	u32 latency;
++};
++
++/* Linux 7.2's struct is 1232 words */
++_Static_assert(sizeof(struct emc_timing) == 1232 * 4, "struct emc_timing");
++
++/*
++ * Linux reads at most 16 rates, up to the first zero revision; the region
++ * keeps a zero entry after the last (0x14000 bytes: 15 rates)
++ */
++#define EMC_MAX_RATES	16
++
++#define EMC_FIELD(prop, field) \
++	{ prop, offsetof(struct emc_timing, field), \
++	  sizeof(((struct emc_timing *)0)->field) / sizeof(u32) }
++
++/* Every u32 field and the property cboot keeps it in */
++static const struct emc_prop {
++	const char *name;
++	size_t offset;
++	unsigned int count;
++} emc_props[] = {
++	EMC_FIELD("nvidia,revision", revision),
++	EMC_FIELD("clock-frequency", rate),
++	EMC_FIELD("nvidia,emc-min-mv", min_volt),
++	EMC_FIELD("nvidia,gk20a-min-mv", gpu_min_volt),
++	EMC_FIELD("nvidia,src-sel-reg", clk_src_emc),
++	EMC_FIELD("nvidia,needs-training", needs_training),
++	EMC_FIELD("nvidia,training_pattern", training_pattern),
++	EMC_FIELD("nvidia,trained", trained),
++	EMC_FIELD("nvidia,periodic_training", periodic_training),
++	EMC_FIELD("nvidia,trained_dram_clktree_c0d0u0", trained_dram_clktree[0]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c0d0u1", trained_dram_clktree[1]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c0d1u0", trained_dram_clktree[2]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c0d1u1", trained_dram_clktree[3]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c1d0u0", trained_dram_clktree[4]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c1d0u1", trained_dram_clktree[5]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c1d1u0", trained_dram_clktree[6]),
++	EMC_FIELD("nvidia,trained_dram_clktree_c1d1u1", trained_dram_clktree[7]),
++	EMC_FIELD("nvidia,current_dram_clktree_c0d0u0", current_dram_clktree[0]),
++	EMC_FIELD("nvidia,current_dram_clktree_c0d0u1", current_dram_clktree[1]),
++	EMC_FIELD("nvidia,current_dram_clktree_c0d1u0", current_dram_clktree[2]),
++	EMC_FIELD("nvidia,current_dram_clktree_c0d1u1", current_dram_clktree[3]),
++	EMC_FIELD("nvidia,current_dram_clktree_c1d0u0", current_dram_clktree[4]),
++	EMC_FIELD("nvidia,current_dram_clktree_c1d0u1", current_dram_clktree[5]),
++	EMC_FIELD("nvidia,current_dram_clktree_c1d1u0", current_dram_clktree[6]),
++	EMC_FIELD("nvidia,current_dram_clktree_c1d1u1", current_dram_clktree[7]),
++	EMC_FIELD("nvidia,run_clocks", run_clocks),
++	EMC_FIELD("nvidia,tree_margin", tree_margin),
++	EMC_FIELD("nvidia,burst-regs-num", num_burst),
++	EMC_FIELD("nvidia,burst-regs-per-ch-num", num_burst_per_ch),
++	EMC_FIELD("nvidia,trim-regs-num", num_trim),
++	EMC_FIELD("nvidia,trim-regs-per-ch-num", num_trim_per_ch),
++	EMC_FIELD("nvidia,burst-mc-regs-num", num_mc_regs),
++	EMC_FIELD("nvidia,la-scale-regs-num", num_up_down),
++	EMC_FIELD("nvidia,vref-regs-num", vref_num),
++	EMC_FIELD("nvidia,training-mod-regs-num", training_mod_num),
++	EMC_FIELD("nvidia,dram-timing-regs-num", dram_timing_num),
++	EMC_FIELD("nvidia,ptfv", ptfv_list),
++	EMC_FIELD("nvidia,emc-registers", burst_regs),
++	EMC_FIELD("nvidia,emc-burst-regs-per-ch", burst_reg_per_ch),
++	EMC_FIELD("nvidia,emc-shadow-regs-ca-train", shadow_regs_ca_train),
++	EMC_FIELD("nvidia,emc-shadow-regs-quse-train", shadow_regs_quse_train),
++	EMC_FIELD("nvidia,emc-shadow-regs-rdwr-train", shadow_regs_rdwr_train),
++	EMC_FIELD("nvidia,emc-trim-regs", trim_regs),
++	EMC_FIELD("nvidia,emc-trim-regs-per-ch", trim_perch_regs),
++	EMC_FIELD("nvidia,emc-vref-regs", vref_perch_regs),
++	EMC_FIELD("nvidia,emc-dram-timing-regs", dram_timings),
++	EMC_FIELD("nvidia,emc-training-mod-regs", training_mod_regs),
++	EMC_FIELD("nvidia,emc-save-restore-mod-regs", save_restore_mod_regs),
++	EMC_FIELD("nvidia,emc-burst-mc-regs", burst_mc_regs),
++	EMC_FIELD("nvidia,emc-la-scale-regs", la_scale_regs),
++	EMC_FIELD("nvidia,min-mrs-wait", min_mrs_wait),
++	EMC_FIELD("nvidia,emc-mrw", emc_mrw),
++	EMC_FIELD("nvidia,emc-mrw2", emc_mrw2),
++	EMC_FIELD("nvidia,emc-mrw3", emc_mrw3),
++	EMC_FIELD("nvidia,emc-mrw4", emc_mrw4),
++	EMC_FIELD("nvidia,emc-mrw9", emc_mrw9),
++	EMC_FIELD("nvidia,emc-mrs", emc_mrs),
++	EMC_FIELD("nvidia,emc-emrs", emc_emrs),
++	EMC_FIELD("nvidia,emc-emrs2", emc_emrs2),
++	EMC_FIELD("nvidia,emc-auto-cal-config", emc_auto_cal_config),
++	EMC_FIELD("nvidia,emc-auto-cal-config2", emc_auto_cal_config2),
++	EMC_FIELD("nvidia,emc-auto-cal-config3", emc_auto_cal_config3),
++	EMC_FIELD("nvidia,emc-auto-cal-config4", emc_auto_cal_config4),
++	EMC_FIELD("nvidia,emc-auto-cal-config5", emc_auto_cal_config5),
++	EMC_FIELD("nvidia,emc-auto-cal-config6", emc_auto_cal_config6),
++	EMC_FIELD("nvidia,emc-auto-cal-config7", emc_auto_cal_config7),
++	EMC_FIELD("nvidia,emc-auto-cal-config8", emc_auto_cal_config8),
++	EMC_FIELD("nvidia,emc-cfg-2", emc_cfg_2),
++	EMC_FIELD("nvidia,emc-sel-dpd-ctrl", emc_sel_dpd_ctrl),
++	EMC_FIELD("nvidia,emc-fdpd-ctrl-cmd-no-ramp", emc_fdpd_ctrl_cmd_no_ramp),
++	EMC_FIELD("nvidia,dll-clk-src", dll_clk_src),
++	EMC_FIELD("nvidia,clk-out-enb-x-0-clk-enb-emc-dll",
++		  clk_out_enb_x_0_clk_enb_emc_dll),
++	EMC_FIELD("nvidia,emc-clock-latency-change", latency),
++};
++
++/* A string property into a fixed field, whole and terminated */
++static int emc_string(const void *fdt, int node, const char *name, char *dst,
++		      size_t size)
++{
++	const char *s;
++	int len;
++
++	s = fdt_getprop(fdt, node, name, &len);
++	if (!s || len < 1 || len > size || s[len - 1] || strlen(s) != len - 1) {
++		printf("EMC table: %s: %s missing or too long\n",
++		       fdt_get_name(fdt, node, NULL), name);
++		return -FDT_ERR_BADVALUE;
++	}
++	memcpy(dst, s, len);
++
++	return 0;
++}
++
++/*
++ * Linux trusts the counts to index the arrays, and runs one sequence, the
++ * first rate's revision's, for all of them
++ */
++static bool emc_timing_sane(const struct emc_timing *t,
++			    const struct emc_timing *first)
++{
++	return t->revision == first->revision &&
++	       t->num_burst <= ARRAY_SIZE(t->burst_regs) &&
++	       t->num_burst_per_ch <= ARRAY_SIZE(t->burst_reg_per_ch) &&
++	       t->num_trim <= ARRAY_SIZE(t->trim_regs) &&
++	       t->num_trim_per_ch <= ARRAY_SIZE(t->trim_perch_regs) &&
++	       t->num_mc_regs <= ARRAY_SIZE(t->burst_mc_regs) &&
++	       t->num_up_down <= ARRAY_SIZE(t->la_scale_regs) &&
++	       t->vref_num <= ARRAY_SIZE(t->vref_perch_regs) &&
++	       t->training_mod_num <= ARRAY_SIZE(t->training_mod_regs) &&
++	       t->dram_timing_num <= ARRAY_SIZE(t->dram_timings);
++}
++
++/* One rate of cboot's table, every property present at its exact length */
++static int emc_timing_from(const void *fdt, int node, struct emc_timing *t)
++{
++	unsigned int i, j;
++
++	memset(t, 0, sizeof(*t));
++	if (emc_string(fdt, node, "nvidia,dvfs-version", t->dvfs_ver,
++		       sizeof(t->dvfs_ver)) ||
++	    emc_string(fdt, node, "nvidia,source", t->clock_src,
++		       sizeof(t->clock_src)))
++		return -FDT_ERR_BADVALUE;
++
++	for (i = 0; i < ARRAY_SIZE(emc_props); i++) {
++		const struct emc_prop *p = &emc_props[i];
++		u32 *dst = (u32 *)((char *)t + p->offset);
++		const fdt32_t *cell;
++		int len;
++
++		cell = fdt_getprop(fdt, node, p->name, &len);
++		if (!cell || len != p->count * sizeof(u32)) {
++			printf("EMC table: %s: %s missing or %d bytes\n",
++			       fdt_get_name(fdt, node, NULL), p->name, len);
++			return -FDT_ERR_BADVALUE;
++		}
++		for (j = 0; j < p->count; j++)
++			dst[j] = fdt32_to_cpu(cell[j]);
++	}
++
++	return 0;
++}
++
++/*
++ * cboot's EMC table for the board's RAM code, trained, into the region of
++ * the kernel's device tree that asks for one, in rising order of rate.
++ * Anything amiss leaves the region zeroed: Linux then finds no entry for
++ * the rate cboot left, and the EMC stays at that rate.
++ */
++static int emc_table_from_cboot(void *blob)
++{
++	struct apb_misc_pp_ctlr *misc = (void *)NV_PA_APB_MISC_BASE;
++	const void *fdt = cboot_fdt();
++	struct emc_timing *table, tmp;
++	fdt_size_t size;
++	fdt_addr_t base;
++	unsigned int ram_code, n = 0, max, i;
++	int node, table_node, rate;
++
++	node = fdt_node_offset_by_compatible(blob, -1,
++					     "nvidia,tegra210-emc-table");
++	if (node < 0)
++		return 0;
++	base = fdtdec_get_addr_size_fixed(blob, node, "reg", 0, 2, 2, &size,
++					  false);
++	if (base == FDT_ADDR_T_NONE || !in_dram(base, size) ||
++	    size < 2 * sizeof(*table)) {
++		printf("EMC table: no room at %llx\n", (u64)base);
++		return -FDT_ERR_BADVALUE;
++	}
++	table = (struct emc_timing *)(uintptr_t)base;
++	memset(table, 0, size);
++	max = min_t(fdt_size_t, size / sizeof(*table) - 1, EMC_MAX_RATES);
++
++	if (!fdt)
++		return -FDT_ERR_NOTFOUND;
++	node = fdt_path_offset(fdt, "/external-memory-controller@7001b000");
++	if (node < 0)
++		return node;
++
++	ram_code = (readl(&misc->strapping_opt_a) & RAM_CODE_MASK) >>
++		   RAM_CODE_SHIFT;
++	fdt_for_each_subnode(table_node, fdt, node) {
++		if (fdtdec_get_uint(fdt, table_node, "nvidia,ram-code", ~0U) ==
++		    ram_code)
++			break;
++	}
++	if (table_node < 0) {
++		printf("EMC table: none for RAM code %u\n", ram_code);
++		return table_node;
++	}
++
++	fdt_for_each_subnode(rate, fdt, table_node) {
++		if (n == max || emc_timing_from(fdt, rate, &table[n]))
++			goto bad;
++		if (table[n].rate > 204000 && !table[n].trained) {
++			printf("EMC table: %u kHz is not trained\n",
++			       table[n].rate);
++			goto bad;
++		}
++		if (!emc_timing_sane(&table[n], &table[0])) {
++			printf("EMC table: %u kHz: bad revision or count\n",
++			       table[n].rate);
++			goto bad;
++		}
++		/* keep it sorted: Linux checks that rates rise */
++		for (i = n; i > 0 && table[i - 1].rate > table[i].rate; i--) {
++			tmp = table[i - 1];
++			table[i - 1] = table[i];
++			table[i] = tmp;
++		}
++		n++;
++	}
++	if (!n)
++		goto bad;
++
++	printf("EMC table: %u rates for RAM code %u, %u to %u kHz\n", n,
++	       ram_code, table[0].rate, table[n - 1].rate);
++
++	/* A copy for Linux to check, as /chosen/darcy,emc-table */
++	node = fdt_find_or_add_subnode(blob, 0, "chosen");
++	if (node < 0 ||
++	    fdt_setprop(blob, node, "darcy,emc-table", table,
++			(n + 1) * sizeof(*table)))
++		printf("EMC table: no copy in /chosen\n");
++
++	return 0;
++
++bad:
++	memset(table, 0, size);
++	return -FDT_ERR_BADVALUE;
++}
++
+ /*
+  * Tag the kernel command line, pass cboot's device tree on, and hand the
+  * console framebuffer on to the kernel, reserved
+@@ -814,6 +1148,9 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+ 	if (pass_cboot_fdt(blob))
+ 		printf("warning: could not pass cboot's device tree on\n");
+ 
++	if (emc_table_from_cboot(blob))
++		printf("warning: no EMC table: the memory clock stays as cboot left it\n");
++
+ 	if (!fb || !video_is_active())
+ 		return 0;
+ 
