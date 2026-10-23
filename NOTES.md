@@ -990,7 +990,42 @@ nothing with `-D` here).
   `module_blacklist=tegra_drm`, the picture stays on through boot, all the
   way to the `darcy login:` prompt.
 - **Next is step 3 (Wi-Fi):** the new kernel with iwd's crypto and the
-  country, plus its matching modules on the SSD (`scripts/16`). Android must
+  country, plus its matching modules on the SSD (`scripts/16`).
+
+**Milestone: step 3 works, Wi-Fi and SSH (2026-10-22).**
+- **The clean route to the menu works:** `systemctl
+  --reboot-argument=bootloader reboot` from the console.
+- **`scripts/16` refreshed the SSD's modules in place.** Checked read-only
+  afterwards: all six newly built-in crypto pieces are in `modules.builtin`,
+  the old `md5.ko` is gone, there are 943 module files, owned by root, and
+  the file list matches the staged build.
+- **Wi-Fi:** `iwctl station wlan0 connect "<SSID>"` joined at once:
+  WPA2-Personal on **5 GHz, channel 48**, −69 dBm, RX 270 Mbit/s. DHCP from
+  systemd-networkd gave `192.168.1.122`. 5 GHz means the firmware took the
+  country: the `brcm,ccode-map` passed `US` on, where the NVRAM's `XV`
+  could leave 5 GHz out.
+- **SSH works from the laptop as root with `device-info/ssh/id_ed25519`**
+  (the host key is in `device-info/ssh/known_hosts`). Work no longer
+  depends on photos of the TV.
+- **Checked over SSH:**
+  - `Module tegra_drm is blacklisted`, once for each load the device manager
+    tried
+  - `systemctl --failed` is empty
+  - systemd holds `/dev/watchdog0` ('Tegra Watchdog')
+  - `/` is 235 GB, 1.7 GB used
+  - timesyncd set the clock
+- **Bluetooth:** `btmgmt info` shows `hci0` powered, br/edr + le, and
+  configured, with no missing options. The address is the chip's
+  placeholder, `43:50:C0:00:1F:AC`.
+- **Ethernet** is `enp1s0` (r8169, `00:04:4b:b2:35:bb`), up, with no cable.
+- **Open:**
+  - the board's real Wi-Fi and Bluetooth addresses, probably in `NCT`
+  - pairing a Bluetooth keyboard
+  - quieting the kernel messages on the console (`ignore_loglevel`)
+  - the root password, still Arch Linux ARM's default `root`; SSH is
+    key-only
+  - a USB 3 cable for the SSD
+  - HDMI through tegra-drm for the desktop Android must
 never start again while Linux is on `userdata`: its file-based encryption
 would fail there and it would offer a wipe, and `vendor_flash_recovery`
 would put its recovery back. The recovery slot keeps the test payload, for

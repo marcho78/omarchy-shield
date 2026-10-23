@@ -18,8 +18,9 @@ Android stays installed, so you can go back.
 >   the recovery slot, and U-Boot starts mainline Linux, whose console stays
 >   on HDMI. Linux drives USB, Ethernet, Wi-Fi and Bluetooth, with NVIDIA's
 >   firmware taken from the recovery image.
-> - **Next:** the first boot of Arch Linux ARM from a USB disk (built and
->   scripted, not yet installed), then Omarchy.
+> - **Done too:** Arch Linux ARM runs from a USB SSD, with the console on
+>   HDMI, Wi-Fi (5 GHz), SSH and Bluetooth.
+> - **Next:** HDMI through tegra-drm for a desktop, then Omarchy.
 >
 > `NOTES.md` is the research log.
 
