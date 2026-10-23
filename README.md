@@ -22,8 +22,12 @@ Android stays installed, so you can go back.
 >   HDMI, Wi-Fi (2.4 and 5 GHz), SSH and Bluetooth. New builds go on over
 >   the network, with nothing to press on the TV.
 > - **Done too:** the real display driver, tegra-drm, drives HDMI from
->   boot.
-> - **Next:** the GPU (nouveau) for a desktop, then Omarchy.
+>   boot. The GPU's driver, nouveau, loads by hand (Mesa: OpenGL ES 3.2).
+> - **Done too:** cooling and power management. The fan runs, idle cores
+>   sleep, the CPU scales its clock and voltage (for now up to 1.02 GHz),
+>   and the kernel slows it when it runs hot.
+> - **Next:** the CPU up to stock's 2.0 GHz, the GPU at boot for a
+>   desktop, then Omarchy.
 >
 > `NOTES.md` is the research log.
 

@@ -1525,10 +1525,29 @@ after the scaler, which also means the DVCO itself runs at about 1058 MHz.
   so itself: the minimum rate "should be calibrated at runtime"
   (`clk-dfll.c:833-838`). Stock darcy has `nvidia,one-shot-calibrate` for
   that, which mainline lacks.
-- It is not a timing risk. The CPU's clock is the DVCO, on the CPU rail,
-  whose low-voltage tuning "must be characterized to keep the downstream
-  device stable at any DVCO input voltage" (`clk-dfll.c:987-991`). It
-  costs a little power at low rates.
+- n-codex checked the arithmetic: 83 counts × 12.75 MHz = 1058.25 MHz
+  before the scaler, and × 199/256 = 822.6 MHz after it. That the output
+  sits at index 9 is likely but not proved. Mainline also reads the
+  monitor once, without waiting for a fresh sample (`clk-dfll.c:1255-1271`;
+  downstream waits for `NEW` and compares two samples). The spread up to
+  89 counts (1135 MHz) may be a torn reading rather than a real clock.
+- Mostly a power and accounting defect; timing safety is plausible, not
+  proved. The CPU's clock is the DVCO, on the CPU rail, whose low-voltage
+  tuning "must be characterized to keep the downstream device stable at
+  any DVCO input voltage" (`clk-dfll.c:987-991`). That supports the
+  design, but it is no timing guarantee for every voltage and frequency
+  pair. NVIDIA's downstream driver knows the case: a misestimated minimum
+  makes low requests run high at Vmin. Four cores under load at the floor
+  ran clean here, which shows this chip's margin, nothing more general.
+- Missing from mainline, all from stock's DFLL:
+  - one-shot calibration of that floor (a later power fix)
+  - `nvidia,idle-override`: no sign it is needed, but quick swings from
+    high rates to idle get tested at each cap
+  - a cold floor that raises the minimum voltage below 15 °C
+    (`tegra210-darcy-power-dvfs-p2894-0050-a08.dtsi:56-76`): only for a
+    cold start in a cold room
+  - high-voltage tuning: none for this speedo and process, downstream
+    either
 
 **4. Passive cooling through cpufreq** (`darcy.dts`: `#cooling-cells` on
 `cpu@0` only, as n-codex advised, since the four cores share one policy
@@ -1548,6 +1567,25 @@ and so one cooling device; passive trips at 82 °C on `cpu-thermal` and
   emulated value (`tegra_thermctl_set_trips()`). With the real sensor far
   below them, it is unclear what the comparators do, so the real-heat test
   was used instead.
+
+**5. The cap goes up in stages** (n-codex: 1.9125 GHz, then 2.0145 GHz, each
+with sustained load, quick load/idle swings, repeated monitor readings and
+a warm reboot):
+- **1.9125 GHz** (`patches/linux/0003`): 18 rates from 204 MHz. The DFLL's
+  output limits widen to index 9–27 (up to 1226.4 mV), as predicted. Its
+  safe index stays 10.
+- Three minutes on all four cores: the monitor reads 1848–1963 MHz
+  against the 1912.5 MHz request (three readings each 10 s), so the closed
+  loop holds the rate. 10.7–11.8 W. Temperatures level off at CPU 57,
+  GPU 53, memory 52 °C, with the fan at level 2 (about 3400 RPM). The
+  82 °C passive trip is far off.
+- 20 quick swings between load and idle, then idle: clean. No new kernel
+  warnings. A warm reboot comes back in about 35 s, locked.
+- Idle power is 5.4–5.7 W, whatever the ceiling: two minutes each at
+  1912.5, 1020 (`scaling_max_freq`) and 1912.5 MHz gave 5.58, 5.44 and
+  5.66 W, with the CPU at 204 MHz for 107 of every 120 s. The 4.5–4.8 W
+  measured at the 1.02 GHz cap is not reproducible now, so it came from
+  the rest of the board (SSD, Wi-Fi, fan), not the CPU.
 
 **Wi-Fi dropped once** (00:16:55): the access point deauthenticated the
 SHIELD (reason 1). Four quick reconnects failed (status 16), and iwd's
