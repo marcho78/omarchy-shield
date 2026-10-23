@@ -38,6 +38,13 @@ shield_ip() {
   fi
 }
 
+# Runs "$@" on the installed system at $host (the caller's) over SSH as
+# root, with the key scripts/13 made
+on_shield() {
+  ssh -i "$ROOT/device-info/ssh/id_ed25519" -o UserKnownHostsFile="$ROOT/device-info/ssh/known_hosts" \
+    -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 "root@$host" "$@"
+}
+
 # NVIDIA's USB device as port:devnum:product, or "none". The product is
 # b442 in the bootloader's fastboot, b43d under Android.
 nvidia_usb() {

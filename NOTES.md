@@ -1478,6 +1478,20 @@ Below 918 MHz it skips clock pulses at 880 mV.
   42–45 °C, fan cycling at level 0–1. The cores were already clock-gated
   in WFI, and the cluster itself has no idle state in mainline.
 
+**2. The thermal guard** (`rootfs/usr/local/sbin/darcy-thermal-guard`, a
+systemd service; `scripts/18` put it on the SHIELD):
+- every 2 s, the hottest of the cpu, gpu, mem and pllx zones, found by type
+- at 86 °C, every cpufreq policy's `scaling_max_freq` goes to its
+  `cpuinfo_min_freq` and stays there until the next boot
+- at 92 °C, `systemctl reboot`, and sysrq `b` if that hangs for a minute
+- tried with `GUARD_CAP=40000 GUARD_REBOOT=45000 GUARD_DRY_RUN=1`: both
+  paths logged (memory at 46 °C), then it exited. With no cpufreq policy
+  yet, the cap had nothing to hold. Its real test comes with the DFLL.
+
+An aside: `/` is mode 555 on this system. That is systemd's own
+`tmpfiles.d/root.conf` (`z / 555`), applied at every boot, not something
+broken.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

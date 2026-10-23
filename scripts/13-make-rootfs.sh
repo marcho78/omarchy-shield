@@ -11,6 +11,8 @@
 #     that the first boot asks nothing on the TV
 #   - SSH as root with a key of its own; no passwords over the network
 #   - systemd keeping the watchdog U-Boot arms (tegra_wdt)
+#   - the files under rootfs/, such as the thermal guard
+#     (scripts/18 updates them on a running SHIELD)
 #   - a filesystem that grows to fill its partition on the first boot
 #
 # No root needed: the work runs in a user namespace mapped onto your
@@ -202,6 +204,10 @@ cat > "$rootfs/etc/systemd/system.conf.d/10-watchdog.conf" << 'EOF'
 [Manager]
 RuntimeWatchdogSec=60s
 EOF
+
+log "darcy's own files (rootfs/)"
+cp -r --preserve=mode "$ROOT/rootfs/." "$rootfs/"
+in_chroot systemctl enable darcy-thermal-guard.service
 
 log "ext4 image"
 # Detaching the bind mount everything else sits on takes all of it along

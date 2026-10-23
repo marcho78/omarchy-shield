@@ -1,0 +1,10 @@
+[Unit]
+Description=Thermal guard: slow the CPUs at 86 °C, reboot at 92 °C
+
+[Service]
+ExecStart=/usr/local/sbin/darcy-thermal-guard
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

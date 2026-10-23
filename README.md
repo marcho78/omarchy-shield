@@ -252,6 +252,13 @@ flashes the boot image as soon as fastboot appears, reboots into it, and
 checks that the new kernel runs. The computer must be on the SHIELD's USB
 port far from HDMI.
 
+Files of the installed system that this repository keeps under `rootfs/`
+(the thermal guard, for one) go on the same way, without a reboot:
+
+    scripts/18-update-files.sh <the SHIELD's address>
+
+`scripts/13` puts the same files in a new root filesystem.
+
 Once the system is up, the TV console shows only critical kernel messages.
 To see them all again until the next boot, run this on the SHIELD:
 `echo Y > /sys/module/printk/parameters/ignore_loglevel`.
@@ -259,7 +266,7 @@ To see them all again until the next boot, run this on the SHIELD:
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. Extend the device tree: GPU (nouveau), audio, fan.
+2. CPU frequency scaling (the DFLL), then the GPU at boot (nouveau), audio.
 3. Install `omarchy-arm`.
 
 ## Layout
@@ -271,6 +278,7 @@ To see them all again until the next boot, run this on the SHIELD:
 | `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
 | `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
+| `rootfs/` | Files `scripts/13` and `scripts/18` put in the installed system as they are: the thermal guard (`darcy-thermal-guard`, slows the CPUs at 86 °C, reboots at 92 °C) |
 | `tools/darcy-init.c` | The first payload's `/init` |
 | `tools/mmio-read.c` | Reads hardware registers on the SHIELD, read-only, to compare what cboot set with what Linux sets |
 | `tools/pmc-read/` | A kernel module that reads power-controller registers through the secure monitor (the SHIELD's PMC is secure-only), read-only |

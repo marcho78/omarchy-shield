@@ -41,11 +41,6 @@ cmp -s "$kbuild/arch/arm64/boot/Image.gz" "$ROOT/build/system/Image.gz" ||
 [[ ${CONFIRM_FLASH:-} == yes ]] || die "this reboots the SHIELD at $host and replaces its boot partition with ${boot#"$ROOT"/}.
   To go ahead, run: CONFIRM_FLASH=yes $0 ${args[*]}"
 
-on_shield() {
-  ssh -i "$key" -o UserKnownHostsFile="$ROOT/device-info/ssh/known_hosts" \
-    -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 "root@$host" "$@"
-}
-
 release=$(cat "$kbuild/include/config/kernel.release")
 built="$release $(sed -n 's/^#define UTS_VERSION "\(.*\)"$/\1/p' "$kbuild/include/generated/utsversion.h")"
 running=$(on_shield uname -rv) || die "no SSH to root@$host"

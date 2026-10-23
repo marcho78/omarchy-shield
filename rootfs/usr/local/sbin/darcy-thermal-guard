@@ -1,0 +1,61 @@
+#!/bin/bash
+# A thermal guard while the SHIELD's power management is brought up: when the
+# hottest of the CPU, GPU, memory and PLLX sensors reaches 86 °C, every CPU
+# frequency policy is held at its lowest rate until the next boot; at 92 °C
+# the board reboots. Linux's own critical trip (102.5 °C) powers it off
+# instead, and a SHIELD that powered off stays off until it is unplugged.
+# It cannot help when the kernel itself hangs: the soctherm hardware
+# throttle (98.5 °C) and the watchdog remain for that.
+#
+# darcy-thermal-guard.service runs it. To try it, thresholds in m°C, with a
+# dry run that logs the reboot and exits instead (the cap is real: writing
+# cpuinfo_max_freq back to scaling_max_freq undoes it):
+#   GUARD_CAP=40000 GUARD_REBOOT=45000 GUARD_DRY_RUN=1 darcy-thermal-guard
+set -u
+cap=${GUARD_CAP:-86000}
+reboot=${GUARD_REBOOT:-92000}
+dry=${GUARD_DRY_RUN:-}
+capped=false
+
+hottest() {
+  local z type t max=0 name=none
+  for z in /sys/class/thermal/thermal_zone*; do
+    type=$(cat "$z/type" 2> /dev/null) || continue
+    case $type in
+      cpu-thermal | gpu-thermal | mem-thermal | pllx-thermal) ;;
+      *) continue ;;
+    esac
+    t=$(cat "$z/temp" 2> /dev/null) || continue
+    if ((t > max)); then
+      max=$t name=$type
+    fi
+  done
+  echo "$max $name"
+}
+
+# <n>: the journal's priority for the line
+echo "<6>cap the CPUs at $((cap / 1000)) °C, reboot at $((reboot / 1000)) °C${dry:+ (dry run)}"
+while :; do
+  read -r t zone < <(hottest)
+  if ! $capped && ((t >= cap)); then
+    echo "<4>$zone at $((t / 1000)) °C: holding the CPUs at their lowest rate until the next boot"
+    capped=true
+  fi
+  # Again on every round, for policies that appear later
+  if $capped; then
+    for p in /sys/devices/system/cpu/cpufreq/policy*; do
+      [[ -r $p/cpuinfo_min_freq ]] && cat "$p/cpuinfo_min_freq" > "$p/scaling_max_freq"
+    done
+  fi
+  if ((t >= reboot)); then
+    echo "<2>$zone at $((t / 1000)) °C: rebooting before the board powers itself off"
+    if [[ -n $dry ]]; then
+      exit 0
+    fi
+    systemctl --no-block reboot
+    sleep 60
+    echo "<2>still up a minute later: forcing the reboot"
+    echo b > /proc/sysrq-trigger
+  fi
+  sleep 2
+done
