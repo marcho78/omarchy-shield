@@ -12,13 +12,19 @@
 #      and typical frame rates), the biggest stages of its CPU profile per
 #      frame, and a summary of the recording.
 # The game exits by itself, after a few minutes at a few frames per second.
+# NAME=value arguments go into the game's environment, for Mesa's knobs:
+# MESA_EXTENSION_OVERRIDE=-GL_EXT_color_buffer_float, for one.
 #
-# Usage: tools/stk-benchmark.sh <the SHIELD's address>
+# Usage: tools/stk-benchmark.sh <the SHIELD's address> [NAME=value ...]
 source "$(dirname "$0")/../scripts/lib.sh"
 need ssh
 
 host=${1:-}
-[[ -n $host ]] || die "usage: $0 <the SHIELD's address>"
+[[ -n $host ]] || die "usage: $0 <the SHIELD's address> [NAME=value ...]"
+shift
+for a in "$@"; do
+  [[ $a =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || die "not a NAME=value: $a"
+done
 user=$OMARCHY_USER
 
 log "supertuxkart, on $(on_shield 'uname -r -v')"
@@ -60,11 +66,17 @@ for (( t = 0; t < 1200; t += 2 )); do
 done
 exit 0
 EOF
+# The game starts from Hyprland, with the session's environment, through a
+# script that carries the NAME=value arguments
+{
+  echo '#!/bin/sh'
+  echo "exec env ${*@Q} supertuxkart --benchmark > /tmp/stk-benchmark.log 2>&1"
+} | on_shield "cat > /run/darcy-stk-run.sh && chmod 755 /run/darcy-stk-run.sh"
 on_shield "rm -f /run/darcy-stk-samples.txt; systemctl reset-failed darcy-stk-sampler 2>/dev/null
   systemd-run --quiet --unit=darcy-stk-sampler -p StandardOutput=file:/run/darcy-stk-samples.txt /run/darcy-stk-sampler.sh
   sig=\$(ls -t /run/user/$uid/hypr/ | head -1)
   runuser -u $user -- env XDG_RUNTIME_DIR=/run/user/$uid HYPRLAND_INSTANCE_SIGNATURE=\$sig \
-    hyprctl dispatch 'hl.dsp.exec_cmd(\"sh -c \\\"supertuxkart --benchmark > /tmp/stk-benchmark.log 2>&1\\\"\")' >/dev/null"
+    hyprctl dispatch 'hl.dsp.exec_cmd(\"/run/darcy-stk-run.sh\")' >/dev/null"
 start=$SECONDS
 until on_shield "pgrep -u $user -x supertuxkart >/dev/null"; do
   ((SECONDS - start < 60)) || die "supertuxkart didn't start: see /tmp/stk-benchmark.log on the SHIELD"
@@ -77,6 +89,9 @@ done
 on_shield 'systemctl stop darcy-stk-sampler 2>/dev/null' || true
 
 log "the result"
+on_shield "grep -a -m1 'OpenGL version string' /tmp/stk-benchmark.log | sed 's/.*string: /    renderer: /'
+  grep -a -q 'Color Buffer Float Present' /tmp/stk-benchmark.log &&
+    echo '    float colour buffers: yes' || echo '    float colour buffers: no (RGBA8 targets)'" >&2
 on_shield "python3 - /home/$user/.config/supertuxkart/config-0.10 /run/darcy-stk-samples.txt" <<'EOF' >&2
 import csv, glob, os, re, sys
 d, samples = sys.argv[1], sys.argv[2]

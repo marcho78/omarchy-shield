@@ -2017,6 +2017,14 @@ window, with its graphics at low but for dynamic lighting.
 | #15, dynamic lighting | 3.4 | 762 in 221 s | 293 ms: draw 140, draw-call generation 97, sync stall 90 |
 | #16, dynamic lighting | 3.2 | 762 in 236 s | 307 ms: sync stall 241, draw 39 |
 | #16, no dynamic lighting | 17.9 | 792 in 44 s | 57 ms: draw 32, draw-call generation 9 |
+| #16, dynamic lighting, no float targets | 3.4 | 762 in 223 s | 290 ms: sync stall 165, end of scene 51 |
+
+The last row ran with `MESA_EXTENSION_OVERRIDE=-GL_EXT_color_buffer_float`
+(`tools/stk-benchmark.sh` passes NAME=value arguments to the game): STK
+then renders into RGBA8 targets (its log loses "EXT Color Buffer Float",
+and the context drops to OpenGL ES 3.1). No change, so float blending
+isn't the cost of dynamic lighting; shader work, overdraw, the 4 KiB pages
+or serialization remain.
 
 **Kernel #15: the CPU cleaned caches.** `perf record -a -g` (perf 7.2.11,
 the Cortex-A57 PMU works) mid-race: 69% of the game's samples in
@@ -2083,6 +2091,42 @@ claims checked where marked:
   downstream `emc-table` nodes), the GPU without `iommus` (tests the page
   tables' SMMU layer only), and big GPU pages last (a new allocation and
   mapping path, not just lifting the `PAGE_SHIFT` checks).
+
+### B7: The memory clock: cboot's trained tables (2026-10-23)
+
+The EMC runs at 800 MHz, the rate cboot left: the kernel has no EMC driver
+(`# CONFIG_TEGRA210_EMC is not set`). Stock darcy scales it from 40.8 to
+1600 MHz. Mainline's `tegra210-emc` takes its table from a reserved-memory
+region (`nvidia,tegra210-emc-table`): an array of up to 16
+`struct tegra210_emc_timing` (`drivers/memory/tegra/tegra210-emc.h`), all
+u32 and char arrays, ending at a zero revision. It refuses rates above
+204 MHz unless the entries are trained.
+
+**cboot trains the table and puts it in the device tree it hands on.**
+The live device tree captured from Android had only its layout (no root,
+no property values), and Linux can't read cboot's tree from memory
+(`STRICT_DEVMEM`: "Bad address"). `patches/u-boot/0002` puts cboot's
+device tree, whole, in `/chosen/darcy,cboot-fdt` of the one Linux boots
+with (`CONFIG_SYS_FDT_PAD=0x100000` leaves the room), and Linux shows it as
+`/sys/firmware/devicetree/base/chosen/darcy,cboot-fdt` (564,579 bytes;
+saved, git-ignored, in `device-info/cboot-fdt/`). Its
+`external-memory-controller@7001b000` has two tables of ten rates (40.8,
+68, 102, 204, 408, 665.6, 800, 1065.6, 1331.2 and 1600 MHz):
+- `emc-table@0`, `nvidia,ram-code = <0>`, dvfs-version "03_...":
+  `nvidia,trained = <0>` at every rate.
+- `emc-table@1`, `nvidia,ram-code = <1>`, dvfs-version "02_...":
+  `nvidia,trained = <1>` at every rate, with trained DRAM clock-tree
+  values (1600 MHz: c0d0u0 0x14b, c0d0u1 0x157, c1d0u0 0x14f, c1d0u1
+  0x157).
+
+The board's RAM code is 1 (`APB_MISC_PP_STRAPPING_OPT_A` 0x00001c10, bits
+7:4), so cboot trained the table that matches. The properties mirror the
+struct's fields (`nvidia,trained_dram_clktree_c0d0u0` and so on).
+
+At 1600 MHz the table asks for `nvidia,emc-min-mv` 887 (vdd-core is fixed
+at 1125 mV, enough) and `nvidia,gk20a-min-mv` 1100: a floor for the GPU's
+rail at that rate, which mainline's driver doesn't apply (vdd-gpu goes down
+to 838 mV here). To be resolved before running above 800 MHz.
 
 ## Never flash
 
