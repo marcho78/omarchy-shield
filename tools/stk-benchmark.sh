@@ -13,17 +13,26 @@
 #      frame, and a summary of the recording.
 # The game exits by itself, after a few minutes at a few frames per second.
 # NAME=value arguments go into the game's environment, for Mesa's knobs:
-# MESA_EXTENSION_OVERRIDE=-GL_EXT_color_buffer_float, for one.
+# MESA_EXTENSION_OVERRIDE=-GL_EXT_color_buffer_float, for one, or
+# GALLIUM_HUD=fps for a live frame rate on the screen. --options go to the
+# game: --fullscreen --screensize=1920x1080 fills the TV.
 #
-# Usage: tools/stk-benchmark.sh <the SHIELD's address> [NAME=value ...]
+# Usage: tools/stk-benchmark.sh <the SHIELD's address> [NAME=value | --option ...]
 source "$(dirname "$0")/../scripts/lib.sh"
 need ssh
 
 host=${1:-}
-[[ -n $host ]] || die "usage: $0 <the SHIELD's address> [NAME=value ...]"
+[[ -n $host ]] || die "usage: $0 <the SHIELD's address> [NAME=value | --option ...]"
 shift
+envs=() opts=()
 for a in "$@"; do
-  [[ $a =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || die "not a NAME=value: $a"
+  if [[ $a =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+    envs+=("$a")
+  elif [[ $a == --* ]]; then
+    opts+=("$a")
+  else
+    die "neither a NAME=value nor a --option: $a"
+  fi
 done
 user=$OMARCHY_USER
 
@@ -67,10 +76,10 @@ done
 exit 0
 EOF
 # The game starts from Hyprland, with the session's environment, through a
-# script that carries the NAME=value arguments
+# script that carries the arguments
 {
   echo '#!/bin/sh'
-  echo "exec env ${*@Q} supertuxkart --benchmark > /tmp/stk-benchmark.log 2>&1"
+  echo "exec env ${envs[*]@Q} supertuxkart --benchmark ${opts[*]@Q} > /tmp/stk-benchmark.log 2>&1"
 } | on_shield "cat > /run/darcy-stk-run.sh && chmod 755 /run/darcy-stk-run.sh"
 on_shield "rm -f /run/darcy-stk-samples.txt; systemctl reset-failed darcy-stk-sampler 2>/dev/null
   systemd-run --quiet --unit=darcy-stk-sampler -p StandardOutput=file:/run/darcy-stk-samples.txt /run/darcy-stk-sampler.sh

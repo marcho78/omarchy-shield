@@ -2259,6 +2259,36 @@ off, the same replay):
 idle more of the time: STK is now limited by the CPU's side of drawing
 ("SP::Draw normal" 30 ms of a 49 ms frame).
 
+**The CPU's side of drawing: still the cache cleaning.** `perf` on kernel
+#19 at 1600 MHz: 41% of the game's CPU time in `dcache_clean_poc` under
+`nouveau_bo_sync_for_device()`, STK itself 18%, Mesa 6%. 0006's sticky
+flag kept cleaning, whole and on every pushbuf, any BO userspace had ever
+mapped: Mesa's `mm_GART` slabs (vertex, index and uniform buffers, created
+`NOUVEAU_BO_GART | NOUVEAU_BO_MAP`), pushbufs, staging. 0006 v3 (kernel
+#20) tracks writes instead: a fault marks the pages it maps (the faulting
+one and TTM's 16 prefaulted after it), and before the GPU's use the BO's
+mappings are revoked (`ttm_bo_unmap_virtual()`) and only the marked pages
+cleaned; the next write faults in again. Kernel maps (kmap, vmap) stay
+"whole BO, every time", new pages "whole BO, once". (The other route,
+write-combined GART slabs in Mesa with `NOUVEAU_BO_COHERENT`, as Mesa
+already does for its fence BO, would make CPU reads of those buffers
+slow.)
+
+STK at 1600 MHz, dynamic lighting off, the same replay:
+
+| kernel, window | FPS | steady, mostly stable, typical | GPU at 998 MHz |
+|---|---|---|---|
+| #19, 1054x1054 | 20.7 | 14, 16, 19 | 56% |
+| #20, 1054x1054 | 37.2 (1418 frames in 38 s) | 24, 29, 36 | 84% |
+| #20, full screen 1920x1080 | 30.7 to 30.9 | 17, 23, 30 | 75 to 84% |
+
+80% more frames: "SP::Draw normal" went from 30 to 10 ms a frame, and the
+GPU is the limit again. The full-screen runs (`--fullscreen
+--screensize=1920x1080`) had Mesa's HUD on screen (`GALLIUM_HUD=fps;
+frametime;cpu`, `GALLIUM_HUD_SCALE=2`) and STK's own counter
+(`show_fps="true"` in its config), for the user to film; STK keeps
+`--fullscreen` in its config afterwards.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
