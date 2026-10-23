@@ -953,7 +953,33 @@ enclosure's cable carried power but no data. With another cable:
   cable would put it on `2-2.x` at SuperSpeed.
 
 **The install, on the eMMC instead** (`scripts/14` with `PARTLABEL=UDA`),
-writes `userdata` and `boot`. Android must
+writes `userdata` and `boot`.
+
+### The first boot of the installed system (2026-10-22)
+
+The evidence is the system's own journal, read from the SSD on the laptop
+(`journalctl -D …/var/log/journal -b <boot id>`; relative `-b -1` finds
+nothing with `-D` here).
+- **It boots completely from the SSD:** `Startup finished in 10.690s
+  (kernel) + 13.309s (userspace)`. `wlan0` came up; no network was
+  configured.
+- **The watchdog hand-over works:** `tegra-wdt 60005000.timer: initialized`
+  and `systemd: Using hardware watchdog /dev/watchdog0: 'Tegra Watchdog'`
+  (1 min).
+- **The TV went dark about 3 s into userspace.** udev loaded `tegra-drm`,
+  which removes every conflicting framebuffer
+  (`aperture_remove_all_conflicting_devices`, `drivers/gpu/drm/tegra/drm.c`),
+  including the simple framebuffer the console was on. It then found nothing
+  to drive: `Cannot find any crtc or sizes`. The report payloads never load
+  modules, so they never showed this. The system's command line now has
+  `module_blacklist=tegra_drm` until HDMI through tegra-drm works.
+- **Asking the user to type blind was a mistake.** `agetty` rejected two
+  login names (`checkname failed`, meaning longer than 42 characters or
+  starting with `-`, so not `root`), and nothing ran. Get evidence first.
+- **The clock is wrong.** The journal's dates read 2026-10-18: no RTC time,
+  and no network time yet.
+- **The first boot's log ends with `usb 1-3.1: reset high-speed USB device`**
+  (the SSD), around when the power was pulled. Watch for it. Android must
 never start again while Linux is on `userdata`: its file-based encryption
 would fail there and it would offer a wipe, and `vendor_flash_recovery`
 would put its recovery back. The recovery slot keeps the test payload, for
