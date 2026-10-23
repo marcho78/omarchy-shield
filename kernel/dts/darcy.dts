@@ -321,6 +321,63 @@
 	};
 };
 
+/*
+ * The CPU's clock and voltage: the DFLL, in PWM mode as on stock darcy
+ * (tegra210-p2530-common.dtsi) and Jetson Nano (tegra210-p3450-0000.dts),
+ * with the same values. Its PWM output (pin dvfs_pwm_pbb1, which cboot
+ * leaves on CLDVFS, tristated) sets the CPU rail from 708 mV in 19.2 mV
+ * steps; tristated, the rail sits at 1.0 V. cpufreq switches the CPU from
+ * pll_x to the DFLL, which then picks the voltage for each rate itself
+ * (closed loop). Until then, the CPU runs on pll_x at 1017.6 MHz.
+ *
+ * The DFLL's rates stop at 1020 MHz while it is brought up
+ * (patches/linux/0003). The pin states are complete, since the pinmux's
+ * own state (mainline's "boot") is never applied.
+ */
+&dfll {
+	nvidia,cf = <6>;
+	nvidia,ci = <0>;
+	nvidia,cg = <2>;
+	nvidia,droop-ctrl = <0x00000f00>;
+	nvidia,force-mode = <1>;
+	nvidia,sample-rate = <25000>;
+
+	nvidia,pwm-min-microvolts = <708000>;
+	nvidia,pwm-period-nanoseconds = <2500>;
+	nvidia,pwm-to-pmic;
+	nvidia,pwm-tristate-microvolts = <1000000>;
+	nvidia,pwm-voltage-step-microvolts = <19200>;
+
+	pinctrl-names = "dvfs_pwm_enable", "dvfs_pwm_disable";
+	pinctrl-0 = <&dvfs_pwm_active_state>;
+	pinctrl-1 = <&dvfs_pwm_inactive_state>;
+	status = "okay";
+};
+
+&pinmux {
+	dvfs_pwm_active_state: pinmux-dvfs-pwm-active {
+		dvfs_pwm_pbb1 {
+			nvidia,pins = "dvfs_pwm_pbb1";
+			nvidia,function = "cldvfs";
+			nvidia,pull = <TEGRA_PIN_PULL_NONE>;
+			nvidia,tristate = <TEGRA_PIN_DISABLE>;
+			nvidia,enable-input = <TEGRA_PIN_DISABLE>;
+			nvidia,open-drain = <TEGRA_PIN_DISABLE>;
+		};
+	};
+
+	dvfs_pwm_inactive_state: pinmux-dvfs-pwm-inactive {
+		dvfs_pwm_pbb1 {
+			nvidia,pins = "dvfs_pwm_pbb1";
+			nvidia,function = "cldvfs";
+			nvidia,pull = <TEGRA_PIN_PULL_NONE>;
+			nvidia,tristate = <TEGRA_PIN_ENABLE>;
+			nvidia,enable-input = <TEGRA_PIN_DISABLE>;
+			nvidia,open-drain = <TEGRA_PIN_DISABLE>;
+		};
+	};
+};
+
 / {
 	vdd_gpu: regulator-vdd-gpu {
 		compatible = "pwm-regulator";

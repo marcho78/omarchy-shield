@@ -1492,6 +1492,50 @@ An aside: `/` is mode 555 on this system. That is systemd's own
 `tmpfiles.d/root.conf` (`z / 555`), applied at every boot, not something
 broken.
 
+**3. The DFLL, held at 1.020 GHz** (`darcy.dts` `&dfll` with stock's values
+and complete PBB1 pin states; `patches/linux/0003` sets
+`tegra210_cpu_max_freq_table[2]`):
+- `cpufreq-tegra124` no longer fails. `cpufreq-dt` runs one policy for
+  CPUs 0–3, governor schedutil, rates 204–1020 MHz in 102 MHz steps. At
+  boot: "Running at unlisted initial frequency: 1017600 kHz, changing to:
+  1020000 kHz".
+- `cclk_g` runs from `dfllCPU_out`. The DFLL debugfs shows enabled 1,
+  locked 1 (closed loop). PBB1 is no longer tristated: the DFLL drives
+  the CPU rail.
+- One minute of load on all four cores: 6.2–7.0 W, 45–46 °C. Then idle:
+  4.5–4.8 W, a little below the pll_x days. The cores are asleep 97–98%
+  of an idle minute.
+- The thermal guard's cap, for real: `scaling_max_freq` went to 204000,
+  and writing `cpuinfo_max_freq` back undid it.
+
+**The DFLL runs a little faster than asked at the bottom.** Its monitor
+measures 1058–1135 MHz for a 1020 MHz request. For 714 MHz it reads 822 MHz
+after the scaler, which also means the DVCO itself runs at about 1058 MHz.
+- `DFLL_FREQ_REQ` = `0x1040ffa8`: multiplier 40 (1020 MHz), no scaling, a
+  feed-forward to index 11.
+- `DFLL_OUTPUT_CFG` = `0x0a0b0944`: output between index 9 and 11 (880.8
+  to 919.2 mV), safe 10.
+- `DFLL_INTR_STS` = 3: the output has hit both its minimum and its
+  maximum since start-up. The bits are sticky, and mainline has no reading
+  of the live PWM output.
+- The reading that fits all this: the output sits at its 880.8 mV floor,
+  where this fast chip's DVCO already runs at about 1058 MHz, above the
+  918 MHz the driver derives from the OPP table (`dvco_rate_min`). Requests
+  below about 1058 MHz therefore come out up to 15% fast. The driver says
+  so itself: the minimum rate "should be calibrated at runtime"
+  (`clk-dfll.c:833-838`). Stock darcy has `nvidia,one-shot-calibrate` for
+  that, which mainline lacks.
+- It is not a timing risk. The CPU's clock is the DVCO, on the CPU rail,
+  whose low-voltage tuning "must be characterized to keep the downstream
+  device stable at any DVCO input voltage" (`clk-dfll.c:987-991`). It
+  costs a little power at low rates.
+
+**Wi-Fi dropped once** (00:16:55): the access point deauthenticated the
+SHIELD (reason 1). Four quick reconnects failed (status 16), and iwd's
+next full try came 90 s later. Older boots with CPU idle off show the same
+drops and failed connects, so it is not the power work. It still matters,
+since Wi-Fi is the main link: an open item.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
