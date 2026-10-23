@@ -1845,6 +1845,16 @@ as a service with a logind session (`PAMName=login`) on console 7.
   block-linear: a later look at why aquamarine and Mesa's tegra driver
   settle on linear.
 
+### B2: nouveau at boot (2026-10-23)
+
+`scripts/13` no longer writes `/etc/modprobe.d/20-darcy-nouveau.conf`, and
+on the SHIELD the file went (kept as `/root/20-darcy-nouveau.conf.disabled`
+in case). After a reboot, udev loads nouveau at 11:04:56, with tegra-drm's
+console as before (card1 tegra-drm, card0 nouveau, the same by-path
+links). The boot takes 17.8 s (11.2 s kernel). No new warnings. Idle:
+5.49 W, 43 °C, the GPU at 76.8 MHz and 838 mV on `simple_ondemand`, the
+thermal guard running.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

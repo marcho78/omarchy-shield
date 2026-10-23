@@ -22,12 +22,14 @@ Android stays installed, so you can go back.
 >   HDMI, Wi-Fi (2.4 and 5 GHz), SSH and Bluetooth. New builds go on over
 >   the network, with nothing to press on the TV.
 > - **Done too:** the real display driver, tegra-drm, drives HDMI from
->   boot. The GPU's driver, nouveau, loads by hand (Mesa: OpenGL ES 3.2).
+>   boot, and the GPU's driver, nouveau, loads at boot too. With our Mesa
+>   (`scripts/19`) and two kernel fixes, the GPU draws on the TV (OpenGL ES
+>   3.2, glmark2 score 308) and plain Hyprland runs.
 > - **Done too:** cooling and power management. The fan runs, idle cores
 >   sleep, the CPU scales its clock and voltage up to stock's 2.0 GHz, and
 >   the kernel slows it when it runs hot. Ten minutes on all four cores at
 >   2.0 GHz levels off at 62 °C.
-> - **Next:** the GPU at boot for a desktop, then Omarchy.
+> - **Next:** Omarchy.
 >
 > `NOTES.md` is the research log.
 
@@ -278,7 +280,8 @@ SHIELD itself, in about 20 minutes, and puts it in place of `mesa`:
 
 With `--no-install` it stops after the build, so the package can be tried
 from its build tree first. `pacman -S mesa` brings Arch Linux ARM's back.
-nouveau still loads only by hand (`modprobe --ignore-install nouveau`).
+nouveau loads at boot. A system an older `scripts/13` made has
+`/etc/modprobe.d/20-darcy-nouveau.conf`, which blocks it: delete that file.
 The kernel needs `patches/linux/0004` and `0005` for the GPU: without them
 nouveau rejects command batches after a second's wait, and the TV shows
 half-drawn frames.

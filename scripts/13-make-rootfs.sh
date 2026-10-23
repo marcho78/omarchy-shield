@@ -188,16 +188,6 @@ chmod 440 "$rootfs/etc/sudoers.d/10-wheel"
 # until the next boot: echo Y > /sys/module/printk/parameters/ignore_loglevel
 echo 'kernel.printk = 3 4 1 7' > "$rootfs/etc/sysctl.d/20-quiet-console.conf"
 
-# Until the GPU is proven, nothing loads nouveau at boot; it is tried by hand
-# over SSH. "install" covers loads by name as well as udev's
-cat > "$rootfs/etc/modprobe.d/20-darcy-nouveau.conf" << 'EOF'
-# nouveau powers the GPU up, and is not loaded at boot while that is being
-# proven. "blacklist" stops udev loading it for the GPU; "install" stops any
-# load by name. By hand: modprobe --ignore-install nouveau
-blacklist nouveau
-install nouveau /bin/true
-EOF
-
 mkdir -p "$rootfs/etc/systemd/system.conf.d"
 cat > "$rootfs/etc/systemd/system.conf.d/10-watchdog.conf" << 'EOF'
 # Keep the watchdog U-Boot armed (tegra_wdt): a hung system resets
