@@ -16,7 +16,10 @@
 #      SSH session), with sudo needing no password for that user meanwhile.
 #      With --dry-run, install.sh only prints its plan, and steps 1-2 are
 #      shown, not done.
-#   4. A report: sshd, the firewall's SSH and mDNS rules, and the network
+#   4. SDDM's last user: its Omarchy theme logs in as that user, and
+#      omarchy-arm records one only in its first-boot setup, which this
+#      skips.
+#   5. A report: sshd, the firewall's SSH and mDNS rules, and the network
 #      services the next boot starts. Nothing reboots: NetworkManager and the
 #      SDDM login screen take over at the next boot (scripts/21 first).
 #
@@ -143,6 +146,14 @@ if $dry_run; then
   log "dry run done"
   exit 0
 fi
+
+# The theme's login form has no user field: it takes userModel.lastUser, which
+# omarchy-provision-owner writes at a first-boot setup. Without it, SDDM turns
+# every password down ("User name not set").
+log "SDDM's last user: $user"
+on_shield "install -d -m 750 -o sddm -g sddm /var/lib/sddm &&
+  printf '[Last]\nSession=omarchy.desktop\nUser=%s\n' $user > /var/lib/sddm/state.conf &&
+  chown sddm:sddm /var/lib/sddm/state.conf"
 
 log "what the next boot will run"
 on_shield 'for u in sshd NetworkManager systemd-resolved avahi-daemon sddm iwd systemd-networkd; do

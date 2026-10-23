@@ -29,7 +29,11 @@ Android stays installed, so you can go back.
 >   sleep, the CPU scales its clock and voltage up to stock's 2.0 GHz, and
 >   the kernel slows it when it runs hot. Ten minutes on all four cores at
 >   2.0 GHz levels off at 62 °C.
-> - **Next:** Omarchy.
+> - **Done too:** Omarchy runs on the TV: the omarchy-arm port, patched for
+>   Tegra210 and for Qt 6.12, with SDDM's login screen, Hyprland, the
+>   Omarchy bar and lock screen, on NetworkManager.
+> - **Next:** a Bluetooth keyboard, audio, the memory clock, and Omarchy
+>   trimmed down for a media center.
 >
 > `NOTES.md` is the research log.
 
@@ -288,8 +292,8 @@ half-drawn frames.
 
 ### 13. Omarchy
 
-The omarchy-arm port at its pin, with a Tegra210 platform
-(`patches/omarchy-arm/`), for the desktop user `config.sh` names
+The omarchy-arm port at its pin, with a Tegra210 platform and a fix for
+Qt 6.12 (`patches/omarchy-arm/`), for the desktop user `config.sh` names
 (`OMARCHY_USER`, created with a temporary password: change it with
 `passwd`):
 
@@ -301,7 +305,8 @@ The omarchy-arm port at its pin, with a Tegra210 platform
 Omarchy runs on NetworkManager. `scripts/20` gives it the Wi-Fi networks
 iwd knows, asking for the same address, and `scripts/21` tries the switch
 before any reboot: unless SSH comes back through NetworkManager within two
-minutes, the SHIELD goes back to iwd.
+minutes, the SHIELD goes back to iwd. The login screen asks only for the
+password: it logs in as that user.
 
 ### Next (not scripted yet)
 
@@ -309,6 +314,7 @@ minutes, the SHIELD goes back to iwd.
 2. Audio.
 3. The memory clock (EMC scaling up to 1600 MHz, from stock darcy's
    tables), for the GPU and video.
+4. Omarchy trimmed down for a media center.
 
 ## Layout
 
@@ -320,7 +326,7 @@ minutes, the SHIELD goes back to iwd.
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
 | `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress semaphore, tegra-drm's imported buffers |
 | `patches/mesa/` | Mesa's tegra driver fixes: upstream merge request !45355 (0001) and ours (0002-0007) |
-| `patches/omarchy-arm/` | omarchy-arm's Tegra210 platform: detection, no Vulkan, the light look and a software pointer, tegra-drm's card for Hyprland and SDDM's greeter |
+| `patches/omarchy-arm/` | omarchy-arm's Tegra210 platform: detection, no Vulkan, the light look and a software pointer, tegra-drm's card for Hyprland and SDDM's greeter; and the shell's colours under Qt 6.12, whose own `Color` hid them |
 | `packages/mesa-darcy/` | The Mesa package `scripts/19` builds: Arch Linux ARM's release for Tegra210, with `patches/mesa` |
 | `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
 | `rootfs/` | Files `scripts/13` and `scripts/18` put in the installed system as they are: the thermal guard (`darcy-thermal-guard`, slows the CPUs at 86 °C, reboots at 92 °C) |

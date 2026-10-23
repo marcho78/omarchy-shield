@@ -1938,6 +1938,65 @@ NetworkManager gave resolved the router's DNS (192.168.1.1) a moment after
 connecting: the first lookup, made at once, failed. networkd's old default
 route stays until the reboot.
 
+### B5: The first Omarchy boot: the login and the bar (2026-10-23)
+
+The reboot (kernel #15) came up on NetworkManager at the same address, with
+SDDM's Omarchy greeter on the TV; ufw let SSH in, oomd ran, and zram0
+(2.8 GB) was the swap.
+
+**The greeter turned the password down.** PAM logged "User name not set"
+and "user unknown": the theme's form has only a password field, and logs in
+as `userModel.lastUser` (`default/sddm/omarchy/Main.qml:10,106`), which
+omarchy-arm writes only at its first-boot setup (`omarchy-provision-owner`'s
+`configure_login`: `[Last]`, `Session=omarchy.desktop`, `User=<name>` in
+`/var/lib/sddm/state.conf`). `scripts/20` makes the user itself, so nothing
+wrote it. Written by hand, the login worked; `scripts/20` now writes it
+(`/var/lib/sddm` stays sddm's, 750). SDDM rewrites the file after a login.
+
+**The bar had no colours.** It was a 26-pixel strip with no background over
+the wallpaper and nearly invisible text. `transparent` was true in
+`~/.config/omarchy/shell.json`, though the default is false; the menu's
+Style, Menu Bar, Transparency toggles it, and nothing in the journal says
+what did at 13:28. `omarchy-bar transparent false` made the bar a black
+strip, still with no text. The shell logged some 1100 errors at each start,
+in the bar, the lock screen, the polkit dialog and the menus: `Unable to
+assign [undefined] to QColor`, `Cannot read property 'text' of undefined`.
+Every `Color.<surface>` was undefined. A shell of three imports (Quickshell,
+QtQuick, qs.Commons) printed `Color=QQuickColor(...)`: Qt 6.12 exports a
+`Color` singleton from QtQuick (`QQuickColor`, `exports:
+["QtQuick/Color 6.12"]` in `/usr/lib/qt6/qml/QtQuick/plugins.qmltypes`, with
+`rgba()` and the like), and a bare `Color` resolves to it. Omarchy 4.5, on
+the laptop, imports `qs.Commons as Commons` in 75 files and writes
+`Commons.Color` 346 times, with no bare `Color` left; omarchy-arm's 4.0
+alpha has bare `Color` in 54 files. No other name in the shell's modules
+collides with a Qt or Quickshell type.
+
+`patches/omarchy-arm/0002` does what 4.5 does, with the commands in its
+message, and the one test that matched `color: Color.accent` follows.
+omarchy-arm's shell tests pass (2472), except three that need an
+omarchy-pkgs checkout and fail without the patch too. The fix went onto the
+running SHIELD as the 54 files copied into `/usr/share/omarchy/shell` (root's,
+as install.sh leaves it; the old ones are in
+`/root/omarchy-shell-before-color-fix.tar`), then `omarchy-restart-shell`; a
+fresh install gets it from `scripts/20`. The shell starts with none of those
+errors; the bar shows the theme's background (tokyo-night, `#1a1b26`) with
+the workspaces, the clock and the icons, and the lock screen has its colours.
+
+The dim icons that show left of the clock only while the pointer is on the
+bar are Omarchy's inactive indicators (microphone, recording, stay awake, do
+not disturb and the like), hidden until hovered, as on the laptop. The
+indicators widget's `alwaysShow` setting keeps them shown.
+
+**Restarting the shell while the session was locked** (the idle lock had
+locked it, with the TV's screen off) killed the lock client. The new shell
+took the lock and reported it secure within 7 s, but `omarchy-restart-shell`
+still gave up after 30 s ("the session lock was not re-secured"), and when
+the screen came back on, Hyprland showed its "lockscreen app died" screen
+for up to half a minute before the shell's lock screen. Not looked into
+further. Check `omarchy-hyprland-session-locked` before restarting the shell:
+it needs `HYPRLAND_INSTANCE_SIGNATURE` over SSH, or `hyprctl` fails and it
+reports the session unlocked.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

@@ -1,0 +1,1944 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:55:00 -0700
+Subject: [PATCH] shell: name the Color singleton through its module
+
+Qt 6.12 adds a Color singleton to QtQuick (QQuickColor: rgba() and the
+like), and with Quickshell 0.3.2 on Qt 6.12.0 a bare Color resolves to
+it, not to qs.Commons' Color, in the files that import QtQuick. Every
+Color.<surface> then reads undefined: the bar comes up with no
+background and no text, and the lock screen, menus, popups and the
+polkit dialog lose their colours ("Unable to assign [undefined] to
+QColor", "Cannot read property 'text' of undefined"). Do what Omarchy
+4.5 does: import qs.Commons as Commons in each file that uses Color,
+Commons' own Border and Style included, and write Commons.Color.
+
+Made with:
+  for f in $(grep -rlP '(?<![.\w])Color\.(?!qml\b)[A-Za-z_]' shell --include='*.qml'); do
+    perl -pi -e 's/(?<![.\w])Color\.(?!qml\b)(?=[A-Za-z_])/Commons.Color./g' "$f"
+    grep -qx 'import qs.Commons as Commons' "$f" ||
+      sed -i "$(grep -n '^import ' "$f" | tail -1 | cut -d: -f1)a import qs.Commons as Commons" "$f"
+  done
+and bar-test's check of the drag marker's colour follows.
+
+Tested on a SHIELD TV 2017 (darcy): the shell logged some 1100 of those
+errors at each start before, none after, and the bar, the lock screen
+and the indicators show their theme colours.
+---
+diff --git a/shell/Commons/Border.qml b/shell/Commons/Border.qml
+index 948aa78..c421a6d 100644
+--- a/shell/Commons/Border.qml
++++ b/shell/Commons/Border.qml
+@@ -1,6 +1,7 @@
+ pragma Singleton
+ import QtQuick
+ import "BorderGeometry.js" as Geometry
++import qs.Commons as Commons
+ 
+ // Central border-spec factory for shell surfaces and controls. A spec carries
+ // color, optional gradient, and top/right/bottom/left widths so renderers can
+@@ -22,7 +23,7 @@ QtObject {
+   }
+ 
+   function value(section, key) {
+-    var v = Color.shellValues[section + "." + key]
++    var v = Commons.Color.shellValues[section + "." + key]
+     return (v === undefined || v === null) ? "" : v
+   }
+ 
+@@ -39,7 +40,7 @@ QtObject {
+     var seen = {}
+     while (s.match(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/) && !seen[s]) {
+       seen[s] = true
+-      var next = Color.shellValues[s]
++      var next = Commons.Color.shellValues[s]
+       if (next === undefined || next === null || String(next).length === 0) break
+       s = String(next).replace(/^\s+|\s+$/g, "")
+     }
+@@ -68,10 +69,10 @@ QtObject {
+ 
+     var s = String(color || "").replace(/^\s+|\s+$/g, "")
+     var role = s.toLowerCase()
+-    if (role === "foreground" || role === "text") return cssColor(Color.foreground, a)
+-    if (role === "accent") return cssColor(Color.accent, a)
+-    if (role === "urgent") return cssColor(Color.urgent, a)
+-    if (role === "background") return cssColor(Color.background, a)
++    if (role === "foreground" || role === "text") return cssColor(Commons.Color.foreground, a)
++    if (role === "accent") return cssColor(Commons.Color.accent, a)
++    if (role === "urgent") return cssColor(Commons.Color.urgent, a)
++    if (role === "background") return cssColor(Commons.Color.background, a)
+     if (role === "transparent") return "transparent"
+     return Geometry.canonicalColor(s, a)
+   }
+diff --git a/shell/Commons/Style.qml b/shell/Commons/Style.qml
+index ec61252..a14b3b0 100644
+--- a/shell/Commons/Style.qml
++++ b/shell/Commons/Style.qml
+@@ -2,6 +2,7 @@ pragma Singleton
+ import QtQuick
+ import Quickshell
+ import Quickshell.Io
++import qs.Commons as Commons
+ 
+ // Shared structural style tokens for the shell. Color is the palette
+ // singleton; Style holds everything else themes can influence — corner
+@@ -113,27 +114,27 @@ QtObject {
+   }
+ 
+   function resolveStateColor(token, foreground, accent, urgent, fallback) {
+-    var fb = fallback || foreground || Color.foreground
++    var fb = fallback || foreground || Commons.Color.foreground
+     var s = String(token || "").replace(/^\s+|\s+$/g, "")
+     var role = s.toLowerCase()
+-    if (role === "foreground" || role === "text") return foreground || Color.foreground
+-    if (role === "accent") return accent || Color.accent
+-    if (role === "urgent") return urgent || Color.urgent
+-    if (role === "background") return Color.background
++    if (role === "foreground" || role === "text") return foreground || Commons.Color.foreground
++    if (role === "accent") return accent || Commons.Color.accent
++    if (role === "urgent") return urgent || Commons.Color.urgent
++    if (role === "background") return Commons.Color.background
+     if (role === "transparent") return Qt.rgba(0, 0, 0, 0)
+     return colorFromHex(s, fb)
+   }
+ 
+   function normalStateColor(foreground, accent, urgent) {
+-    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || Color.foreground)
++    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
+   }
+ 
+   function hoverStateColor(foreground, accent, urgent) {
+-    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || Color.foreground)
++    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
+   }
+ 
+   function selectedStateColor(foreground, accent, urgent) {
+-    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || Color.foreground)
++    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
+   }
+ 
+   function pressedStateColor(foreground, accent, urgent) {
+@@ -148,7 +149,7 @@ QtObject {
+   }
+ 
+   function selectionStateColor(foreground, accent, urgent) {
+-    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || Color.foreground)
++    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || Commons.Color.foreground)
+   }
+ 
+   function normalFillFor(foreground, accent, urgent) { return Util.alpha(normalStateColor(foreground, accent, urgent), normalFillAlpha) }
+@@ -186,17 +187,17 @@ QtObject {
+   }
+ 
+   // Convenience colors resolved against the foundational palette.
+-  readonly property color normalFill: normalFillFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color hoverFill: hoverFillFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color selectedFill: selectedFillFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color pressedFill: pressedFillFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color focusFillColor: focusFillFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color normalBorderColor: normalBorderFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color hoverBorderColor: hoverBorderFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color selectedBorderColor: selectedBorderFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color focusBorderColor: focusBorderFor(Color.foreground, Color.accent, Color.urgent)
+-  readonly property color selectedAccentFill: Util.alpha(Color.accent, selectedFillAlpha)
+-  readonly property color selectionFill: selectionFillFor(Color.foreground, Color.accent, Color.urgent)
++  readonly property color normalFill: normalFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color hoverFill: hoverFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color selectedFill: selectedFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color pressedFill: pressedFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color focusFillColor: focusFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color normalBorderColor: normalBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color hoverBorderColor: hoverBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color selectedBorderColor: selectedBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color focusBorderColor: focusBorderFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
++  readonly property color selectedAccentFill: Util.alpha(Commons.Color.accent, selectedFillAlpha)
++  readonly property color selectionFill: selectionFillFor(Commons.Color.foreground, Commons.Color.accent, Commons.Color.urgent)
+ 
+   // ---------------------------------------------------------- spacing
+   //
+@@ -379,7 +380,7 @@ QtObject {
+   }
+ 
+   // Pull typography, bar dimensions, state tokens, and spacing out of the
+-  // shell.toml dict that Color already parsed. Called by Color.loadShell so
++  // shell.toml dict that Color already parsed. Called by Commons.Color.loadShell so
+   // a single parse pass feeds both singletons.
+   function applyShellValues(values) {
+     var fontOut = {}
+diff --git a/shell/Ui/Button.qml b/shell/Ui/Button.qml
+index 2c093b4..3d25a4f 100644
+--- a/shell/Ui/Button.qml
++++ b/shell/Ui/Button.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import QtQuick.Controls
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // The button. One component for every clickable thing in the kit.
+ // States compose independently and are applied in priority order:
+@@ -32,9 +33,9 @@ BorderSurface {
+   property bool bordered: false
+ 
+   // Colors. Defaults track the theme; per-instance overrides are honored.
+-  property color foreground: Color.foreground
++  property color foreground: Commons.Color.foreground
+   property color background: "transparent"
+-  property color accent: Color.accent
++  property color accent: Commons.Color.accent
+ 
+   // Sizing.
+   property string fontFamily: Style.font.family
+@@ -54,9 +55,9 @@ BorderSurface {
+   // Tooltip palette. Auto-rendered if tooltipText is set. Defaults pull
+   // from [tooltip] in shell.toml; override per-instance only when a button
+   // intentionally wants a tooltip that diverges from the theme.
+-  property color tooltipBackground: Color.tooltip.background
+-  property color tooltipForeground: Color.tooltip.text
+-  property color tooltipBorder: Color.tooltip.border
++  property color tooltipBackground: Commons.Color.tooltip.background
++  property color tooltipForeground: Commons.Color.tooltip.text
++  property color tooltipBorder: Commons.Color.tooltip.border
+ 
+   signal clicked()
+   signal rightClicked()
+@@ -77,7 +78,7 @@ BorderSurface {
+   readonly property bool hot: mouseArea.containsMouse || hasCursor
+   readonly property bool _showFocusRing: focusable && activeFocus
+   readonly property color _selectedColor: Style.selectedStateColor(root.foreground, root.accent)
+-  readonly property var _tooltipBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", root.tooltipBorder, Color.tooltip.border, Math.max(1, Style.normalBorderWidth))
++  readonly property var _tooltipBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", root.tooltipBorder, Commons.Color.tooltip.border, Math.max(1, Style.normalBorderWidth))
+   readonly property var _focusBorderSpec: Border.controlSpec("focus", root.foreground, root.accent)
+   readonly property var _hoverBorderSpec: Border.controlSpec("hover-cursor", root.foreground, root.accent)
+   readonly property var _selectedBorderSpec: Border.controlSpec("selected", root.foreground, root.accent)
+diff --git a/shell/Ui/ButtonGroup.qml b/shell/Ui/ButtonGroup.qml
+index f4870de..8657fe6 100644
+--- a/shell/Ui/ButtonGroup.qml
++++ b/shell/Ui/ButtonGroup.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Mutually-exclusive row of Buttons — the form-style "pick one of N"
+ // pattern (bar position top/right/bottom/left, theme preset chips, etc.).
+@@ -25,9 +26,9 @@ Row {
+ 
+   property var options: []
+   property string value: ""
+-  property color foreground: Color.foreground
+-  property color background: Color.background
+-  property color accent: Color.accent
++  property color foreground: Commons.Color.foreground
++  property color background: Commons.Color.background
++  property color accent: Commons.Color.accent
+   property string fontFamily: Style.font.family
+   property real fontSize: Style.font.body
+   property bool focusable: true
+diff --git a/shell/Ui/ConfirmDialog.qml b/shell/Ui/ConfirmDialog.qml
+index ed4f8c9..0c28661 100644
+--- a/shell/Ui/ConfirmDialog.qml
++++ b/shell/Ui/ConfirmDialog.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -9,11 +10,11 @@ Item {
+   property string cancelText: "Cancel"
+   property string confirmText: "Confirm"
+   property int selectedIndex: 1
+-  property color background: Color.background
+-  property color foreground: Color.foreground
+-  property color scrim: Util.alpha(Color.background, 0.7)
+-  property color selectedBackground: Util.alpha(Color.foreground, 0.08)
+-  property color selectedText: Color.accent
++  property color background: Commons.Color.background
++  property color foreground: Commons.Color.foreground
++  property color scrim: Util.alpha(Commons.Color.background, 0.7)
++  property color selectedBackground: Util.alpha(Commons.Color.foreground, 0.08)
++  property color selectedText: Commons.Color.accent
+   property string fontFamily: Style.font.family
+   property int cornerRadius: Style.cornerRadius
+ 
+@@ -97,17 +98,17 @@ Item {
+               width: Style.space(88)
+               height: Style.space(34)
+               color: selected
+-                ? (destructive ? Util.alpha(Color.urgent, 0.22) : root.selectedBackground)
++                ? (destructive ? Util.alpha(Commons.Color.urgent, 0.22) : root.selectedBackground)
+                 : "transparent"
+               borderSpec: Border.flat(destructive
+-                ? (selected ? Color.urgent : Util.alpha(Color.urgent, 0.56))
++                ? (selected ? Commons.Color.urgent : Util.alpha(Commons.Color.urgent, 0.56))
+                 : (selected ? root.selectedText : Util.alpha(root.foreground, 0.38)), Style.normalBorderWidth)
+               radius: 0
+ 
+               Text {
+                 anchors.centerIn: parent
+                 text: modelData
+-                color: destructive ? (selected ? Color.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
++                color: destructive ? (selected ? Commons.Color.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
+                 font.family: root.fontFamily
+                 font.pixelSize: Style.font.caption
+               }
+diff --git a/shell/Ui/CursorSurface.qml b/shell/Ui/CursorSurface.qml
+index 58e46d0..3c04a6d 100644
+--- a/shell/Ui/CursorSurface.qml
++++ b/shell/Ui/CursorSurface.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Shared visual chrome for keyboard-and-mouse-navigable items inside a panel.
+ // Contract: items must NOT read `containsMouse` for color/border. Mouse
+@@ -19,8 +20,8 @@ BorderSurface {
+   property bool outline: false
+   property bool bordered: false
+ 
+-  property color foreground: Color.foreground
+-  property color accent: Color.accent
++  property color foreground: Commons.Color.foreground
++  property color accent: Commons.Color.accent
+   property color fill: Style.hoverFillFor(foreground, accent)
+   property color currentFill: Style.selectedFillFor(foreground, accent)
+ 
+diff --git a/shell/Ui/Dropdown.qml b/shell/Ui/Dropdown.qml
+index 214a7fe..73eb1e6 100644
+--- a/shell/Ui/Dropdown.qml
++++ b/shell/Ui/Dropdown.qml
+@@ -1,10 +1,11 @@
+ import QtQuick
+ import QtQuick.Controls
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Themed single-select dropdown. Trigger row paints with the kit's focus
+-// chrome; the popup anchors below and uses Color.popups.background +
+-// Color.popups.border so it reads as a panel surface rather than the
++// chrome; the popup anchors below and uses Commons.Color.popups.background +
++// Commons.Color.popups.border so it reads as a panel surface rather than the
+ // platform-native ComboBox look.
+ //
+ // `options` accepts either a plain string[] or an array of
+@@ -22,11 +23,11 @@ Item {
+   property string value: ""
+   property var options: []
+ 
+-  property color foreground: Color.popups.text
+-  property color background: Color.popups.background
+-  property color popupBorder: Color.popups.border
+-  property color accent: Color.accent
+-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
++  property color foreground: Commons.Color.popups.text
++  property color background: Commons.Color.popups.background
++  property color popupBorder: Commons.Color.popups.border
++  property color accent: Commons.Color.accent
++  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
+   property string fontFamily: Style.font.family
+   property int rowHeight: Style.spacing.controlHeight
+   property int popupRowHeight: Style.spacing.popupRowHeight
+diff --git a/shell/Ui/KeyboardPanel.qml b/shell/Ui/KeyboardPanel.qml
+index b2fb218..e0ce46b 100644
+--- a/shell/Ui/KeyboardPanel.qml
++++ b/shell/Ui/KeyboardPanel.qml
+@@ -2,6 +2,7 @@ import QtQuick
+ import Quickshell
+ import Quickshell.Wayland
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Layer-shell popup attached to a bar widget icon, designed for
+ // click-driven AND keyboard-driven panels (e.g. SUPER+CTRL+W summon).
+@@ -44,7 +45,7 @@ PanelWindow {
+   property int padding: Style.spacing.popupPadding
+   property int contentWidth: Style.space(280)
+   property int contentHeight: Style.space(200)
+-  property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
++  property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
+   property bool centerOnBar: false
+   property bool open: false
+   property int gap: Style.gapsOut  // distance between bar edge and panel
+@@ -382,7 +383,7 @@ PanelWindow {
+     y: root.cardOrigin.y
+     width: root.contentWidth
+     height: root.contentHeight
+-    color: Color.popups.background
++    color: Commons.Color.popups.background
+     borderSpec: root.borderSpec
+     padding: root.padding
+     radius: Style.cornerRadius
+diff --git a/shell/Ui/MultiSelect.qml b/shell/Ui/MultiSelect.qml
+index f759b66..0a7e700 100644
+--- a/shell/Ui/MultiSelect.qml
++++ b/shell/Ui/MultiSelect.qml
+@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC
+ import QtQuick.Window
+ import Quickshell.Io
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Searchable multi-select dropdown. Trigger shape matches Dropdown /
+ // SearchableDropdown; the popup shows a search field, an optional refresh
+@@ -33,11 +34,11 @@ Item {
+   property string triggerLabel: ""
+   property bool showLabel: true
+ 
+-  property color foreground: Color.popups.text
+-  property color background: Color.popups.background
+-  property color popupBorder: Color.popups.border
+-  property color accent: Color.accent
+-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
++  property color foreground: Commons.Color.popups.text
++  property color background: Commons.Color.popups.background
++  property color popupBorder: Commons.Color.popups.border
++  property color accent: Commons.Color.accent
++  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
+   property string fontFamily: Style.font.family
+   property int rowHeight: Style.spacing.controlHeight
+   property int popupRowHeight: Style.spacing.popupRowHeight
+diff --git a/shell/Ui/NumberField.qml b/shell/Ui/NumberField.qml
+index 24b70f5..ca0c414 100644
+--- a/shell/Ui/NumberField.qml
++++ b/shell/Ui/NumberField.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import QtQuick.Controls as QQC
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Column {
+   id: root
+@@ -10,8 +11,8 @@ Column {
+   property int from: 0
+   property int to: 100
+   property int stepSize: 1
+-  property color foreground: Color.foreground
+-  property color accent: Color.accent
++  property color foreground: Commons.Color.foreground
++  property color accent: Commons.Color.accent
+   property string fontFamily: Style.font.family
+   property real fontSize: Style.font.body
+   property real fieldWidth: Style.spacing.numberFieldWidth
+diff --git a/shell/Ui/OpticalGlyph.qml b/shell/Ui/OpticalGlyph.qml
+index d446a52..96c7be2 100644
+--- a/shell/Ui/OpticalGlyph.qml
++++ b/shell/Ui/OpticalGlyph.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -7,7 +8,7 @@ Item {
+   property string text: ""
+   property string fontFamily: Style.font.family
+   property real fontSize: Style.font.body
+-  property color color: Color.foreground
++  property color color: Commons.Color.foreground
+   property bool debugBounds: false
+ 
+   readonly property int renderedFontSize: Math.max(1, Math.round(fontSize))
+diff --git a/shell/Ui/Panel.qml b/shell/Ui/Panel.qml
+index b8866b5..6965131 100644
+--- a/shell/Ui/Panel.qml
++++ b/shell/Ui/Panel.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import Quickshell.Io
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Base item for plugin popup widgets. Many first-party plugins expose a bar
+ // button plus a popup from one QML entry point; this base owns the shared
+@@ -19,7 +20,7 @@ Item {
+   property bool popoutSwitchClosing: false
+ 
+   readonly property bool opened: panelController.open
+-  readonly property color barForeground: bar ? bar.barForeground : Color.foreground
++  readonly property color barForeground: bar ? bar.barForeground : Commons.Color.foreground
+ 
+   function open() { panelController.show() }
+   function close() { panelController.hide() }
+diff --git a/shell/Ui/PanelActionButton.qml b/shell/Ui/PanelActionButton.qml
+index 8a1b10b..cd3883c 100644
+--- a/shell/Ui/PanelActionButton.qml
++++ b/shell/Ui/PanelActionButton.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Small (22×22 by default) icon button used at the right edge of panel rows
+ // for inline actions — forget network, confirm passphrase, unpair device,
+@@ -29,7 +30,7 @@ BorderSurface {
+ 
+   property string iconText: ""
+   property string tooltipText: ""
+-  property color foreground: Color.foreground
++  property color foreground: Commons.Color.foreground
+   property color hoverColor: foreground
+   property string fontFamily: Style.font.family
+   property real fontSize: Style.font.icon
+@@ -57,7 +58,7 @@ BorderSurface {
+     ? Border.controlSpec("focus", hoverColor, hoverColor)
+     : (_hot && bordered
+       ? Border.controlSpec("hover-cursor", hoverColor, hoverColor)
+-      : (bordered ? Border.controlSpec("normal", foreground, Color.accent) : Border.none()))
++      : (bordered ? Border.controlSpec("normal", foreground, Commons.Color.accent) : Border.none()))
+ 
+   color: _showFocusRing
+     ? Style.focusFillFor(hoverColor, hoverColor)
+diff --git a/shell/Ui/PanelHero.qml b/shell/Ui/PanelHero.qml
+index 7d663f3..f45690d 100644
+--- a/shell/Ui/PanelHero.qml
++++ b/shell/Ui/PanelHero.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -8,7 +9,7 @@ Item {
+   property string title: ""
+   property string meta: ""
+   property string detail: ""
+-  property color foreground: Color.foreground
++  property color foreground: Commons.Color.foreground
+   property string fontFamily: Style.font.family
+   property real iconSize: Style.font.display
+   property real iconOpacity: 1.0
+@@ -70,7 +71,7 @@ Item {
+         implicitHeight: detailText.implicitHeight + Style.space(4)
+         anchors.verticalCenter: parent.verticalCenter
+         color: "transparent"
+-        borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
++        borderSpec: Border.controlSpec("normal", root.foreground, Commons.Color.accent)
+         radius: Style.cornerRadius
+ 
+         Text {
+diff --git a/shell/Ui/PanelSectionHeader.qml b/shell/Ui/PanelSectionHeader.qml
+index 5559248..36fb95e 100644
+--- a/shell/Ui/PanelSectionHeader.qml
++++ b/shell/Ui/PanelSectionHeader.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Small-caps-style label that introduces a panel section ("DNS provider",
+ // "Wi-Fi networks", "Output device", "Paired devices"). Sits between a
+@@ -7,7 +8,7 @@ import qs.Commons
+ Text {
+   id: root
+ 
+-  property color foreground: Color.foreground
++  property color foreground: Commons.Color.foreground
+   property string fontFamily: Style.font.family
+   property real fontSize: Style.font.caption
+ 
+diff --git a/shell/Ui/PanelSeparator.qml b/shell/Ui/PanelSeparator.qml
+index 27a81ec..887aa57 100644
+--- a/shell/Ui/PanelSeparator.qml
++++ b/shell/Ui/PanelSeparator.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // 1px horizontal divider for panel sections. The alpha-on-foreground tint
+ // keeps the rule legible against the panel background without competing
+@@ -7,7 +8,7 @@ import qs.Commons
+ Rectangle {
+   id: root
+ 
+-  property color foreground: Color.foreground
++  property color foreground: Commons.Color.foreground
+   property real strength: 0.12
+ 
+   width: parent ? parent.width : implicitWidth
+diff --git a/shell/Ui/PanelSlider.qml b/shell/Ui/PanelSlider.qml
+index d7bf130..1a53379 100644
+--- a/shell/Ui/PanelSlider.qml
++++ b/shell/Ui/PanelSlider.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -10,9 +11,9 @@ Item {
+   property real maximum: 1
+   property real step: 0.05
+   property bool integer: false
+-  property color trackColor: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "#333"
+-  property color fillColor: bar ? bar.foreground : Color.foreground
+-  property color knobColor: bar ? bar.foreground : Color.foreground
++  property color trackColor: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "#333"
++  property color fillColor: bar ? bar.foreground : Commons.Color.foreground
++  property color knobColor: bar ? bar.foreground : Commons.Color.foreground
+   property bool dragging: false
+   property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
+   property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
+@@ -23,7 +24,7 @@ Item {
+   // crossing the track shows). Purely visual — snapping is the caller's job via
+   // `integer`/`step` or an index-based value. Default 0 leaves the track plain.
+   property int tickCount: 0
+-  property color tickColor: bar ? bar.background : Color.background
++  property color tickColor: bar ? bar.background : Commons.Color.background
+ 
+   onValueChanged: if (!dragging) liveValue = value
+ 
+diff --git a/shell/Ui/PanelToolTip.qml b/shell/Ui/PanelToolTip.qml
+index 139b6cf..0943714 100644
+--- a/shell/Ui/PanelToolTip.qml
++++ b/shell/Ui/PanelToolTip.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import QtQuick.Controls
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Styled wrapper around Qt Quick Controls ToolTip. Drop-in: declare inside
+ // the hovered item and bind `visible` to the hover state, e.g.
+@@ -9,7 +10,7 @@ import qs.Commons
+ //     text: "Forget network"
+ //   }
+ //
+-// Defaults pull from [tooltip] in shell.toml via Color.tooltip.*. Override
++// Defaults pull from [tooltip] in shell.toml via Commons.Color.tooltip.*. Override
+ // the panel* properties per-instance only when you need a tooltip that
+ // intentionally diverges from the theme.
+ //
+@@ -18,13 +19,13 @@ import qs.Commons
+ ToolTip {
+   id: root
+ 
+-  property color panelForeground: Color.tooltip.text
+-  property color panelBackground: Color.tooltip.background
+-  property color panelBorder: Color.tooltip.border
++  property color panelForeground: Commons.Color.tooltip.text
++  property color panelBackground: Commons.Color.tooltip.background
++  property color panelBorder: Commons.Color.tooltip.border
+   property string fontFamily: Style.font.family
+   property real fontSize: Style.font.bodySmall
+ 
+-  readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, Color.tooltip.border, Style.normalBorderWidth)
++  readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, Commons.Color.tooltip.border, Style.normalBorderWidth)
+ 
+   delay: 400
+   padding: 0
+diff --git a/shell/Ui/PopupCard.qml b/shell/Ui/PopupCard.qml
+index 058b068..d543663 100644
+--- a/shell/Ui/PopupCard.qml
++++ b/shell/Ui/PopupCard.qml
+@@ -2,6 +2,7 @@ import QtQuick
+ import Quickshell
+ import Quickshell.Hyprland
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ PopupWindow {
+   id: root
+@@ -13,8 +14,8 @@ PopupWindow {
+   property int padding: Style.spacing.popupPadding
+   property int contentWidth: Style.space(280)
+   property int contentHeight: Style.space(200)
+-  property color borderColor: Color.popups.border
+-  property var borderSpec: Border.localOrSurfaceSpec("popups", "border", borderColor, Color.popups.border, Math.max(1, Style.space(2)))
++  property color borderColor: Commons.Color.popups.border
++  property var borderSpec: Border.localOrSurfaceSpec("popups", "border", borderColor, Commons.Color.popups.border, Math.max(1, Style.space(2)))
+   property bool open: false
+   property bool centerOnBar: false
+   // "click" — uses HyprlandFocusGrab so clicking outside dismisses the popup.
+@@ -150,7 +151,7 @@ PopupWindow {
+   BorderSurface {
+     id: card
+     anchors.fill: parent
+-    color: Color.popups.background
++    color: Commons.Color.popups.background
+     borderSpec: root.borderSpec
+     padding: root.padding
+     radius: Style.cornerRadius
+diff --git a/shell/Ui/SearchableDropdown.qml b/shell/Ui/SearchableDropdown.qml
+index 9cf0aa4..29950ca 100644
+--- a/shell/Ui/SearchableDropdown.qml
++++ b/shell/Ui/SearchableDropdown.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import QtQuick.Controls as QQC
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Searchable single-select dropdown. Same trigger shape as Dropdown, but
+ // the popup leads with an embedded TextField that filters the option
+@@ -25,11 +26,11 @@ Item {
+   property string emptyText: "No matches"
+   property string triggerLabel: ""
+ 
+-  property color foreground: Color.popups.text
+-  property color background: Color.popups.background
+-  property color popupBorder: Color.popups.border
+-  property color accent: Color.accent
+-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
++  property color foreground: Commons.Color.popups.text
++  property color background: Commons.Color.popups.background
++  property color popupBorder: Commons.Color.popups.border
++  property color accent: Commons.Color.accent
++  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
+   property string fontFamily: Style.font.family
+   property int rowHeight: Style.spacing.controlHeight
+   property int popupRowHeight: Style.spacing.popupRowHeight
+diff --git a/shell/Ui/SpeedTestOverlay.qml b/shell/Ui/SpeedTestOverlay.qml
+index 1216f34..c8ac37a 100644
+--- a/shell/Ui/SpeedTestOverlay.qml
++++ b/shell/Ui/SpeedTestOverlay.qml
+@@ -5,6 +5,7 @@ import Quickshell
+ import Quickshell.Wayland
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ // Centered speed test overlay shared by the network and disk speed tests. No
+ // card: like the Tucson's floating cluster, the two dials sit directly on a
+@@ -286,7 +287,7 @@ PanelWindow {
+       // round caps would leave a stray dot at the foot of the scale.
+       ShapePath {
+         strokeWidth: dial.arcWidth * 3
+-        strokeColor: dial.arcVisible ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18) : "transparent"
++        strokeColor: dial.arcVisible ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18) : "transparent"
+         fillColor: "transparent"
+         capStyle: ShapePath.RoundCap
+ 
+@@ -303,7 +304,7 @@ PanelWindow {
+       // Value: fills behind the needle.
+       ShapePath {
+         strokeWidth: dial.arcWidth
+-        strokeColor: dial.arcVisible ? Color.accent : "transparent"
++        strokeColor: dial.arcVisible ? Commons.Color.accent : "transparent"
+         fillColor: "transparent"
+         capStyle: ShapePath.RoundCap
+ 
+@@ -354,8 +355,8 @@ PanelWindow {
+         radius: width / 2
+ 
+         gradient: Gradient {
+-          GradientStop { position: 0.0; color: Color.accent }
+-          GradientStop { position: 0.55; color: Color.accent }
++          GradientStop { position: 0.0; color: Commons.Color.accent }
++          GradientStop { position: 0.55; color: Commons.Color.accent }
+           GradientStop { position: 1.0; color: "transparent" }
+         }
+       }
+diff --git a/shell/Ui/TextField.qml b/shell/Ui/TextField.qml
+index 8d4183f..96cac22 100644
+--- a/shell/Ui/TextField.qml
++++ b/shell/Ui/TextField.qml
+@@ -1,6 +1,7 @@
+ import QtQuick
+ import QtQuick.Controls
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Single-line text input with the kit's focus + selection styling. Inherits
+ // from Qt Quick Controls TextField so the underlying type's API (text,
+@@ -18,8 +19,8 @@ import qs.Commons
+ TextField {
+   id: root
+ 
+-  property color foreground: Color.foreground
+-  property color accent: Color.accent
++  property color foreground: Commons.Color.foreground
++  property color accent: Commons.Color.accent
+   property color selectionTint: Style.selectionFillFor(foreground, accent)
+   property bool password: false
+   property real horizontalPadding: Style.spacing.controlPaddingX
+diff --git a/shell/Ui/Toggle.qml b/shell/Ui/Toggle.qml
+index 26a5cf9..c0eacd3 100644
+--- a/shell/Ui/Toggle.qml
++++ b/shell/Ui/Toggle.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Labeled toggle row: title + optional description on the left, a
+ // `ToggleSwitch` on the right. Clicking anywhere on the row emits `clicked()`;
+@@ -28,8 +29,8 @@ BorderSurface {
+   // Override per-instance if a caller wants the opposite.
+   property bool rounded: Style.cornerRadius > 0
+ 
+-  property color foreground: Color.foreground
+-  property color accent: Color.accent
++  property color foreground: Commons.Color.foreground
++  property color accent: Commons.Color.accent
+   property string fontFamily: Style.font.family
+   property real titleSize: Style.font.subtitle
+   property real descriptionSize: Style.font.caption
+diff --git a/shell/Ui/ToggleSwitch.qml b/shell/Ui/ToggleSwitch.qml
+index 22e6461..80508ee 100644
+--- a/shell/Ui/ToggleSwitch.qml
++++ b/shell/Ui/ToggleSwitch.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Bare on/off switch: a track with a sliding knob and no label. This is the
+ // switch `Toggle` parks at the end of its labeled row, factored out so panel
+@@ -40,8 +41,8 @@ Item {
+   property bool cursorRing: interactive
+   property int cursorPad: Style.space(6)
+   property bool rounded: Style.cornerRadius > 0
+-  property color foreground: Color.foreground
+-  property color accent: Color.accent
++  property color foreground: Commons.Color.foreground
++  property color accent: Commons.Color.accent
+ 
+   signal toggled()
+   signal hovered(bool isHovered)
+diff --git a/shell/Ui/WidgetButton.qml b/shell/Ui/WidgetButton.qml
+index 02d843a..1b4852e 100644
+--- a/shell/Ui/WidgetButton.qml
++++ b/shell/Ui/WidgetButton.qml
+@@ -1,5 +1,6 @@
+ import QtQuick
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -8,8 +9,8 @@ Item {
+   property string text: ""
+   property string fontFamily: bar ? bar.fontFamily : Style.font.family
+   property real fontSize: Style.font.body
+-  property color foreground: bar ? bar.barForeground : Color.foreground
+-  property color activeColor: bar ? bar.urgent : Color.urgent
++  property color foreground: bar ? bar.barForeground : Commons.Color.foreground
++  property color activeColor: bar ? bar.urgent : Commons.Color.urgent
+   property bool active: false
+   property real horizontalMargin: 8.5
+   property real verticalPadding: 6
+diff --git a/shell/plugins/agents/Panel.qml b/shell/plugins/agents/Panel.qml
+index 6637531..f97bbc2 100644
+--- a/shell/plugins/agents/Panel.qml
++++ b/shell/plugins/agents/Panel.qml
+@@ -4,6 +4,7 @@ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -11,11 +12,11 @@ Panel {
+   ipcTarget: "omarchy.agents"
+   manageIpc: false
+ 
+-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+-  readonly property color urgent: bar ? bar.urgent : Color.urgent
++  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
++  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
+   readonly property color dim: Qt.darker(foreground, 1.55)
+-  readonly property color surface: Color.popups.background
+-  readonly property color track: Style.selectedFillFor(foreground, Color.accent)
++  readonly property color surface: Commons.Color.popups.background
++  readonly property color track: Style.selectedFillFor(foreground, Commons.Color.accent)
+   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+ 
+   readonly property var providers: usage.enabledProviders
+@@ -288,7 +289,7 @@ Panel {
+   function iconCandidatesForProvider(p, surfaceColor) {
+     if (!p) return []
+     var candidates = []
+-    if (colorLuminance(surfaceColor || Color.background) >= 0.5)
++    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
+       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
+     candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
+     return candidates
+diff --git a/shell/plugins/background/Background.qml b/shell/plugins/background/Background.qml
+index 21e1b0a..2784e12 100644
+--- a/shell/plugins/background/Background.qml
++++ b/shell/plugins/background/Background.qml
+@@ -6,6 +6,7 @@ import QtQuick.Effects
+ import QtQuick.Shapes
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -75,10 +76,10 @@ Item {
+     // pending; the latest theme payload should still apply.
+     if (pendingThemeVersion < 0) return
+     pendingThemeFallbackTimer.stop()
+-    Color.loadColors(pendingColorsRaw)
+-    // Color.loadShell also refreshes Style so the type scale flips with the
++    Commons.Color.loadColors(pendingColorsRaw)
++    // Commons.Color.loadShell also refreshes Style so the type scale flips with the
+     // background reveal instead of waiting for a separate reload path.
+-    Color.loadShell(pendingShellRaw)
++    Commons.Color.loadShell(pendingShellRaw)
+     Style.scheduleRefresh()
+     pendingThemeVersion = -1
+     pendingColorsRaw = ""
+diff --git a/shell/plugins/bar/Bar.qml b/shell/plugins/bar/Bar.qml
+index 5dcd205..11c5ca9 100644
+--- a/shell/plugins/bar/Bar.qml
++++ b/shell/plugins/bar/Bar.qml
+@@ -7,6 +7,7 @@ import QtQuick.Layouts
+ import qs.Commons
+ import qs.Ui
+ import "BarModel.js" as BarModel
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -62,14 +63,14 @@ Item {
+   property string fontFamily: Style.font.family
+   // Bound to the central Color singleton so the bar tracks shell.toml's
+   // [bar] section. Property names kept for the rest of this file's bindings.
+-  property color themeForeground: Color.bar.text
+-  property color themeContrastForeground: Color.background
+-  property color transparentForeground: Color.bar.text
++  property color themeForeground: Commons.Color.bar.text
++  property color themeContrastForeground: Commons.Color.background
++  property color transparentForeground: Commons.Color.bar.text
+   property color foreground: themeForeground
+   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
+   property bool foregroundAnimationEnabled: true
+-  property color background: Color.bar.background
+-  property color urgent: Color.bar.active
++  property color background: Commons.Color.bar.background
++  property color urgent: Commons.Color.bar.active
+ 
+   Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
+   Behavior on background { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
+@@ -1084,15 +1085,15 @@ Item {
+         id: tooltipBubble
+         implicitWidth: tooltipLabel.implicitWidth + 20
+         implicitHeight: tooltipLabel.implicitHeight + 14
+-        color: Color.tooltip.background
+-        borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
++        color: Commons.Color.tooltip.background
++        borderSpec: Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, 1)
+         radius: Style.cornerRadius
+ 
+         Text {
+           id: tooltipLabel
+           anchors.centerIn: parent
+           text: root.tooltipText
+-          color: Color.tooltip.text
++          color: Commons.Color.tooltip.text
+           font.family: root.fontFamily
+           font.pixelSize: Style.font.body
+           horizontalAlignment: Text.AlignHCenter
+@@ -1211,7 +1212,7 @@ Item {
+       y: targetRect ? Math.round(targetRect.y) : 0
+       width: targetRect ? targetRect.width : 0
+       height: targetRect ? targetRect.height : 0
+-      color: Color.accent
++      color: Commons.Color.accent
+       radius: Math.min(width, height) / 2
+     }
+   }
+@@ -1629,7 +1630,7 @@ Item {
+ 
+       visible: opacity > 0
+       opacity: slot.panelOpen && !slot.dragSource ? 0.9 : 0
+-      color: Color.accent
++      color: Commons.Color.accent
+       radius: Math.min(width, height) / 2
+       width: root.vertical ? Style.space(2) : slot.panelIndicatorExtent
+       height: root.vertical ? slot.panelIndicatorExtent : Style.space(2)
+diff --git a/shell/plugins/bar/widgets/ActiveWindow.qml b/shell/plugins/bar/widgets/ActiveWindow.qml
+index 97ccce8..ea25cab 100644
+--- a/shell/plugins/bar/widgets/ActiveWindow.qml
++++ b/shell/plugins/bar/widgets/ActiveWindow.qml
+@@ -3,6 +3,7 @@ import Quickshell
+ import Quickshell.Wayland
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ BarWidget {
+   id: root
+@@ -33,7 +34,7 @@ BarWidget {
+       anchors.left: parent.left
+       width: parent.width
+       text: root.title
+-      color: root.bar ? root.bar.barForeground : Color.foreground
++      color: root.bar ? root.bar.barForeground : Commons.Color.foreground
+       font.family: root.bar ? root.bar.fontFamily : Style.font.family
+       font.pixelSize: Style.font.body
+       elide: Text.ElideRight
+diff --git a/shell/plugins/bar/widgets/Tray.qml b/shell/plugins/bar/widgets/Tray.qml
+index d0d07f5..cb87864 100644
+--- a/shell/plugins/bar/widgets/Tray.qml
++++ b/shell/plugins/bar/widgets/Tray.qml
+@@ -6,6 +6,7 @@ import Quickshell.Services.SystemTray
+ import qs.Commons
+ import qs.Ui
+ import "TrayModel.js" as TrayModel
++import qs.Commons as Commons
+ 
+ BarWidget {
+   id: root
+@@ -16,7 +17,7 @@ BarWidget {
+   property bool trayMenuOpen: false
+   property var activeTrayItem: null
+   property var activeTrayAnchor: null
+-  readonly property color foreground: bar ? bar.foreground : Color.foreground
++  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
+   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
+@@ -615,7 +616,7 @@ BarWidget {
+             anchors.rightMargin: Style.space(10)
+             anchors.verticalCenter: parent.verticalCenter
+             height: 1
+-            color: Color.popups.border
++            color: Commons.Color.popups.border
+             opacity: 0.45
+           }
+         }
+@@ -669,7 +670,7 @@ BarWidget {
+                 anchors.rightMargin: Style.space(10)
+                 anchors.verticalCenter: parent.verticalCenter
+                 height: 1
+-                color: Color.popups.border
++                color: Commons.Color.popups.border
+                 opacity: 0.45
+               }
+ 
+diff --git a/shell/plugins/clipboard/Clipboard.qml b/shell/plugins/clipboard/Clipboard.qml
+index fde49b3..9b4e29b 100644
+--- a/shell/plugins/clipboard/Clipboard.qml
++++ b/shell/plugins/clipboard/Clipboard.qml
+@@ -5,6 +5,7 @@ import QtQuick
+ import qs.Commons
+ import qs.Ui
+ import "ClipboardHistory.js" as ClipboardHistory
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -22,13 +23,13 @@ Item {
+   // Shares the [menu] surface tokens — themes that style the menu also
+   // style the clipboard. Selected-row colors composed in the
+   // singleton so consumers drop them straight into Rectangle bindings.
+-  property color background: Color.menu.background
+-  property color foreground: Color.menu.text
+-  property color border: Color.menu.border
++  property color background: Commons.Color.menu.background
++  property color foreground: Commons.Color.menu.text
++  property color border: Commons.Color.menu.border
+   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
+-  property color scrim: Color.menu.scrim
+-  property color selectedBackground: Color.menu.selectedBackground
+-  property color selectedText: Color.menu.selectedText
++  property color scrim: Commons.Color.menu.scrim
++  property color selectedBackground: Commons.Color.menu.selectedBackground
++  property color selectedText: Commons.Color.menu.selectedText
+   readonly property int cornerRadius: Style.cornerRadius
+   property string fontFamily: Style.font.menuFamily
+   property int contentMargin: Style.spacing.panelPadding
+diff --git a/shell/plugins/dev-gallery/GalleryPanel.qml b/shell/plugins/dev-gallery/GalleryPanel.qml
+index 945b625..e3c3040 100644
+--- a/shell/plugins/dev-gallery/GalleryPanel.qml
++++ b/shell/plugins/dev-gallery/GalleryPanel.qml
+@@ -3,6 +3,7 @@ import QtQuick.Controls
+ import Quickshell
+ import qs.Ui
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ // Visual reference + live playground for omarchy-shell's common UI
+ // components. Summon with `omarchy dev ui-preview`, or directly via:
+@@ -66,10 +67,10 @@ Item {
+   property var shell: null
+ 
+   // ---- theme --------------------------------------------------------------
+-  readonly property color foreground: Color.foreground
+-  readonly property color background: Color.background
+-  readonly property color accent: Color.accent
+-  readonly property color urgent: Color.urgent
++  readonly property color foreground: Commons.Color.foreground
++  readonly property color background: Commons.Color.background
++  readonly property color accent: Commons.Color.accent
++  readonly property color urgent: Commons.Color.urgent
+   readonly property string fontFamily: "monospace"
+ 
+   // Fake `bar` for components that take a whole bar object (e.g. Slider).
+diff --git a/shell/plugins/emojis/Emojis.qml b/shell/plugins/emojis/Emojis.qml
+index cbdf541..55f46be 100644
+--- a/shell/plugins/emojis/Emojis.qml
++++ b/shell/plugins/emojis/Emojis.qml
+@@ -5,6 +5,7 @@ import QtQuick
+ import qs.Commons
+ import qs.Ui
+ import "EmojiSearch.js" as EmojiSearch
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -23,13 +24,13 @@ Item {
+   // Shares the [menu] surface tokens — themes that style the menu also
+   // style emojis. Selected-cell colors composed in the
+   // singleton so consumers drop them straight into Rectangle bindings.
+-  property color background: Color.menu.background
+-  property color foreground: Color.menu.text
+-  property color border: Color.menu.border
++  property color background: Commons.Color.menu.background
++  property color foreground: Commons.Color.menu.text
++  property color border: Commons.Color.menu.border
+   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
+-  property color scrim: Color.menu.scrim
+-  property color selectedBackground: Color.menu.selectedBackground
+-  property color selectedText: Color.menu.selectedText
++  property color scrim: Commons.Color.menu.scrim
++  property color selectedBackground: Commons.Color.menu.selectedBackground
++  property color selectedText: Commons.Color.menu.selectedText
+   readonly property int cornerRadius: Style.cornerRadius
+   property string fontFamily: Style.font.menuFamily
+   property int contentMargin: Style.spacing.panelPadding
+diff --git a/shell/plugins/image-picker/ImagePicker.qml b/shell/plugins/image-picker/ImagePicker.qml
+index 672a5d1..0ddee5b 100644
+--- a/shell/plugins/image-picker/ImagePicker.qml
++++ b/shell/plugins/image-picker/ImagePicker.qml
+@@ -6,6 +6,7 @@ import QtQuick.Effects
+ import QtQuick.Shapes
+ import qs.Commons
+ import "ImagePickerModel.js" as ImagePickerModel
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -33,11 +34,11 @@ Item {
+   // Bound to the central [image-picker] section in shell.toml via Color.qml.
+   // `dimColor` tints unselected slices and text outlines on top of the scrim;
+   // it intentionally tracks the foundational background, not a surface role.
+-  property color dimColor: Color.background
+-  property color foreground: Color.imagePicker.text
+-  property color scrim: Color.imagePicker.scrim
+-  property color selectedBorder: Color.imagePicker.selectedBorder
+-  property color unselectedBorder: Color.imagePicker.unselectedBorder
++  property color dimColor: Commons.Color.background
++  property color foreground: Commons.Color.imagePicker.text
++  property color scrim: Commons.Color.imagePicker.scrim
++  property color selectedBorder: Commons.Color.imagePicker.selectedBorder
++  property color unselectedBorder: Commons.Color.imagePicker.unselectedBorder
+   property int expandedWidth: 768
+   property int expandedHeight: 475
+   property int sliceWidth: 108
+diff --git a/shell/plugins/lock/LockView.qml b/shell/plugins/lock/LockView.qml
+index 7b0b0ae..b941c81 100644
+--- a/shell/plugins/lock/LockView.qml
++++ b/shell/plugins/lock/LockView.qml
+@@ -2,6 +2,7 @@ import QtQuick
+ import QtQuick.Effects
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -35,8 +36,8 @@ Item {
+   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
+   readonly property bool errorState: failureMessage.length > 0
+   readonly property var inputBorderSpec: errorState
+-    ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
+-    : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
++    ? Border.surfaceSpec("lock", "border-error", Commons.Color.lock.borderError, root.outlineThickness, "border-alpha")
++    : Border.surfaceSpec("lock", "border-active", Commons.Color.lock.borderActive, root.outlineThickness, "border-alpha")
+ 
+   signal submitPassword(string password)
+   signal passwordTextEdited(string password)
+@@ -88,7 +89,7 @@ Item {
+ 
+   Rectangle {
+     anchors.fill: parent
+-    color: Color.background
++    color: Commons.Color.background
+ 
+     Image {
+       id: wallpaper
+@@ -124,7 +125,7 @@ Item {
+       width: root.fieldWidth
+       height: root.fieldHeight
+       anchors.centerIn: parent
+-      color: Color.lock.background
++      color: Commons.Color.lock.background
+       borderSpec: root.inputBorderSpec
+       radius: Style.cornerRadius
+       clip: true
+@@ -147,16 +148,16 @@ Item {
+         echoMode: TextInput.Password
+         passwordCharacter: "\u25CF"
+         passwordMaskDelay: 0
+-        color: Color.lock.text
+-        selectionColor: Color.lock.selection
+-        selectedTextColor: Color.lock.text
++        color: Commons.Color.lock.text
++        selectionColor: Commons.Color.lock.selection
++        selectedTextColor: Commons.Color.lock.text
+         font.family: Style.font.family
+         font.pixelSize: text.length > 0 ? Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)) : root.fieldFontSize
+         font.letterSpacing: text.length > 0 ? root.passwordDotLetterSpacing * root.passwordDotScale : 0
+         cursorVisible: activeFocus && root.showPasswordCursor && text.length > 0
+         cursorDelegate: Rectangle {
+           width: 2
+-          color: Color.lock.text
++          color: Commons.Color.lock.text
+           visible: passwordInput.cursorVisible
+         }
+ 
+@@ -187,7 +188,7 @@ Item {
+         anchors.fill: passwordInput
+         text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+         visible: passwordInput.text.length === 0
+-        color: root.authenticatingPassword ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
++        color: root.authenticatingPassword ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
+         font.family: Style.font.family
+         font.pixelSize: root.fieldFontSize
+         font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
+@@ -207,7 +208,7 @@ Item {
+         anchors.verticalCenter: parent.verticalCenter
+         visible: root.fingerprintConfigured
+         text: "󰈷"
+-        color: Color.lock.placeholder
++        color: Commons.Color.lock.placeholder
+         font.family: Style.font.family
+         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+         horizontalAlignment: Text.AlignHCenter
+diff --git a/shell/plugins/lock/Service.qml b/shell/plugins/lock/Service.qml
+index 9ecb1cc..65fcb19 100644
+--- a/shell/plugins/lock/Service.qml
++++ b/shell/plugins/lock/Service.qml
+@@ -4,6 +4,7 @@ import Quickshell.Io
+ import Quickshell.Services.Pam
+ import Quickshell.Wayland
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -263,7 +264,7 @@ Item {
+ 
+     WlSessionLockSurface {
+       id: lockSurface
+-      color: Color.background
++      color: Commons.Color.background
+ 
+       LockView {
+         id: lockView
+diff --git a/shell/plugins/menu/Menu.qml b/shell/plugins/menu/Menu.qml
+index eeaf2e2..ed4a4b4 100644
+--- a/shell/plugins/menu/Menu.qml
++++ b/shell/plugins/menu/Menu.qml
+@@ -5,6 +5,7 @@ import QtQuick
+ import qs.Commons
+ import qs.Ui
+ import "MenuModel.js" as MenuModel
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -84,14 +85,14 @@ Item {
+   // Bound to the central [menu] section in shell.toml via Color.qml.
+   // Each color already includes its alpha companion (composed in the
+   // singleton), so consumers can drop them straight into a Rectangle.
+-  property color background: Color.menu.background
+-  property color foreground: Color.menu.text
+-  property color border: Color.menu.border
++  property color background: Commons.Color.menu.background
++  property color foreground: Commons.Color.menu.text
++  property color border: Commons.Color.menu.border
+   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
+-  property color scrim: Color.menu.scrim
+-  property color selectedBackground: Color.menu.selectedBackground
+-  property color selectedText: Color.menu.selectedText
+-  property color selectedBorder: Color.menu.selectedBorder
++  property color scrim: Commons.Color.menu.scrim
++  property color selectedBackground: Commons.Color.menu.selectedBackground
++  property color selectedText: Commons.Color.menu.selectedText
++  property color selectedBorder: Commons.Color.menu.selectedBorder
+   property var selectedBorderSpec: Border.surfaceSpec("menu", "selected-border", selectedBorder, 0)
+   readonly property real rowReservedBorderLeft: Border.left(selectedBorderSpec)
+   readonly property real rowReservedBorderRight: Border.right(selectedBorderSpec)
+diff --git a/shell/plugins/notifications/components/NotificationCard.qml b/shell/plugins/notifications/components/NotificationCard.qml
+index cf88f23..e1ae29b 100644
+--- a/shell/plugins/notifications/components/NotificationCard.qml
++++ b/shell/plugins/notifications/components/NotificationCard.qml
+@@ -8,6 +8,7 @@ import Quickshell
+ import qs.Commons
+ import qs.Ui
+ import "../NotificationLogic.js" as NotificationLogic
++import qs.Commons as Commons
+ 
+ BorderSurface {
+   id: root
+@@ -46,10 +47,10 @@ BorderSurface {
+   readonly property string sanitizedBody: sanitizeBody(body)
+   readonly property string styledBody: sanitizedBody.replace(/\r\n|\r|\n/g, "<br/>")
+ 
+-  readonly property color dimColor: Qt.darker(Color.notifications.text, 1.4)
+-  readonly property color bodyColor: Qt.darker(Color.notifications.text, 1.15)
+-  readonly property color accentColor: urgency === 2 ? Color.urgent : (urgency === 0 ? dimColor : Color.notifications.countdown)
+-  readonly property var cardBorderSpec: Border.surfaceSpec("notifications", "border", Color.notifications.border, Math.max(1, Style.space(2)))
++  readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
++  readonly property color bodyColor: Qt.darker(Commons.Color.notifications.text, 1.15)
++  readonly property color accentColor: urgency === 2 ? Commons.Color.urgent : (urgency === 0 ? dimColor : Commons.Color.notifications.countdown)
++  readonly property var cardBorderSpec: Border.surfaceSpec("notifications", "border", Commons.Color.notifications.border, Math.max(1, Style.space(2)))
+ 
+   function sanitizeBody(s) {
+     return NotificationLogic.sanitizeBody(s, app, appIcon)
+@@ -68,7 +69,7 @@ BorderSurface {
+   // doesn't push content under the bottom edge.
+   implicitHeight: mainColumn.implicitHeight + borderTop + borderBottom
+   radius: cornerRadius
+-  color: Color.notifications.background
++  color: Commons.Color.notifications.background
+   borderSpec: cardBorderSpec
+   clip: true
+ 
+@@ -136,7 +137,7 @@ BorderSurface {
+           anchors.centerIn: parent
+           visible: root.hasGlyph && smallIconImage.status !== Image.Ready
+           text: root.glyph
+-          color: Color.notifications.text
++          color: Commons.Color.notifications.text
+           font.family: root.fontFamily
+           font.pixelSize: Style.font.displayLarge
+         }
+@@ -146,7 +147,7 @@ BorderSurface {
+         Layout.alignment: Qt.AlignVCenter
+         visible: root.compactGlyph
+         text: root.glyph
+-        color: Color.notifications.text
++        color: Commons.Color.notifications.text
+         font.family: root.fontFamily
+         font.pixelSize: Style.font.icon
+       }
+@@ -163,7 +164,7 @@ BorderSurface {
+           visible: root.summary.length > 0
+           text: root.summary
+           font.family: "Liberation Sans"
+-          color: Color.notifications.text
++          color: Commons.Color.notifications.text
+           font.pixelSize: Style.font.title
+           font.bold: true
+           wrapMode: Text.WordWrap
+@@ -205,7 +206,7 @@ BorderSurface {
+     Text {
+       anchors.centerIn: parent
+       text: "✕"
+-      color: closeArea.containsMouse ? Color.notifications.text : root.dimColor
++      color: closeArea.containsMouse ? Commons.Color.notifications.text : root.dimColor
+       font.pixelSize: Math.round(Style.font.caption * 1.44)
+     }
+ 
+diff --git a/shell/plugins/osd/Osd.qml b/shell/plugins/osd/Osd.qml
+index abf53e2..680e811 100644
+--- a/shell/plugins/osd/Osd.qml
++++ b/shell/plugins/osd/Osd.qml
+@@ -5,6 +5,7 @@ import Quickshell.Wayland
+ import qs.Commons
+ import qs.Ui
+ import "OsdModel.js" as OsdModel
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -143,8 +144,8 @@ Item {
+       anchors.horizontalCenter: parent.horizontalCenter
+       anchors.bottom: parent.bottom
+       anchors.bottomMargin: Style.space(67)
+-      color: Util.alpha(Color.background, 0.97)
+-      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
++      color: Util.alpha(Commons.Color.background, 0.97)
++      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
+       radius: Style.cornerRadius
+       opacity: root.opened ? 1 : 0
+ 
+@@ -165,7 +166,7 @@ Item {
+             anchors.verticalCenter: parent.verticalCenter
+             text: root.icon
+             font: iconMetrics.font
+-            color: Color.popups.text
++            color: Commons.Color.popups.text
+           }
+         }
+         Rectangle {
+@@ -173,11 +174,11 @@ Item {
+           width: root.barWidth
+           height: Math.max(Style.space(6), Style.spacing.sm)
+           anchors.verticalCenter: parent.verticalCenter
+-          color: Util.alpha(Color.popups.text, 0.45)
++          color: Util.alpha(Commons.Color.popups.text, 0.45)
+           Rectangle {
+             height: parent.height
+             width: parent.width * (root.hasProgress ? root.value / root.maxValue : 0)
+-            color: Color.accent
++            color: Commons.Color.accent
+ 
+             Behavior on width {
+               enabled: root.opened
+@@ -194,7 +195,7 @@ Item {
+           anchors.verticalCenter: parent.verticalCenter
+           text: root.message
+           font: messageMetrics.font
+-          color: Color.popups.text
++          color: Commons.Color.popups.text
+           elide: Text.ElideRight
+           maximumLineCount: 1
+         }
+diff --git a/shell/plugins/panels/audio/Panel.qml b/shell/plugins/panels/audio/Panel.qml
+index f8a86c6..8e96c47 100644
+--- a/shell/plugins/panels/audio/Panel.qml
++++ b/shell/plugins/panels/audio/Panel.qml
+@@ -7,6 +7,7 @@ import Quickshell.Services.Pipewire
+ import qs.Ui
+ import qs.Commons
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -177,10 +178,10 @@ Panel {
+   readonly property string toggleHint: anyAudible ? "Mute" : "Unmute"
+ 
+   readonly property color hoverFill: bar
+-    ? Style.hoverFillFor(bar.foreground, Color.accent)
++    ? Style.hoverFillFor(bar.foreground, Commons.Color.accent)
+     : "transparent"
+   readonly property color selectedFill: bar
+-    ? Style.selectedFillFor(bar.foreground, Color.accent)
++    ? Style.selectedFillFor(bar.foreground, Commons.Color.accent)
+     : "transparent"
+ 
+   function sectionCount(section) {
+diff --git a/shell/plugins/panels/bluetooth/Panel.qml b/shell/plugins/panels/bluetooth/Panel.qml
+index 343357b..597cf35 100644
+--- a/shell/plugins/panels/bluetooth/Panel.qml
++++ b/shell/plugins/panels/bluetooth/Panel.qml
+@@ -7,6 +7,7 @@ import Quickshell.Services.Pipewire
+ import qs.Ui
+ import qs.Commons
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -104,10 +105,10 @@ Panel {
+   readonly property string toggleHint: root.adapter && root.adapter.enabled ? "Turn Bluetooth off" : "Turn Bluetooth on"
+ 
+   readonly property color hoverFill: bar
+-    ? Style.hoverFillFor(bar.foreground, Color.accent)
++    ? Style.hoverFillFor(bar.foreground, Commons.Color.accent)
+     : "transparent"
+   readonly property color selectedFill: bar
+-    ? Style.selectedFillFor(bar.foreground, Color.accent)
++    ? Style.selectedFillFor(bar.foreground, Commons.Color.accent)
+     : "transparent"
+ 
+   function sectionCount(section) {
+diff --git a/shell/plugins/panels/clock/Panel.qml b/shell/plugins/panels/clock/Panel.qml
+index f0dff3a..ed9ddd5 100644
+--- a/shell/plugins/panels/clock/Panel.qml
++++ b/shell/plugins/panels/clock/Panel.qml
+@@ -3,6 +3,7 @@ import Quickshell
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ // The clock's calendar popup: a month grid with ISO week numbers, built to
+ // sit beside the weather panel — same hero-over-detail composition, same
+@@ -75,7 +76,7 @@ Panel {
+ 
+   // Guarded so the widget renders before the bar is injected (the bar-widget
+   // contract instantiates it bare).
+-  readonly property color contentForeground: bar ? bar.foreground : Color.foreground
++  readonly property color contentForeground: bar ? bar.foreground : Commons.Color.foreground
+   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
+ 
+   readonly property int cellWidth: Style.space(52)
+@@ -300,7 +301,7 @@ Panel {
+                 anchors.baseline: heroDate.baseline
+                 text: "󰃭"
+                 color: heroMouse.containsMouse
+-                  ? Style.hoverStateColor(root.contentForeground, Color.accent)
++                  ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
+                   : root.contentForeground
+                 font.family: root.contentFontFamily
+                 // Decorative, and deliberately outside the Style.font.*
+@@ -314,7 +315,7 @@ Panel {
+                 anchors.verticalCenter: parent.verticalCenter
+                 text: Qt.formatDate(root.today, "MMMM d")
+                 color: heroMouse.containsMouse
+-                  ? Style.hoverStateColor(root.contentForeground, Color.accent)
++                  ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
+                   : root.contentForeground
+                 font.family: root.contentFontFamily
+                 font.pixelSize: 52
+@@ -450,7 +451,7 @@ Panel {
+                   width: Math.round(parent.width * root.yearDone)
+                   height: parent.height
+                   radius: parent.radius
+-                  color: Style.selectedStateColor(root.contentForeground, Color.accent)
++                  color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
+ 
+                   Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                 }
+@@ -507,7 +508,7 @@ Panel {
+                   width: Math.round(parent.width * root.lifeDone)
+                   height: parent.height
+                   radius: parent.radius
+-                  color: Style.selectedStateColor(root.contentForeground, Color.accent)
++                  color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
+ 
+                   Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                 }
+@@ -569,14 +570,14 @@ Panel {
+                   height: Style.space(16)
+                   radius: Style.cornerRadius
+                   color: weekStartMouse.containsMouse
+-                    ? Style.hoverFillFor(root.contentForeground, Color.accent)
++                    ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                     : "transparent"
+ 
+                   Text {
+                     anchors.centerIn: parent
+                     text: "W"
+                     color: weekStartMouse.containsMouse
+-                      ? Style.hoverStateColor(root.contentForeground, Color.accent)
++                      ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
+                       : Qt.darker(root.contentForeground, 1.9)
+                     font.family: root.contentFontFamily
+                     font.pixelSize: Style.font.caption
+@@ -659,7 +660,7 @@ Panel {
+                       // over a grid this quiet.
+                       color: "transparent"
+                       border.width: modelData.today ? Style.spacing.hairline : 0
+-                      border.color: Style.normalBorderFor(root.contentForeground, Color.accent)
++                      border.color: Style.normalBorderFor(root.contentForeground, Commons.Color.accent)
+ 
+                       Text {
+                         anchors.centerIn: parent
+diff --git a/shell/plugins/panels/dropbox/DropboxIcon.qml b/shell/plugins/panels/dropbox/DropboxIcon.qml
+index 6302b87..488346b 100644
+--- a/shell/plugins/panels/dropbox/DropboxIcon.qml
++++ b/shell/plugins/panels/dropbox/DropboxIcon.qml
+@@ -1,12 +1,13 @@
+ import QtQuick
+ import QtQuick.Shapes
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+ 
+   property real iconSize: Style.font.icon
+-  property color color: Color.foreground
++  property color color: Commons.Color.foreground
+ 
+   width: iconSize * 1.18
+   height: iconSize
+diff --git a/shell/plugins/panels/dropbox/Panel.qml b/shell/plugins/panels/dropbox/Panel.qml
+index f1dc230..00b4c87 100644
+--- a/shell/plugins/panels/dropbox/Panel.qml
++++ b/shell/plugins/panels/dropbox/Panel.qml
+@@ -6,6 +6,7 @@ import Quickshell.Io
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -32,8 +33,8 @@ Panel {
+     "Cataloging chaos"
+   ]
+   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
+-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+-  readonly property color urgent: bar ? bar.urgent : Color.urgent
++  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
++  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
+   readonly property color dim: Qt.darker(foreground, 1.55)
+   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+   readonly property color iconColor: dropbox.authenticated && dropbox.active ? foreground : dim
+diff --git a/shell/plugins/panels/monitor/Panel.qml b/shell/plugins/panels/monitor/Panel.qml
+index 1753906..40289e6 100644
+--- a/shell/plugins/panels/monitor/Panel.qml
++++ b/shell/plugins/panels/monitor/Panel.qml
+@@ -5,6 +5,7 @@ import Quickshell.Io
+ import qs.Ui
+ import qs.Commons
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -862,8 +863,8 @@ Panel {
+     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(monitorRow)
+     current: isFocused
+     foreground: root.bar.foreground
+-    fill: Style.hoverFillFor(root.bar.foreground, Color.accent)
+-    currentFill: Style.selectedFillFor(root.bar.foreground, Color.accent)
++    fill: Style.hoverFillFor(root.bar.foreground, Commons.Color.accent)
++    currentFill: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
+     implicitHeight: monitorInner.implicitHeight + Style.spacing.xl
+     opacity: canToggle ? 1.0 : 0.45
+ 
+diff --git a/shell/plugins/panels/network/Panel.qml b/shell/plugins/panels/network/Panel.qml
+index dea1d28..8394156 100644
+--- a/shell/plugins/panels/network/Panel.qml
++++ b/shell/plugins/panels/network/Panel.qml
+@@ -7,6 +7,7 @@ import Quickshell.Networking
+ import qs.Ui
+ import qs.Commons
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -289,8 +290,8 @@ Panel {
+   // `selectedIndex`). Mouse hover and keyboard nav both mutate this state
+   // at the root; items never read containsMouse for visuals. See
+   // CursorSurface for the shared chrome shared by rows and pills.
+-  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
+-  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
++  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Commons.Color.accent) : "transparent"
++  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "transparent"
+ 
+   // scannerEnabled lives on the shared WifiDevice, which has no reference
+   // counting, and a bar widget is instantiated once per monitor. Tracking the
+@@ -1889,7 +1890,7 @@ Panel {
+         anchors.verticalCenter: parent.verticalCenter
+         height: Style.spacing.controlHeight
+         color: Style.normalFillFor(root.bar.foreground)
+-        borderSpec: Border.controlSpec("normal", root.bar.foreground, Color.accent)
++        borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
+         radius: Style.cornerRadius
+ 
+         Text {
+diff --git a/shell/plugins/panels/power/Panel.qml b/shell/plugins/panels/power/Panel.qml
+index 871ee2f..8a2fd70 100644
+--- a/shell/plugins/panels/power/Panel.qml
++++ b/shell/plugins/panels/power/Panel.qml
+@@ -5,6 +5,7 @@ import Quickshell.Services.UPower
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -88,7 +89,7 @@ Panel {
+   }
+ 
+   readonly property color batteryFillColor: {
+-    return root.bar ? root.bar.foreground : Color.foreground
++    return root.bar ? root.bar.foreground : Commons.Color.foreground
+   }
+ 
+   // Cute agent-flavored phrases shown in the hero status line, rotated on a
+diff --git a/shell/plugins/panels/tailscale/Panel.qml b/shell/plugins/panels/tailscale/Panel.qml
+index 34278ed..5c7d523 100644
+--- a/shell/plugins/panels/tailscale/Panel.qml
++++ b/shell/plugins/panels/tailscale/Panel.qml
+@@ -5,6 +5,7 @@ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -37,8 +38,8 @@ Panel {
+   ]
+   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
+ 
+-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+-  readonly property color urgent: bar ? bar.urgent : Color.urgent
++  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
++  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
+   readonly property color dim: Qt.darker(foreground, 1.55)
+   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
+@@ -54,8 +55,8 @@ Panel {
+   readonly property color iconColor: tailscale.active ? foreground : dim
+   readonly property string toggleHint: tailscale.active ? "Turn Tailscale off" : (tailscale.needsLogin ? "Authorize this device" : "Turn Tailscale on")
+   readonly property color barIconColor: tailscale.active ? barForeground : Qt.darker(barForeground, 1.55)
+-  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
+-  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
++  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Commons.Color.accent) : "transparent"
++  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "transparent"
+ 
+   function selectedPeer() {
+     if (tailscale.peers.length === 0) return null
+@@ -1030,7 +1031,7 @@ Panel {
+           }
+         }
+         background: BorderSurface {
+-          color: Color.background
++          color: Commons.Color.background
+           borderSpec: Border.flat(root.dim, 1)
+           radius: Style.cornerRadius
+         }
+diff --git a/shell/plugins/panels/tailscale/TailscaleIcon.qml b/shell/plugins/panels/tailscale/TailscaleIcon.qml
+index 8de7933..bd1f6a7 100644
+--- a/shell/plugins/panels/tailscale/TailscaleIcon.qml
++++ b/shell/plugins/panels/tailscale/TailscaleIcon.qml
+@@ -1,13 +1,14 @@
+ import QtQuick
+ import qs.Commons
+ import qs.Ui
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+ 
+   property real iconSize: Style.font.icon
+-  property color color: Color.foreground
+-  property color badgeColor: Color.urgent
++  property color color: Commons.Color.foreground
++  property color badgeColor: Commons.Color.urgent
+   property bool crossed: false
+   property bool warning: false
+ 
+@@ -51,12 +52,12 @@ Item {
+     color: root.badgeColor
+     anchors.right: parent.right
+     anchors.bottom: parent.bottom
+-    borderSpec: Border.flat(Color.popups.background, 1)
++    borderSpec: Border.flat(Commons.Color.popups.background, 1)
+ 
+     Text {
+       anchors.centerIn: parent
+       text: "!"
+-      color: Color.background
++      color: Commons.Color.background
+       font.family: Style.font.family
+       font.pixelSize: Math.max(6, parent.height * 0.72)
+       font.bold: true
+diff --git a/shell/plugins/panels/weather/Panel.qml b/shell/plugins/panels/weather/Panel.qml
+index dacb4ac..51c31d3 100644
+--- a/shell/plugins/panels/weather/Panel.qml
++++ b/shell/plugins/panels/weather/Panel.qml
+@@ -4,6 +4,7 @@ import Quickshell.Io
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
++import qs.Commons as Commons
+ 
+ Panel {
+   id: root
+@@ -640,7 +641,7 @@ Panel {
+               height: Style.space(18)
+               anchors.verticalCenter: parent.verticalCenter
+               radius: Math.min(4, Style.cornerRadius)
+-              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
++              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
+ 
+               Text {
+                 anchors.centerIn: parent
+@@ -742,7 +743,7 @@ Panel {
+             width: parent.width
+             height: suggestionRow.implicitHeight + Style.space(12)
+             radius: Style.cornerRadius
+-            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
++            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
+ 
+             Row {
+               id: suggestionRow
+@@ -753,7 +754,7 @@ Panel {
+ 
+               Text {
+                 text: modelData.name
+-                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Color.accent) : root.bar.foreground
++                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Commons.Color.accent) : root.bar.foreground
+                 font.family: root.bar.fontFamily
+                 font.pixelSize: Style.font.body
+               }
+diff --git a/shell/plugins/polkit/PolkitAgent.qml b/shell/plugins/polkit/PolkitAgent.qml
+index 8ce9597..3e9e97d 100644
+--- a/shell/plugins/polkit/PolkitAgent.qml
++++ b/shell/plugins/polkit/PolkitAgent.qml
+@@ -6,19 +6,20 @@ import Quickshell.Wayland
+ import qs.Commons
+ import qs.Ui
+ import "PolkitModel.js" as PolkitModel
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+ 
+   property string fontFamily: Style.font.menuFamily
+   // Bound to the central [polkit] section in shell.toml via Color.qml.
+-  property color accent: Color.polkit.accent
+-  property color background: Color.polkit.background
+-  property color foreground: Color.polkit.text
+-  property color border: Color.polkit.border
+-  property color borderError: Color.polkit.borderError
++  property color accent: Commons.Color.polkit.accent
++  property color background: Commons.Color.polkit.background
++  property color foreground: Commons.Color.polkit.text
++  property color border: Commons.Color.polkit.border
++  property color borderError: Commons.Color.polkit.borderError
+   property var borderSpec: Border.surfaceSpec("polkit", errorFlash ? "border-error" : "border", errorFlash ? borderError : border, Math.max(1, Style.space(2)), "border-alpha")
+-  property color scrim: Color.polkit.scrim
++  property color scrim: Commons.Color.polkit.scrim
+   readonly property int cornerRadius: Style.cornerRadius
+   property int contentMargin: Style.spacing.panelPadding
+   property int fieldHeight: Math.max(Style.space(42), Style.spacing.controlHeight)
+@@ -278,7 +279,7 @@ Item {
+         text: "\udb80\ude37"
+         fontFamily: root.fontFamily
+         fontSize: Math.round(root.fieldHeight * 0.7)
+-        color: root.errorFlash ? Color.polkit.textError : root.accent
++        color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
+       }
+ 
+       Row {
+@@ -293,7 +294,7 @@ Item {
+ 
+         Text {
+           text: "\uf023"
+-          color: root.errorFlash ? Color.polkit.textError : root.accent
++          color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
+           font.family: root.fontFamily
+           font.pixelSize: Style.font.iconLarge
+           width: Style.space(26)
+@@ -318,7 +319,7 @@ Item {
+             font.pixelSize: Style.font.iconLarge
+             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
+             passwordCharacter: "\u2022"
+-            color: root.errorFlash ? Color.polkit.textError : root.foreground
++            color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
+             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
+             readOnly: root.submitted || root.errorFlash
+             enabled: root.dialogVisible
+@@ -336,7 +337,7 @@ Item {
+             anchors.right: parent.right
+             anchors.verticalCenter: parent.verticalCenter
+             text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
+-            color: root.errorFlash ? Color.polkit.textError : root.foreground
++            color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
+             opacity: root.errorFlash ? 1 : 0.36
+             font.family: root.fontFamily
+             font.pixelSize: Style.font.iconLarge
+@@ -349,7 +350,7 @@ Item {
+             height: Style.space(24)
+             anchors.left: parent.left
+             anchors.verticalCenter: parent.verticalCenter
+-            color: root.errorFlash ? Color.polkit.textError : root.foreground
++            color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
+             visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
+           }
+ 
+diff --git a/shell/plugins/reminders/ReminderFlow.qml b/shell/plugins/reminders/ReminderFlow.qml
+index bc6616d..0457ce3 100644
+--- a/shell/plugins/reminders/ReminderFlow.qml
++++ b/shell/plugins/reminders/ReminderFlow.qml
+@@ -4,6 +4,7 @@ import QtQuick
+ import qs.Commons
+ import qs.Ui
+ import "ReminderFlowModel.js" as ReminderFlowModel
++import qs.Commons as Commons
+ 
+ Item {
+   id: root
+@@ -18,11 +19,11 @@ Item {
+   property string filterText: ""
+   property string fontFamily: Style.font.menuFamily
+ 
+-  property color background: Color.menu.background
+-  property color foreground: Color.menu.text
+-  property color border: Color.menu.border
++  property color background: Commons.Color.menu.background
++  property color foreground: Commons.Color.menu.text
++  property color border: Commons.Color.menu.border
+   property var borderSpec: Border.surfaceSpec("menu", "border", border, Math.max(1, Style.space(2)))
+-  property color scrim: Color.menu.scrim
++  property color scrim: Commons.Color.menu.scrim
+   readonly property int cornerRadius: Style.cornerRadius
+   property int contentMargin: Style.spacing.panelPadding
+   property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+diff --git a/shell/plugins/services/media/BarWidget.qml b/shell/plugins/services/media/BarWidget.qml
+index 52793c1..9d71a3b 100644
+--- a/shell/plugins/services/media/BarWidget.qml
++++ b/shell/plugins/services/media/BarWidget.qml
+@@ -2,6 +2,7 @@ import QtQuick
+ import Quickshell
+ import qs.Ui
+ import qs.Commons
++import qs.Commons as Commons
+ 
+ BarWidget {
+   id: root
+@@ -121,8 +122,8 @@ BarWidget {
+           width: Style.space(64)
+           height: Style.space(64)
+           radius: Style.spacing.labelGap
+-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+-          borderSpec: Border.controlSpec("normal", root.bar.foreground, Color.accent)
++          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
++          borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
+ 
+           Image {
+             anchors.fill: parent
+@@ -242,8 +243,8 @@ BarWidget {
+             width: sourceList.width
+             height: sourceInner.implicitHeight + Style.space(10)
+             radius: Style.spacing.labelGap
+-            color: selected ? Style.selectedFillFor(root.bar.foreground, Color.accent) : "transparent"
+-            borderSpec: selected ? Border.controlSpec("normal", root.bar.foreground, Color.accent) : Border.none()
++            color: selected ? Style.selectedFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
++            borderSpec: selected ? Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent) : Border.none()
+ 
+             Row {
+               id: sourceInner
+diff --git a/shell/shell.qml b/shell/shell.qml
+index 71a9834..f9faad9 100644
+--- a/shell/shell.qml
++++ b/shell/shell.qml
+@@ -7,6 +7,7 @@ import qs.Commons
+ 
+ import "plugins/bar"
+ import "services"
++import qs.Commons as Commons
+ 
+ ShellRoot {
+   id: shell
+@@ -881,8 +882,8 @@ ShellRoot {
+       var shellRaw = ""
+       try { colorsRaw = Qt.atob(String(colorsB64 || "")) } catch (e) { colorsRaw = "" }
+       try { shellRaw = Qt.atob(String(shellB64 || "")) } catch (e2) { shellRaw = "" }
+-      Color.loadColors(colorsRaw)
+-      Color.loadShell(shellRaw)
++      Commons.Color.loadColors(colorsRaw)
++      Commons.Color.loadShell(shellRaw)
+       Style.scheduleRefresh()
+       return "ok"
+     }
+diff --git a/test/shell.d/bar-test.sh b/test/shell.d/bar-test.sh
+index 0b06258..245b5d9 100644
+--- a/test/shell.d/bar-test.sh
++++ b/test/shell.d/bar-test.sh
+@@ -259,7 +259,7 @@ assert(
+   'bar uses nearest insertion targeting for widget and free-space drops'
+ )
+ assert(
+-  /component DragGhostPanel:[\s\S]*?readonly property var targetRect: root\.barDragTargetGeometry[\s\S]*?color: Color\.accent/.test(barSource),
++  /component DragGhostPanel:[\s\S]*?readonly property var targetRect: root\.barDragTargetGeometry[\s\S]*?color: Commons\.Color\.accent/.test(barSource),
+   'bar draws the insertion marker above the bar in the drag overlay'
+ )
+ 
