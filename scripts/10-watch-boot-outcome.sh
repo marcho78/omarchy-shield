@@ -18,18 +18,6 @@ need fastboot
 
 limit=${1:-180}
 
-# NVIDIA's USB device as port:devnum:product, or "none"
-nvidia_usb() {
-  local d
-  for d in /sys/bus/usb/devices/*; do
-    if [[ $(cat "$d/idVendor" 2>/dev/null) == 0955 ]]; then
-      echo "$(basename "$d"):$(cat "$d/devnum"):$(cat "$d/idProduct")"
-      return
-    fi
-  done
-  echo none
-}
-
 start=$(nvidia_usb)
 log "watching USB for ${limit}s (now $start)"
 for ((t = 0; t < limit; t += 2)); do

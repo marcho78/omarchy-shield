@@ -179,6 +179,13 @@ EOF
 echo '%wheel ALL=(ALL:ALL) ALL' > "$rootfs/etc/sudoers.d/10-wheel"
 chmod 440 "$rootfs/etc/sudoers.d/10-wheel"
 
+# Once the system is up, only critical kernel messages (KERN_CRIT and worse,
+# so oopses and panics in full) go to the consoles: the TV, and the ramoops
+# console U-Boot shows after a crash. The boot itself still shows (the
+# installed system boots without ignore_loglevel). To see everything again
+# until the next boot: echo Y > /sys/module/printk/parameters/ignore_loglevel
+echo 'kernel.printk = 3 4 1 7' > "$rootfs/etc/sysctl.d/20-quiet-console.conf"
+
 mkdir -p "$rootfs/etc/systemd/system.conf.d"
 cat > "$rootfs/etc/systemd/system.conf.d/10-watchdog.conf" << 'EOF'
 # Keep the watchdog U-Boot armed (tegra_wdt): a hung system resets

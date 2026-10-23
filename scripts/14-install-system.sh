@@ -76,5 +76,6 @@ timeout 300 fastboot -s "$fb" flash boot "$boot" || die "writing boot failed"
 if $restore; then
   log "Android's boot partition is back. Choose 'Continue' in the bootloader menu to start Android."
 else
-  log "installed. On the TV, choose 'Continue' in the bootloader menu (or run: fastboot reboot)."
+  # cboot answers "fastboot reboot" with FAILED (remote: 'unknown reason'), then resets all the same
+  log "installed. On the TV, choose 'Continue' in the bootloader menu (or run: fastboot reboot, despite its FAILED)."
 fi

@@ -21,8 +21,13 @@
 		 * udev loads it, it removes the simple framebuffer the console
 		 * is on, then finds no output it can drive ("Cannot find any
 		 * crtc or sizes"), and the TV goes dark.
+		 *
+		 * Unlike darcy.dts, no ignore_loglevel: the boot shows on the
+		 * TV, and once systemd is up the rootfs lowers the console
+		 * level (sysctl.d/20-quiet-console.conf, scripts/13), so later
+		 * kernel messages stay off the login prompt.
 		 */
-		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel panic=10 printk.devkmsg=on module_blacklist=tegra_drm cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=10 printk.devkmsg=on module_blacklist=tegra_drm cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
 
 		/*
 		 * U-Boot boots it again after a reboot, and shows its log only

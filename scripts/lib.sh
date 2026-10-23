@@ -38,6 +38,19 @@ shield_ip() {
   fi
 }
 
+# NVIDIA's USB device as port:devnum:product, or "none". The product is
+# b442 in the bootloader's fastboot, b43d under Android.
+nvidia_usb() {
+  local d
+  for d in /sys/bus/usb/devices/*; do
+    if [[ $(cat "$d/idVendor" 2>/dev/null) == 0955 ]]; then
+      echo "$(basename "$d"):$(cat "$d/devnum"):$(cat "$d/idProduct")"
+      return
+    fi
+  done
+  echo none
+}
+
 # Connect network adb to $1 (ip:port), wait for the on-screen approval, and
 # refuse anything that is not the pinned SHIELD product.
 adb_attach() {

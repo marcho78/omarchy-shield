@@ -19,7 +19,8 @@ Android stays installed, so you can go back.
 >   on HDMI. Linux drives USB, Ethernet, Wi-Fi and Bluetooth, with NVIDIA's
 >   firmware taken from the recovery image.
 > - **Done too:** Arch Linux ARM runs from a USB SSD, with the console on
->   HDMI, Wi-Fi (5 GHz), SSH and Bluetooth.
+>   HDMI, Wi-Fi (2.4 and 5 GHz), SSH and Bluetooth. New builds go on over
+>   the network, with nothing to press on the TV.
 > - **Next:** HDMI through tegra-drm for a desktop, then Omarchy.
 >
 > `NOTES.md` is the research log.
@@ -187,7 +188,7 @@ Photograph it. After 60 s (`darcy_log_secs`) U-Boot reboots into the
 bootloader menu by itself, so the next image can be flashed straight away
 with `scripts/09`, without going through Android.
 
-### 9. Root filesystem (built, not yet booted)
+### 9. Root filesystem
 
     scripts/13-make-rootfs.sh             # build/rootfs.img and its sparse form, build/rootfs.simg
     scripts/12-make-payload.sh --system   # build/boot-uboot-darcy-system.img
@@ -234,9 +235,28 @@ Alternatively, `SYSTEM_ROOT=PARTLABEL=UDA` puts the root filesystem on the
 eMMC: `scripts/14` then writes it over Android's user data too. Android must
 not start again while Linux is there, because it would offer to wipe it.
 
+### 11. Updates without the TV
+
+Once the installed system answers SSH, a new build goes on over the network
+and the USB cable, with nothing to press:
+
+    scripts/11-build-kernel.sh            # when the kernel changed
+    scripts/12-make-payload.sh --system   # build/boot-uboot-darcy-system.img
+    CONFIRM_FLASH=yes scripts/17-update-system.sh <the SHIELD's address>
+
+`scripts/17` copies the kernel's modules over SSH when the kernel changed
+(or with `--modules`). It then reboots the SHIELD into its bootloader,
+flashes the boot image as soon as fastboot appears, reboots into it, and
+checks that the new kernel runs. The computer must be on the SHIELD's USB
+port far from HDMI.
+
+Once the system is up, the TV console shows only critical kernel messages.
+To see them all again until the next boot, run this on the SHIELD:
+`echo Y > /sys/module/printk/parameters/ignore_loglevel`.
+
 ### Next (not scripted yet)
 
-1. The first boot of the installed system: Wi-Fi, Bluetooth pairing, SSH.
+1. Pair a Bluetooth keyboard.
 2. Extend the device tree: HDMI through tegra-drm, GPU (nouveau), audio,
    fan.
 3. Install `omarchy-arm`.

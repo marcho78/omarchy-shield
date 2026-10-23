@@ -953,7 +953,10 @@ enclosure's cable carried power but no data. With another cable:
   cable would put it on `2-2.x` at SuperSpeed.
 
 **The install, on the eMMC instead** (`scripts/14` with `PARTLABEL=UDA`),
-writes `userdata` and `boot`.
+writes `userdata` and `boot`. Android must then never start again while
+Linux is on `userdata`: its file-based encryption would fail there and it
+would offer a wipe, and `vendor_flash_recovery` would put its recovery back.
+The recovery slot keeps the test payload, for reports.
 
 ### The first boot of the installed system (2026-10-22)
 
@@ -1025,11 +1028,76 @@ nothing with `-D` here).
   - the root password, still Arch Linux ARM's default `root`; SSH is
     key-only
   - a USB 3 cable for the SSD
-  - HDMI through tegra-drm for the desktop Android must
-never start again while Linux is on `userdata`: its file-based encryption
-would fail there and it would offer a wipe, and `vendor_flash_recovery`
-would put its recovery back. The recovery slot keeps the test payload, for
-reports.
+  - HDMI through tegra-drm for the desktop
+
+### Quiet console, the board's addresses, updates over the network (2026-10-22)
+
+**The console is quiet once the system is up.**
+- The installed system's command line drops `ignore_loglevel`, and
+  `/etc/sysctl.d/20-quiet-console.conf` (`scripts/13`) sets
+  `kernel.printk = 3 4 1 7` when systemd-sysctl runs. The boot still shows
+  on the TV up to that point.
+- Checked over SSH: `/proc/cmdline` has no `ignore_loglevel`, and
+  `/proc/sys/kernel/printk` reads `3 4 1 7`.
+- **What it costs:** the level applies to every console, ramoops' included.
+  `printk_get_next_message()` drops a record below it for all of them; only
+  sysrq output is forced through (`LOG_FORCE_CON`). U-Boot's log screen
+  shows that console record (`report_last_log()`).
+  - Oopses and panics still come out in full: arm64's `die()` and `panic()`
+    call `console_verbose()`.
+  - After a **hang** (a watchdog reset), the screen would show the end of
+    the boot, not what came before the hang.
+  - For debugging, over SSH:
+    `echo Y > /sys/module/printk/parameters/ignore_loglevel` puts everything
+    back on the consoles until the next boot.
+
+**This SHIELD's NCT holds no Wi-Fi or Bluetooth address.** It was read over
+SSH from `mmcblk0p6` (2 MiB, magic `nVCt`):
+- Entries start at `0x4000`, `0x410` bytes each: a 32-bit index, then the
+  data at +12.
+- Present: the serial number (entry 0); entries 3, 5 and 39, all zeros;
+  8, the board info (starting `0x0b4e`, 2894); 42, a JSON config; and 43,
+  `gpu-dvfs-rework:…`. The two entries after the serial number are empty,
+  and the backup table at `0x104000` holds nothing.
+- Android's properties carry no address either (`device-info/getprop.txt`).
+- So the placeholders stay: Wi-Fi `00:90:4c:16:70:01` (the NVRAM file's)
+  and Bluetooth `43:50:C0:00:1F:AC`. That's fine for one SHIELD. Two on one
+  network would clash, and would each need a locally administered address
+  (not done).
+
+**`scripts/17` updates a running system without touching the TV.** It worked
+on its first run, modules included, in 1 min 30 s.
+- It copies the kernel's modules over SSH when the build's kernel isn't the
+  one running, or with `--modules`. They're unpacked beside the old tree,
+  then swapped in.
+- Then it runs `systemctl --reboot-argument=bootloader reboot`, `scripts/14`
+  the moment fastboot appears on USB, and `fastboot reboot`.
+- It checks that the build's kernel runs: `uname -rv` against the build's
+  `UTS_VERSION`.
+
+**The bootloader findings behind it:**
+- **The menu Linux reboots into doesn't always wait.**
+  - At 20:11 it answered fastboot 8.5 s after the reset, then went on into
+    the boot partition within about 15–18 s. There was no reset (no USB
+    disconnect), so it went on the way "Continue" does.
+  - Proof 1's first menu (13:00:09) didn't stay either: a reset followed at
+    13:01:34.
+  - The menu U-Boot's log screen reboots into has waited for minutes (19:58,
+    flashed 111 s later).
+  - The cause isn't known. U-Boot sets the same `PMC_SCRATCH0` bit
+    (`BIT(30)`) as Linux, and no keypress is known of. Flashing at once
+    works.
+- **`fastboot reboot` works despite its answer.** cboot replies
+  `FAILED (remote: 'unknown reason')`, the USB device drops 0.2 s later,
+  and the normal boot follows.
+- **The printk clock doesn't count from the reset.** The first kernel line
+  reads about 13 s whether or not the boot sat in the menu, so it says
+  nothing about the time spent there.
+
+**Wi-Fi took 2.4 GHz this boot**: channel 9 at −54 dBm, over the same
+network's 5 GHz access point (channel 48, −69 dBm). iwd ranks by signal; 5 GHz still works,
+and the scan heard 10 networks there. `[Rank] BandModifier5GHz` in
+`/etc/iwd/main.conf` (iwd 3.12) would favour 5 GHz. It's left as is.
 
 ## Never flash
 
