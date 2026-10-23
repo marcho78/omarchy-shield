@@ -1,0 +1,46 @@
+From 1be240d8c5e4bd81ed3ef8a9695c79c58215d83f Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:22:05 -0700
+Subject: [PATCH 6/7] tegra: fail cleanly when nouveau can't map or make a
+ sampler view
+
+tegra_transfer_map() and tegra_create_sampler_view() dereferenced
+nouveau's transfer and view without checking for NULL, so a failed map
+or an allocation failure became a segfault, and leaked tegra's wrapper.
+---
+ src/gallium/drivers/tegra/tegra_context.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/gallium/drivers/tegra/tegra_context.c b/src/gallium/drivers/tegra/tegra_context.c
+index ff280ec..c7e29c3 100644
+--- a/src/gallium/drivers/tegra/tegra_context.c
++++ b/src/gallium/drivers/tegra/tegra_context.c
+@@ -881,6 +881,11 @@ tegra_create_sampler_view(struct pipe_context *pcontext,
+ 
+    view->gpu = context->gpu->create_sampler_view(context->gpu, resource->gpu,
+                                                  template);
++   if (!view->gpu) {
++      pipe_resource_reference(&view->base.texture, NULL);
++      free(view);
++      return NULL;
++   }
+ 
+    /* use private reference count */
+    view->gpu->reference.count += 100000000;
+@@ -926,6 +931,13 @@ tegra_transfer_map(struct pipe_context *pcontext,
+                                                  level, usage, box,
+                                                  &transfer->gpu);
+    }
++
++   if (!transfer->gpu) {
++      free(transfer);
++      *ptransfer = NULL;
++      return NULL;
++   }
++
+    memcpy(&transfer->base, transfer->gpu, sizeof(*transfer->gpu));
+    transfer->base.resource = NULL;
+    pipe_resource_reference(&transfer->base.resource, presource);
+-- 
+2.56.0
+

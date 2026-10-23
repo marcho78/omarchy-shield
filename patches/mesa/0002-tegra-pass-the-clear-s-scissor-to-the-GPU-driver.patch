@@ -1,0 +1,30 @@
+From 756f9c2b154bf03b497a1887a70a8b994d981480 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:18:17 -0700
+Subject: [PATCH 2/7] tegra: pass the clear's scissor to the GPU driver
+
+tegra copies nouveau's caps, so it advertises scissored clears, but it
+dropped the scissor when forwarding pipe_context::clear. The state
+tracker then expected nouveau to clear only the scissor rectangle, and
+nouveau cleared the whole framebuffer: a compositor that clears only
+its damaged regions loses the rest of the frame.
+---
+ src/gallium/drivers/tegra/tegra_context.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/tegra/tegra_context.c b/src/gallium/drivers/tegra/tegra_context.c
+index 5341b96..eacf95f 100644
+--- a/src/gallium/drivers/tegra/tegra_context.c
++++ b/src/gallium/drivers/tegra/tegra_context.c
+@@ -735,7 +735,7 @@ tegra_clear(struct pipe_context *pcontext, unsigned buffers,
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
+ 
+-   context->gpu->clear(context->gpu, buffers, color_clear_mask, stencil_clear_mask, NULL, color, depth, stencil);
++   context->gpu->clear(context->gpu, buffers, color_clear_mask, stencil_clear_mask, scissor_state, color, depth, stencil);
+ }
+ 
+ static void
+-- 
+2.56.0
+

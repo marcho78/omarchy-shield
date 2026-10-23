@@ -66,6 +66,9 @@ if $install; then
   # pacman -U alone asks whether to remove the mesa it conflicts with, and
   # --noconfirm answers no
   log "mesa-darcy in place of mesa"
-  on_shield "! pacman -Q mesa >/dev/null 2>&1 || pacman -Rdd --noconfirm mesa; pacman -U --noconfirm $dir/$pkg"
+  on_shield "! pacman -Q mesa >/dev/null 2>&1 || pacman -Rdd --noconfirm mesa
+    pacman -U --noconfirm $dir/$pkg ||
+      { echo 'putting Arch Linux ARM mesa back'; pacman -S --noconfirm mesa; exit 1; }" ||
+    die "mesa-darcy didn't install; Arch Linux ARM's mesa is back"
   on_shield 'pacman -Q mesa-darcy'
 fi

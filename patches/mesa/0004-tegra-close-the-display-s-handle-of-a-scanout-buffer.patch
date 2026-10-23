@@ -1,0 +1,32 @@
+From 5833ad5a346cb62e2d5acdb37a1d5e19a6524e2c Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:20:08 -0700
+Subject: [PATCH 4/7] tegra: close the display's handle of a scanout buffer
+
+tegra_screen_import_resource() imports every scanout buffer into the
+display's DRM file with drmPrimeFDToHandle(), but nothing closed that
+handle, so each one kept its buffer alive until the file was closed.
+Close it when the resource goes, as renderonly does for kmsro.
+---
+ src/gallium/drivers/tegra/tegra_screen.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/gallium/drivers/tegra/tegra_screen.c b/src/gallium/drivers/tegra/tegra_screen.c
+index 38f7fd0..9b69785 100644
+--- a/src/gallium/drivers/tegra/tegra_screen.c
++++ b/src/gallium/drivers/tegra/tegra_screen.c
+@@ -318,6 +318,11 @@ tegra_screen_resource_destroy(struct pipe_screen *pscreen,
+                               struct pipe_resource *presource)
+ {
+    struct tegra_resource *resource = to_tegra_resource(presource);
++   struct tegra_screen *screen = to_tegra_screen(pscreen);
++
++   /* the display's handle, from tegra_screen_import_resource() */
++   if (resource->handle)
++      drmCloseBufferHandle(screen->fd, resource->handle);
+ 
+    /* adjust private reference count */
+    p_atomic_add(&resource->gpu->reference.count, -resource->refcount);
+-- 
+2.56.0
+

@@ -1,0 +1,202 @@
+From 89c4bc2507710c2ed82b62962692d385253c9c71 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:21:31 -0700
+Subject: [PATCH 5/7] tegra: offer only the hooks nouveau has, and wrap what
+ they return
+
+tegra set resource_create_front, flush_frontbuffer, fence_get_fd,
+create_fence_fd and fence_server_sync whether or not nouveau has them
+(nvc0 has none of them), so a caller that checks for the hook called
+NULL through tegra instead. Set each only when nouveau has it.
+
+resource_create_front and resource_from_user_memory returned nouveau's
+resource with its screen pointer changed, which every other hook then
+read as a tegra_resource, and flush_frontbuffer passed tegra's resource
+to nouveau. Wrap the new resources, and unwrap the one for nouveau.
+
+tegra copies nouveau's caps, including memobj, but forwarded only
+memobj_create_from_handle, so EXT_memory_object called a NULL
+resource_from_memobj. Forward memobj_destroy and resource_from_memobj
+too.
+---
+ src/gallium/drivers/tegra/tegra_context.c |  6 +-
+ src/gallium/drivers/tegra/tegra_screen.c  | 91 +++++++++++++++++------
+ 2 files changed, 72 insertions(+), 25 deletions(-)
+
+diff --git a/src/gallium/drivers/tegra/tegra_context.c b/src/gallium/drivers/tegra/tegra_context.c
+index 3a927ee..ff280ec 100644
+--- a/src/gallium/drivers/tegra/tegra_context.c
++++ b/src/gallium/drivers/tegra/tegra_context.c
+@@ -1361,8 +1361,10 @@ tegra_screen_context_create(struct pipe_screen *pscreen, void *priv,
+    context->base.clear_buffer = tegra_clear_buffer;
+    context->base.flush = tegra_flush;
+ 
+-   context->base.create_fence_fd = tegra_create_fence_fd;
+-   context->base.fence_server_sync = tegra_fence_server_sync;
++   if (context->gpu->create_fence_fd)
++      context->base.create_fence_fd = tegra_create_fence_fd;
++   if (context->gpu->fence_server_sync)
++      context->base.fence_server_sync = tegra_fence_server_sync;
+ 
+    context->base.create_sampler_view = tegra_create_sampler_view;
+    context->base.sampler_view_destroy = tegra_sampler_view_destroy;
+diff --git a/src/gallium/drivers/tegra/tegra_screen.c b/src/gallium/drivers/tegra/tegra_screen.c
+index 9b69785..fbc861f 100644
+--- a/src/gallium/drivers/tegra/tegra_screen.c
++++ b/src/gallium/drivers/tegra/tegra_screen.c
+@@ -221,21 +221,40 @@ free:
+    return NULL;
+ }
+ 
+-/* XXX */
++/* wraps a resource that the GPU driver made, or drops it */
++static struct pipe_resource *
++tegra_screen_wrap_resource(struct tegra_screen *screen,
++                           struct pipe_resource *gpu)
++{
++   struct tegra_resource *resource;
++
++   if (!gpu)
++      return NULL;
++
++   resource = calloc(1, sizeof(*resource));
++   if (!resource) {
++      pipe_resource_reference(&gpu, NULL);
++      return NULL;
++   }
++
++   resource->gpu = gpu;
++   memcpy(&resource->base, gpu, sizeof(*gpu));
++   pipe_reference_init(&resource->base.reference, 1);
++   resource->base.screen = &screen->base;
++
++   return &resource->base;
++}
++
+ static struct pipe_resource *
+ tegra_screen_resource_create_front(struct pipe_screen *pscreen,
+                                    const struct pipe_resource *template,
+                                    const void *map_front_private)
+ {
+    struct tegra_screen *screen = to_tegra_screen(pscreen);
+-   struct pipe_resource *resource;
+ 
+-   resource = screen->gpu->resource_create_front(screen->gpu, template,
+-                                                 map_front_private);
+-   if (resource)
+-      resource->screen = pscreen;
+-
+-   return resource;
++   return tegra_screen_wrap_resource(screen,
++      screen->gpu->resource_create_front(screen->gpu, template,
++                                         map_front_private));
+ }
+ 
+ static struct pipe_resource *
+@@ -265,21 +284,15 @@ tegra_screen_resource_from_handle(struct pipe_screen *pscreen,
+    return &resource->base;
+ }
+ 
+-/* XXX */
+ static struct pipe_resource *
+ tegra_screen_resource_from_user_memory(struct pipe_screen *pscreen,
+                                        const struct pipe_resource *template,
+                                        void *buffer)
+ {
+    struct tegra_screen *screen = to_tegra_screen(pscreen);
+-   struct pipe_resource *resource;
+ 
+-   resource = screen->gpu->resource_from_user_memory(screen->gpu, template,
+-                                                     buffer);
+-   if (resource)
+-      resource->screen = pscreen;
+-
+-   return resource;
++   return tegra_screen_wrap_resource(screen,
++      screen->gpu->resource_from_user_memory(screen->gpu, template, buffer));
+ }
+ 
+ static bool
+@@ -346,8 +359,8 @@ tegra_screen_flush_frontbuffer(struct pipe_screen *pscreen,
+    /* TODO: maybe rejigger for damage regions */
+    screen->gpu->flush_frontbuffer(screen->gpu,
+                                   context ? context->gpu : NULL,
+-                                  resource, level, layer,
+-                                  winsys_drawable_handle, nboxes, box);
++                                  tegra_resource_unwrap(resource), level,
++                                  layer, winsys_drawable_handle, nboxes, box);
+ }
+ 
+ static void
+@@ -516,6 +529,28 @@ tegra_screen_memobj_create_from_handle(struct pipe_screen *pscreen,
+                                                  dedicated);
+ }
+ 
++static void
++tegra_screen_memobj_destroy(struct pipe_screen *pscreen,
++                            struct pipe_memory_object *memobj)
++{
++   struct tegra_screen *screen = to_tegra_screen(pscreen);
++
++   screen->gpu->memobj_destroy(screen->gpu, memobj);
++}
++
++static struct pipe_resource *
++tegra_screen_resource_from_memobj(struct pipe_screen *pscreen,
++                                  const struct pipe_resource *template,
++                                  struct pipe_memory_object *memobj,
++                                  uint64_t offset)
++{
++   struct tegra_screen *screen = to_tegra_screen(pscreen);
++
++   return tegra_screen_wrap_resource(screen,
++      screen->gpu->resource_from_memobj(screen->gpu, template, memobj,
++                                        offset));
++}
++
+ static int
+ tegra_screen_get_fd(struct pipe_screen *pscreen)
+ {
+@@ -570,16 +605,20 @@ tegra_screen_create(int fd)
+       screen->base.can_create_resource = tegra_screen_can_create_resource;
+ 
+    screen->base.resource_create = tegra_screen_resource_create;
+-   screen->base.resource_create_front = tegra_screen_resource_create_front;
++   if (screen->gpu->resource_create_front)
++      screen->base.resource_create_front = tegra_screen_resource_create_front;
+    screen->base.resource_from_handle = tegra_screen_resource_from_handle;
+-   screen->base.resource_from_user_memory = tegra_screen_resource_from_user_memory;
++   if (screen->gpu->resource_from_user_memory)
++      screen->base.resource_from_user_memory = tegra_screen_resource_from_user_memory;
+    screen->base.resource_get_handle = tegra_screen_resource_get_handle;
+    screen->base.resource_destroy = tegra_screen_resource_destroy;
+ 
+-   screen->base.flush_frontbuffer = tegra_screen_flush_frontbuffer;
++   if (screen->gpu->flush_frontbuffer)
++      screen->base.flush_frontbuffer = tegra_screen_flush_frontbuffer;
+    screen->base.fence_reference = tegra_screen_fence_reference;
+    screen->base.fence_finish = tegra_screen_fence_finish;
+-   screen->base.fence_get_fd = tegra_screen_fence_get_fd;
++   if (screen->gpu->fence_get_fd)
++      screen->base.fence_get_fd = tegra_screen_fence_get_fd;
+ 
+    screen->base.get_driver_query_info = tegra_screen_get_driver_query_info;
+    screen->base.get_driver_query_group_info = tegra_screen_get_driver_query_group_info;
+@@ -591,7 +630,13 @@ tegra_screen_create(int fd)
+    screen->base.query_dmabuf_modifiers = tegra_screen_query_dmabuf_modifiers;
+    screen->base.is_dmabuf_modifier_supported = tegra_screen_is_dmabuf_modifier_supported;
+    screen->base.get_dmabuf_modifier_planes = tegra_screen_get_dmabuf_modifier_planes;
+-   screen->base.memobj_create_from_handle = tegra_screen_memobj_create_from_handle;
++
++   if (screen->gpu->memobj_create_from_handle &&
++       screen->gpu->memobj_destroy && screen->gpu->resource_from_memobj) {
++      screen->base.memobj_create_from_handle = tegra_screen_memobj_create_from_handle;
++      screen->base.memobj_destroy = tegra_screen_memobj_destroy;
++      screen->base.resource_from_memobj = tegra_screen_resource_from_memobj;
++   }
+ 
+    memcpy((void *)&screen->base.caps, &screen->gpu->caps, sizeof(screen->base.caps));
+    memcpy((void *)screen->base.shader_caps, screen->gpu->shader_caps, sizeof(screen->base.shader_caps));
+-- 
+2.56.0
+

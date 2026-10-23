@@ -1,0 +1,124 @@
+From 6d0d3da188e18f771640e6055b794805c3ff1d8f Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:19:18 -0700
+Subject: [PATCH 3/7] tegra: unwrap the resources of buffers, images, queries,
+ grids and handles
+
+Shader storage buffers, shader images, query result buffers, indirect
+compute grids and bindless texture and image handles went to nouveau
+with tegra's wrapped resources (or, for texture handles, tegra's
+sampler view), which nouveau reads as its own. Unwrap them the way
+draw_vbo already does. Global buffers (OpenCL) are still passed as
+they are.
+---
+ src/gallium/drivers/tegra/tegra_context.c | 52 ++++++++++++++++++++---
+ 1 file changed, 45 insertions(+), 7 deletions(-)
+
+diff --git a/src/gallium/drivers/tegra/tegra_context.c b/src/gallium/drivers/tegra/tegra_context.c
+index eacf95f..3a927ee 100644
+--- a/src/gallium/drivers/tegra/tegra_context.c
++++ b/src/gallium/drivers/tegra/tegra_context.c
+@@ -163,7 +163,8 @@ tegra_get_query_result_resource(struct pipe_context *pcontext,
+    struct tegra_context *context = to_tegra_context(pcontext);
+ 
+    context->gpu->get_query_result_resource(context->gpu, query, flags,
+-                                           result_type, index, resource,
++                                           result_type, index,
++                                           tegra_resource_unwrap(resource),
+                                            offset);
+ }
+ 
+@@ -613,6 +614,18 @@ tegra_set_shader_buffers(struct pipe_context *pcontext, mesa_shader_stage shader
+                          unsigned writable_bitmask)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
++   struct pipe_shader_buffer buf[PIPE_MAX_SHADER_BUFFERS];
++   unsigned int i;
++
++   if (buffers) {
++      assert(count <= PIPE_MAX_SHADER_BUFFERS);
++      memcpy(buf, buffers, count * sizeof(*buffers));
++
++      for (i = 0; i < count; i++)
++         buf[i].buffer = tegra_resource_unwrap(buffers[i].buffer);
++
++      buffers = buf;
++   }
+ 
+    context->gpu->set_shader_buffers(context->gpu, shader, start, count,
+                                     buffers, writable_bitmask);
+@@ -625,6 +638,18 @@ tegra_set_shader_images(struct pipe_context *pcontext, mesa_shader_stage shader,
+                         const struct pipe_image_view *images)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
++   struct pipe_image_view views[PIPE_MAX_SHADER_IMAGES];
++   unsigned int i;
++
++   if (images) {
++      assert(count <= PIPE_MAX_SHADER_IMAGES);
++      memcpy(views, images, count * sizeof(*images));
++
++      for (i = 0; i < count; i++)
++         views[i].resource = tegra_resource_unwrap(images[i].resource);
++
++      images = views;
++   }
+ 
+    context->gpu->set_shader_images(context->gpu, shader, start, count,
+                                    unbind_num_trailing_slots, images);
+@@ -1043,13 +1068,20 @@ tegra_set_global_binding(struct pipe_context *pcontext, unsigned int first,
+ 
+ static void
+ tegra_launch_grid(struct pipe_context *pcontext,
+-                  const struct pipe_grid_info *info)
++                  const struct pipe_grid_info *pinfo)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
++   struct pipe_grid_info info;
+ 
+-   /* XXX unwrap info->indirect? */
++   /* XXX unwrap info->globals (OpenCL) */
++   if (pinfo->indirect || pinfo->indirect_draw_count) {
++      memcpy(&info, pinfo, sizeof(info));
++      info.indirect = tegra_resource_unwrap(pinfo->indirect);
++      info.indirect_draw_count = tegra_resource_unwrap(pinfo->indirect_draw_count);
++      pinfo = &info;
++   }
+ 
+-   context->gpu->launch_grid(context->gpu, info);
++   context->gpu->launch_grid(context->gpu, pinfo);
+ }
+ 
+ static void
+@@ -1148,7 +1180,9 @@ tegra_create_texture_handle(struct pipe_context *pcontext,
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
+ 
+-   return context->gpu->create_texture_handle(context->gpu, view, state);
++   return context->gpu->create_texture_handle(context->gpu,
++                                              tegra_sampler_view_unwrap(view),
++                                              state);
+ }
+ 
+ static void tegra_delete_texture_handle(struct pipe_context *pcontext,
+@@ -1168,11 +1202,15 @@ static void tegra_make_texture_handle_resident(struct pipe_context *pcontext,
+ }
+ 
+ static uint64_t tegra_create_image_handle(struct pipe_context *pcontext,
+-                                          const struct pipe_image_view *image)
++                                          const struct pipe_image_view *pimage)
+ {
+    struct tegra_context *context = to_tegra_context(pcontext);
++   struct pipe_image_view image;
+ 
+-   return context->gpu->create_image_handle(context->gpu, image);
++   memcpy(&image, pimage, sizeof(image));
++   image.resource = tegra_resource_unwrap(pimage->resource);
++
++   return context->gpu->create_image_handle(context->gpu, &image);
+ }
+ 
+ static void tegra_delete_image_handle(struct pipe_context *pcontext,
+-- 
+2.56.0
+

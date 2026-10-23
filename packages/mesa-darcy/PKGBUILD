@@ -6,41 +6,61 @@
 # patches/mesa/0001 is Mesa merge request !45355 (issue #14640), not in a
 # release yet. Without it every OpenGL program crashes on its first draw:
 # since Mesa 25.2, the tegra driver hands nouveau its own wrapped resources
-# in the framebuffer (NOTES.md).
+# in the framebuffer (NOTES.md). 0002-0007 fix the rest of the tegra driver
+# that n-codex's review found: the clear's scissor, more unwrapping, the
+# display's handles, hooks nouveau doesn't have, failure paths.
 pkgname=mesa-darcy
 pkgver=26.2.5
-pkgrel=1
+pkgrel=2
 epoch=1
 pkgdesc="Mesa for the SHIELD TV 2017: OpenGL, OpenGL ES, EGL and GBM through nouveau and tegra"
 arch=(aarch64)
 url=https://www.mesa3d.org/
 license=('MIT AND BSD-3-Clause AND SGI-B-2.0')
-depends=(expat gcc-libs glibc libdrm libglvnd libx11 libxcb libxext libxfixes
-         libxshmfence libxxf86vm wayland zlib zstd)
+# Arch Linux ARM's mesa's, less what the drivers left out need
+depends=(expat glibc libdrm libgcc libglvnd libstdc++ libx11 libxcb libxext
+         libxfixes libxshmfence libxxf86vm wayland zlib zstd)
 makedepends=(bison flex meson ninja python-mako python-packaging python-yaml
              wayland-protocols xorgproto)
 # What Arch Linux ARM's mesa provides, less the video drivers
 provides=("mesa=$epoch:$pkgver-$pkgrel" "mesa-libgl=$epoch:$pkgver-$pkgrel"
           opengl-driver)
 conflicts=(mesa mesa-libgl)
-options=(!lto !debug)
+# The libraries keep their symbols while the tegra driver is being brought
+# up, so that a crash names its functions
+options=(!lto !debug !strip)
 source=("https://archive.mesa3d.org/mesa-$pkgver.tar.xz"
-        0001-tegra-unwrap-framebuffer-and-clear-surfaces.patch)
+        0001-tegra-unwrap-framebuffer-and-clear-surfaces.patch
+        0002-tegra-pass-the-clear-s-scissor-to-the-GPU-driver.patch
+        0003-tegra-unwrap-the-resources-of-buffers-images-queries.patch
+        0004-tegra-close-the-display-s-handle-of-a-scanout-buffer.patch
+        0005-tegra-offer-only-the-hooks-nouveau-has-and-wrap-what.patch
+        0006-tegra-fail-cleanly-when-nouveau-can-t-map-or-make-a-.patch
+        0007-tegra-offer-only-the-context-hooks-nouveau-has.patch)
 # The tarball's is Arch Linux ARM's (its PKGBUILD checks the release's
 # signature)
 sha256sums=('794b3d1729075dae7ebd47c7283b7ca0cdb5dec668f7f11cc0a5d82f6138a0a5'
-            'fd4f51078c2e0848371a99dd05d927ba39a2580251bb76f9d09513aacdc70b63')
+            'fd4f51078c2e0848371a99dd05d927ba39a2580251bb76f9d09513aacdc70b63'
+            '38517a60fde46e4a9cc4c6c65469db4ae0f75e5e10d2cd9efae6d4d58195f5f4'
+            '5b94eaf76be4c1056beec2ca23330b900a8c2fea5fced7fbb9b6f9377b238dc6'
+            '3397b07420014f5924dae0ccdd7bfd3bde6211ea368de6f4494d3ed63339e6fc'
+            '6b81bf2eeba2bb533211fe9046969273b29aa5a9635953ea38a6cdd14a17b6d1'
+            '468c36d7704ed1ad5026f163785a698c09eff5c4a31f7de62f8140d689442624'
+            '5b9cd8a752b247be31deafa1cd72145a99e2d1a1f2fddec738532ba3649185bc')
 
 prepare() {
   cd mesa-$pkgver
-  patch -Np1 -i ../0001-tegra-unwrap-framebuffer-and-clear-surfaces.patch
+  local p
+  for p in "${source[@]:1}"; do
+    patch -Np1 -i "../$p"
+  done
   # The version string, and libgallium's file name, say which build this is
   echo "$pkgver-darcy$epoch.$pkgrel" >VERSION
 }
 
 build() {
   # arch-meson turns every "auto" feature on, so the ones this build
-  # doesn't need are off by name
+  # doesn't need are off by name, and the ones it needs are named too
   arch-meson mesa-$pkgver build \
     --optimization 2 \
     -D b_ndebug=true \
@@ -48,7 +68,15 @@ build() {
     -D vulkan-drivers= \
     -D vulkan-layers= \
     -D platforms=x11,wayland \
+    -D egl=enabled \
+    -D gbm=enabled \
+    -D gles2=enabled \
+    -D opengl=true \
+    -D glvnd=enabled \
     -D glx=dri \
+    -D shader-cache=enabled \
+    -D xmlconfig=enabled \
+    -D expat=enabled \
     -D gles1=disabled \
     -D llvm=disabled \
     -D shared-llvm=disabled \
@@ -73,5 +101,7 @@ build() {
 
 package() {
   meson install -C build --destdir "$pkgdir"
+  # indirect rendering, as Arch Linux ARM's mesa has it
+  ln -sr "$pkgdir"/usr/lib/libGLX_{mesa,indirect}.so.0
   install -Dm644 mesa-$pkgver/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
 }

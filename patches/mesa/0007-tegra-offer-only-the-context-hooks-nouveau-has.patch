@@ -1,0 +1,58 @@
+From 9ec5cc1fb9523b1fe7762259d47a2c987b8804a0 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:32:21 -0700
+Subject: [PATCH 7/7] tegra: offer only the context hooks nouveau has
+
+Like the fence hooks, set_device_reset_callback, dump_debug_state,
+create_batch_query, get_timestamp and generate_mipmap went to nouveau
+whether or not it has them, and nvc0 has none of them. The state
+tracker installs a device reset callback in every robust context, as
+browsers create them, and that called NULL through tegra. Set each hook
+only when nouveau has it.
+---
+ src/gallium/drivers/tegra/tegra_context.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/src/gallium/drivers/tegra/tegra_context.c b/src/gallium/drivers/tegra/tegra_context.c
+index c7e29c3..9798736 100644
+--- a/src/gallium/drivers/tegra/tegra_context.c
++++ b/src/gallium/drivers/tegra/tegra_context.c
+@@ -1291,7 +1291,8 @@ tegra_screen_context_create(struct pipe_screen *pscreen, void *priv,
+    context->base.render_condition = tegra_render_condition;
+ 
+    context->base.create_query = tegra_create_query;
+-   context->base.create_batch_query = tegra_create_batch_query;
++   if (context->gpu->create_batch_query)
++      context->base.create_batch_query = tegra_create_batch_query;
+    context->base.destroy_query = tegra_destroy_query;
+    context->base.begin_query = tegra_begin_query;
+    context->base.end_query = tegra_end_query;
+@@ -1403,17 +1404,21 @@ tegra_screen_context_create(struct pipe_screen *pscreen, void *priv,
+    context->base.set_global_binding = tegra_set_global_binding;
+    context->base.launch_grid = tegra_launch_grid;
+    context->base.get_sample_position = tegra_get_sample_position;
+-   context->base.get_timestamp = tegra_get_timestamp;
++   if (context->gpu->get_timestamp)
++      context->base.get_timestamp = tegra_get_timestamp;
+ 
+    context->base.flush_resource = tegra_flush_resource;
+    context->base.invalidate_resource = tegra_invalidate_resource;
+ 
+    context->base.get_device_reset_status = tegra_get_device_reset_status;
+-   context->base.set_device_reset_callback = tegra_set_device_reset_callback;
+-   context->base.dump_debug_state = tegra_dump_debug_state;
++   if (context->gpu->set_device_reset_callback)
++      context->base.set_device_reset_callback = tegra_set_device_reset_callback;
++   if (context->gpu->dump_debug_state)
++      context->base.dump_debug_state = tegra_dump_debug_state;
+    context->base.emit_string_marker = tegra_emit_string_marker;
+ 
+-   context->base.generate_mipmap = tegra_generate_mipmap;
++   if (context->gpu->generate_mipmap)
++      context->base.generate_mipmap = tegra_generate_mipmap;
+ 
+    context->base.create_texture_handle = tegra_create_texture_handle;
+    context->base.delete_texture_handle = tegra_delete_texture_handle;
+-- 
+2.56.0
+
