@@ -1614,6 +1614,75 @@ matters, since Wi-Fi is the main link. A shorter blacklist (iwd.config:
 Why the access point deauthenticates is still open, Wi-Fi power saving
 for one.
 
+### The GPU and the desktop: the plan after two reviews (2026-10-23)
+
+n-codex (`research/ncodex-plan2-review.md`) and antigravity
+(`research/antigravity-plan2-review.md`) reviewed the plan. antigravity's
+review came in after part A was done. On part A it matches what was done:
+the cap as a kernel patch, passive cooling before the full rate. The order
+for part B:
+
+1. **B1, glmark2 on the TV.** nouveau by hand, the rollback timer armed,
+   `glmark2-es2-drm` on `/dev/dri/by-path/platform-50000000.host1x-card`
+   (tegra-drm), stopped at 80 °C. Also measure how much hotter the GPU runs
+   than the CPU, since the fan follows `cpu-thermal` only.
+2. **B3, plain Hyprland** from a VT. Set `AQ_DRM_DEVICES` to that path
+   before launch; it has no colon, which Aquamarine's list would split on.
+   Leave `DRI_PRIME`, `GBM_BACKEND` and `MESA_LOADER_DRIVER_OVERRIDE` unset,
+   and keep atomic on.
+   - **The pointer drawn in software first**
+     (`cursor:no_hardware_cursors = true`), then the hardware cursor as its
+     own step. Tegra210's cursor plane takes only `DRM_FORMAT_RGBA8888`,
+     linear, square 32/64/128/256 pixels (`dc.c:957-995, 1203-1252`).
+     antigravity found the format. n-codex had the sizes and would start
+     with the hardware cursor.
+   - Fallbacks one at a time, on evidence: `AQ_NO_MODIFIERS=1` after GBM,
+     import or `ADDFB2` failures; `AQ_NO_ATOMIC=1` only after an
+     atomic-commit error.
+3. **B2, nouveau at boot,** once the desktop starts every time.
+4. **B4, omarchy-arm with a `tegra` platform.** darcy's compatible is
+   `nvidia,p2894-0050-a08 nvidia,darcy nvidia,tegra210` (read on the
+   SHIELD). Without a match it's `generic-aarch64`, which installs the VM
+   packages `vulkan-virtio vulkan-swrast` (`install/hardware/arm/vulkan.sh:17-21`).
+   - `bin/omarchy-hw-platform`: match `nvidia,tegra210`. Add a new
+     `bin/omarchy-hw-tegra`, like `omarchy-hw-raspberry-pi`.
+   - `install.sh`: the `--profile` help (`:61-62`) and the banner
+     (`:193-205`).
+   - `install/hardware/arm/vulkan.sh`: a `tegra)` case, installing nothing
+     at first.
+   - A new `install/hardware/arm/tegra.sh`, run from
+     `install/hardware/all.sh`.
+   - `default/hypr/platform.lua` and a new `default/hypr/platform/tegra.lua`:
+     the Pi's light defaults (no animations, blur or shadows), plus the
+     software cursor until the hardware one is proven.
+   - `AQ_DRM_DEVICES` in `default/uwsm/env.d/10-omarchy` and in SDDM's
+     environment (`etc/sddm.conf.d/10-wayland.conf`).
+   - Tests: a darcy fixture in `test/shell.d/arm64-platform-test.sh`, and
+     the new leaf in `arm64-gating-test.sh:41`.
+
+   `bin/omarchy-hw-nvidia` looks at PCI only, so it's false here, and the
+   proprietary driver's settings (`default/hypr/nvidia.lua`) stay off. The
+   Limine step skips itself, since there's no `limine.conf`.
+
+**Wrong in antigravity's review (checked):**
+- It computed the DFLL's voltages from a CPU speedo value of 2089. That
+  value isn't in the repo or its history. This chip's is 2041. At 1020 MHz
+  that gives 919 mV, and the LUT spanned index 9–11 as measured, not 9–10.
+- It treats a `gpu-thermal` passive trip at 84 °C as part of the plan.
+  There is none.
+- It warns that `install/hardware/arm/vulkan.sh` could fail on a missing
+  package. It can't: `omarchy_arm_pkg_add_available` skips missing ones
+  (`install/arm/platform.sh:78`).
+- It calls Mesa's `tegra` driver a kmsro stub. It's a driver of its own
+  around nouveau. It's used the same way: GBM on the tegra-drm card.
+
+**True, and left alone:** with `polling-delay-passive = 1000`,
+mem-thermal's stock 50 °C `dram_nominal` passive trip makes the zone poll
+once a second while memory is above 50 °C (`thermal_core.c:289-295,
+416-419`). The trip is mapped to `&emc`, which has no driver here. The
+polling is one sensor read a second, under load only: memory idles at
+44.5 °C.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

@@ -270,8 +270,9 @@ To see them all again until the next boot, run this on the SHIELD:
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. CPU frequency scaling (the DFLL), then the GPU at boot (nouveau), audio.
-3. Install `omarchy-arm`.
+2. The GPU on the TV (glmark2), then plain Hyprland, then nouveau at boot;
+   audio. The plan is in `NOTES.md`, "The GPU and the desktop".
+3. Install `omarchy-arm`, with a `tegra` platform added to it.
 
 ## Layout
 
