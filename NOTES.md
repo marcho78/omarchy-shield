@@ -1398,11 +1398,38 @@ shutdown.**
   it was. `scripts/17` then skipped the modules. It now compares the
   modules by a hash, which the SHIELD keeps in `.darcy-modules-hash`.
 
-**Next:** the reviews of the power-management plan (n-codex, antigravity;
-n-grok and Z.ai are out of usage), then one change at a time, measured with
-the INA3221 and soctherm:
+**The main cause: darcy has a fan, and nothing ran it.** n-codex pointed at
+stock darcy's `pwm-fan` (`tegra210-darcy-pwm-fan.dtsi`): PWM channel 3 on
+`pe7`, a 65536 ns period, 5V from `vdd_fan` (GPIO E4), the tachometer on
+GPIO G0. AFTVnews' teardown of the 2nd-gen SHIELD TV shows the fan too.
+- **Under our Linux the fan never ran.** E4 wasn't in GPIO mode (supply
+  off), `pe7` was on RSVD0, PWM channel 3 was disabled, and `darcy.dts`
+  even kept `vdd_fan` disabled.
+- **Measured with `gpioset`/`gpiomon`** (libgpiod), E4 high and the PWM
+  pin driven as a GPIO:
+  - PWM pin **low**: 1103 tachometer edges in 3 s and +0.63 W. The user
+    heard the fan.
+  - PWM pin high: 0 edges.
+  - So the fan's PWM input is **inverted**.
+- **`darcy.dts` now has the fan:**
+  - `pe7` → `pwm3` in the PWM controller's default pin state
+  - `vdd_fan` enabled
+  - a `pwm-fan` node with `cooling-levels = <255 190 145 125 96 16 1>`.
+    Linux's Tegra PWM has no inverted polarity, so the levels count down:
+    255 stops the fan, then stock's "cool" profile, then full. The top is 1,
+    not 0, because pwm-fan turns the PWM off for 0.
+  - the tachometer as an interrupt
+  - active trips on `cpu-thermal` at 45/55/65/75/85/95 °C for levels 1–6
+- **Result:** pwm-fan binds and the fan settles at level 1 (25%, about
+  2375 RPM). Idle, at 2–4 min, the CPU went from 47 to 43 °C and memory
+  from 50 to 45 °C, against 67–72 °C without the fan. Power dropped from
+  6.0–6.35 W to about 5.0 W.
+
+**Still to do, now without the urgency:** the CPU's power management
+(reviews in `research/`):
 1. drop `cpuidle.off=1`
-2. the DFLL in PWM mode
+2. the DFLL in PWM mode, capped (mainline allows 2.2185 GHz for CPU speedo
+   2; stock darcy stops at 2.0145 GHz)
 3. passive cooling through cpufreq
 
 ## Never flash

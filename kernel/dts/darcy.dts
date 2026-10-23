@@ -81,14 +81,6 @@
 };
 
 /*
- * Left as cboot set it until a driver owns it: the fan (pwm-fan). Probing
- * it would take over its GPIO and drive it low.
- */
-&vdd_fan {
-	status = "disabled";
-};
-
-/*
  * The HDMI 5V switch (GPIO CC7), SOR1's hdmi-supply. Boot-on, so its probe
  * keeps the pin high (regulator/fixed.c), and always on, so that SOR1
  * giving it up (a failed probe, the module unloading) doesn't cut the TV's
@@ -188,18 +180,19 @@
  * disabled the rail starts at its 710 mV floor when nouveau enables it, as
  * on Jetson TX1.
  *
- * cboot also leaves the PWM pin, lcd_gpio2_pv4, on its DISPLAYB function;
- * Android's kernel muxes it to pwm1 with the rest of its pinmux. Here the
- * PWM controller applies just that pin, as its default state: without it
- * the duty cycle would never reach the regulator.
+ * cboot also leaves the PWM pins on other functions: lcd_gpio2_pv4 on
+ * DISPLAYB, and the fan's pe7 (below) on RSVD0. Android's kernel muxes them
+ * to pwm1 and pwm3 with the rest of its pinmux. Here the PWM controller
+ * applies just those two pins, as its default state: without it the duty
+ * cycle would never reach the regulator or the fan.
  *
  * The controller also runs channel 0 for cboot, the lightbar LED, which
  * nothing in Linux claims: the driver gates the controller's clock while no
  * Linux user has a channel on (tegra_pwm_runtime_suspend()), so the LED can
- * freeze while the GPU is off.
+ * freeze while neither the GPU nor the fan runs.
  */
 &pinmux {
-	gpu_pwm_default: pinmux-gpu-pwm {
+	pwm_default: pinmux-pwm {
 		lcd_gpio2_pv4 {
 			nvidia,pins = "lcd_gpio2_pv4";
 			nvidia,function = "pwm1";
@@ -208,13 +201,124 @@
 			nvidia,enable-input = <TEGRA_PIN_DISABLE>;
 			nvidia,open-drain = <TEGRA_PIN_DISABLE>;
 		};
+
+		pe7 {
+			nvidia,pins = "pe7";
+			nvidia,function = "pwm3";
+			nvidia,pull = <TEGRA_PIN_PULL_NONE>;
+			nvidia,tristate = <TEGRA_PIN_DISABLE>;
+			nvidia,enable-input = <TEGRA_PIN_DISABLE>;
+		};
 	};
 };
 
 &pwm {
 	pinctrl-names = "default";
-	pinctrl-0 = <&gpu_pwm_default>;
+	pinctrl-0 = <&pwm_default>;
 	status = "okay";
+};
+
+/*
+ * The fan, which nothing ran before: the stock darcy device tree's pwm-fan
+ * (tegra210-darcy-pwm-fan.dtsi), on PWM channel 3 (pin pe7) at a 65536 ns
+ * period, its 5V switched by vdd_fan (GPIO E4), its tachometer on GPIO G0.
+ * The fan's PWM input is inverted, measured with the pin driven as a GPIO:
+ * low ran it flat out (1103 tachometer edges in 3 s, +0.63 W), high stopped
+ * it. Linux's Tegra PWM has no inverted polarity, so the levels count down:
+ * duty 255 stops the fan; the others are stock's "cool" profile (25, 43, 51,
+ * 62.5 and 94 percent), then full. The top level is 1, not 0: pwm-fan turns
+ * the PWM off for 0, and an off Tegra PWM drives its pin low.
+ *
+ * The driver starts the fan at its top level, until the trips below take
+ * over.
+ */
+/ {
+	fan: pwm-fan {
+		compatible = "pwm-fan";
+		pwms = <&pwm 3 65536>;
+		fan-supply = <&vdd_fan>;
+		cooling-levels = <255 190 145 125 96 16 1>;
+		#cooling-cells = <2>;
+		interrupts-extended = <&gpio TEGRA_GPIO(G, 0) IRQ_TYPE_EDGE_FALLING>;
+		pulses-per-revolution = <2>;
+	};
+};
+
+/*
+ * The fan follows the CPU's temperature: stock darcy's "cool" profile starts
+ * it at 50 C. These start it at 45 C, and add two more steps up to 95 C,
+ * while the CPU runs without DVFS.
+ */
+&{/thermal-zones/cpu-thermal} {
+	trips {
+		fan1: fan-45 {
+			temperature = <45000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		fan2: fan-55 {
+			temperature = <55000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		fan3: fan-65 {
+			temperature = <65000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		fan4: fan-75 {
+			temperature = <75000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		fan5: fan-85 {
+			temperature = <85000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+
+		fan6: fan-95 {
+			temperature = <95000>;
+			hysteresis = <3000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		fan-45 {
+			trip = <&fan1>;
+			cooling-device = <&fan 1 1>;
+		};
+
+		fan-55 {
+			trip = <&fan2>;
+			cooling-device = <&fan 2 2>;
+		};
+
+		fan-65 {
+			trip = <&fan3>;
+			cooling-device = <&fan 3 3>;
+		};
+
+		fan-75 {
+			trip = <&fan4>;
+			cooling-device = <&fan 4 4>;
+		};
+
+		fan-85 {
+			trip = <&fan5>;
+			cooling-device = <&fan 5 5>;
+		};
+
+		fan-95 {
+			trip = <&fan6>;
+			cooling-device = <&fan 6 6>;
+		};
+	};
 };
 
 / {
