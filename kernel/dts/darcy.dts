@@ -224,6 +224,25 @@
 		interrupt-parent = <&gpio>;
 		interrupts = <TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "host-wake";
+
+		/*
+		 * The firmware's locale for each country: NVIDIA's table for
+		 * darcy, which ships with the same CLM blob (country_code_map
+		 * in the downstream darcy device tree; its "E0" entry is not a
+		 * country and is left out). brcmfmac passes cfg80211's country
+		 * (cfg80211.ieee80211_regdom, config.sh WIFI_COUNTRY) on to a
+		 * BCM4354 only through such a map; without it the firmware
+		 * keeps the NVRAM's ccode=XV, which can leave out every 5 GHz
+		 * channel.
+		 */
+		brcm,ccode-map = "XV-XV-0", "US-US-0", "CA-Q2-0", "AT-DE-0", "BE-DE-0", "BG-DE-0",
+				 "HR-DE-0", "CY-DE-0", "CZ-DE-0", "DK-DE-0", "EE-DE-0", "FI-DE-0",
+				 "FR-DE-0", "DE-DE-0", "GR-DE-0", "HU-DE-0", "IS-DE-0", "IE-DE-0",
+				 "IT-DE-0", "LV-DE-0", "LI-DE-0", "LT-DE-0", "LU-DE-0", "MT-DE-0",
+				 "NL-DE-0", "NO-DE-0", "PL-DE-0", "PT-DE-0", "RO-DE-0", "SK-DE-0",
+				 "SI-DE-0", "ES-DE-0", "SE-DE-0", "CH-DE-0", "TR-DE-0", "GB-DE-0",
+				 "EU-DE-0", "AU-AU-0", "CN-CN-0", "IN-IN-0", "JP-JP-0", "KR-KR-0",
+				 "RU-RU-0", "TW-US-0", "SG-DE-0", "HK-DE-0", "NZ-AU-0", "AP-XY-0";
 	};
 };
 

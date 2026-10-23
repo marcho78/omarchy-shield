@@ -11,17 +11,18 @@
 / {
 	chosen {
 		/*
-		 * darcy.dts's, plus the root filesystem: scripts/12 puts
-		 * config.sh SYSTEM_ROOT in place of @SYSTEM_ROOT@. Without it
-		 * after 30 s, the kernel panics, and U-Boot shows the log
-		 * after the reset.
+		 * darcy.dts's, plus the root filesystem and the Wi-Fi country:
+		 * scripts/12 puts config.sh SYSTEM_ROOT and WIFI_COUNTRY in
+		 * place of @SYSTEM_ROOT@ and @WIFI_COUNTRY@. Without the root
+		 * filesystem after 30 s, the kernel panics, and U-Boot shows
+		 * the log after the reset.
 		 *
 		 * tegra-drm stays out until its HDMI bring-up is done: when
 		 * udev loads it, it removes the simple framebuffer the console
 		 * is on, then finds no output it can drive ("Cannot find any
 		 * crtc or sizes"), and the TV goes dark.
 		 */
-		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel panic=10 printk.devkmsg=on module_blacklist=tegra_drm root=@SYSTEM_ROOT@ rootwait=30 rw";
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 ignore_loglevel panic=10 printk.devkmsg=on module_blacklist=tegra_drm cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
 
 		/*
 		 * U-Boot boots it again after a reboot, and shows its log only

@@ -33,8 +33,8 @@ cpp -nostdinc -undef -x assembler-with-cpp -D__DTS__ \
   -I "$src/arch/arm64/boot/dts" -I "$src/include" -I "$ROOT/kernel/dts" \
   -o "$out/darcy.dts.pre" "$ROOT/kernel/dts/$dts.dts"
 if [[ $dts == darcy-system ]]; then
-  log "root filesystem: $SYSTEM_ROOT (config.sh SYSTEM_ROOT)"
-  sed -i "s|@SYSTEM_ROOT@|$SYSTEM_ROOT|" "$out/darcy.dts.pre"
+  log "root filesystem: $SYSTEM_ROOT, Wi-Fi country: $WIFI_COUNTRY (config.sh)"
+  sed -i "s|@SYSTEM_ROOT@|$SYSTEM_ROOT|; s|@WIFI_COUNTRY@|$WIFI_COUNTRY|" "$out/darcy.dts.pre"
 fi
 dtc -q -I dts -O dtb -o "$out/darcy.dtb" "$out/darcy.dts.pre"
 

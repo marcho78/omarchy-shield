@@ -98,6 +98,10 @@ VENDOR_FIRMWARE=(
 #                         writes in place of Android's user data
 SYSTEM_ROOT=PARTLABEL=darcy-root
 
+# The Wi-Fi regulatory domain (ISO 3166 country code), set by the kernel
+# itself (cfg80211.ieee80211_regdom); the image has no iw for Arch's helper
+WIFI_COUNTRY=US
+
 # darcy's device tree names the board "nvidia,p2894-0050-a08" (the first
 # root compatible), and drivers look for board-specific firmware under that
 # name before the generic one: brcm/brcmfmac4354-sdio.nvidia,p2894-0050-a08.bin
