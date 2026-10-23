@@ -2247,6 +2247,18 @@ half 0x308c, 0x1846, 0x0c23. The table from that boot again matched
 `tools/emc-table.py` byte for byte, and `tools/emc-rate.sh` took the EMC
 from 800 to 1600 MHz in one switch (PLLMB).
 
+**STK with the user at the TV** (kernel #19, unlocked, dynamic lighting
+off, the same replay):
+
+| EMC | FPS | steady, mostly stable, typical | GPU at 998 MHz |
+|---|---|---|---|
+| 800 MHz | 17.7 (787 frames in 44 s) | 11, 14, 17 | 82% of the time |
+| 1600 MHz | 20.7 (845 frames in 41 s) | 14, 16, 19 | 56% of the time |
+
+17% more frames on average and 27% in the slowest stretches, with the GPU
+idle more of the time: STK is now limited by the CPU's side of drawing
+("SP::Draw normal" 30 ms of a 49 ms frame).
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
