@@ -1814,6 +1814,37 @@ and the user sees no flicker ("not smooth but it's moving"). Terrain's
 15 fps likely comes from memory bandwidth: the EMC runs at a fixed
 800 MHz (no EMC scaling yet).
 
+With kernel #13 and mesa-darcy 26.2.5-2 installed (`scripts/19`), glmark2
+on the default clock policy: build 463, texture 381, shading 372, bump 411,
+effect2d 215, terrain 15 fps, score 308, no rejected batch, 54 °C at most.
+The user: "everything is running smooth". `simple_ondemand` stays: it
+rises to 998.4 MHz under load and idles at 76.8 MHz. Terrain without its
+bloom and tilt-shift passes: 24 fps. Stock darcy's EMC tables go up to
+1600 MHz (`tegra210-darcy-p2894-emc-a00.dtsi`: 40.8 to 1600 MHz, two RAM
+codes); the EMC is the next big lever for the GPU, later and in stages.
+
+### B3: plain Hyprland on the TV (2026-10-23)
+
+`tools/hyprland-try.sh` repeats it: hyprland 0.56.2 (aquamarine 0.15.1)
+and foot, a minimal Lua config for the stock user `alarm` (Hyprland
+refuses root; software cursor; no animations, blur or shadows), started
+as a service with a logind session (`PAMName=login`) on console 7.
+- On console 2 it quit at once: switching the TV there started
+  `getty@tty2`, which took the console. logind starts a getty on consoles
+  1-6 when they become active; console 7 has none.
+- aquamarine: libseat through logind, tegra-drm's card from
+  `AQ_DRM_DEVICES` (nouveau's skipped, "not a KMS device"), atomic, GLES
+  3.2 on "tegra". It creates its context robust ("requesting lose on
+  reset"), so the state tracker installs a device reset callback: the
+  path `patches/mesa/0007` keeps from calling nouveau's missing hook.
+- The user saw the wallpaper, then nothing more: the root filesystem has
+  no fonts, so foot found no monospace font and quit. With `ttf-dejavu`
+  the terminal shows. The locale is `C` (foot falls back to C.UTF-8).
+- Idle with a terminal: 5.3 W, 44 °C, the CPU 99% idle, the GPU at
+  76.8 MHz. The scanout buffer is XRGB8888 **linear** (modifier 0), not
+  block-linear: a later look at why aquamarine and Mesa's tegra driver
+  settle on linear.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

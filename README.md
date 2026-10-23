@@ -271,14 +271,17 @@ To see them all again until the next boot, run this on the SHIELD:
 
 Arch Linux ARM's Mesa crashes every OpenGL program on Tegra on its first
 draw (`NOTES.md`, "B1"). `scripts/19` builds the same release with
-upstream's fix on the SHIELD itself, in about 20 minutes, and puts it in
-place of `mesa`:
+upstream's fix and our further tegra driver fixes (`patches/mesa/`) on the
+SHIELD itself, in about 20 minutes, and puts it in place of `mesa`:
 
     scripts/19-build-mesa.sh <the SHIELD's address>
 
 With `--no-install` it stops after the build, so the package can be tried
 from its build tree first. `pacman -S mesa` brings Arch Linux ARM's back.
 nouveau still loads only by hand (`modprobe --ignore-install nouveau`).
+The kernel needs `patches/linux/0004` and `0005` for the GPU: without them
+nouveau rejects command batches after a second's wait, and the TV shows
+half-drawn frames.
 
 ### Next (not scripted yet)
 
@@ -296,8 +299,8 @@ nouveau still loads only by hand (`modprobe --ignore-install nouveau`).
 | `scripts/` | Numbered steps; `lib.sh` holds shared helpers |
 | `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
-| `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate |
-| `patches/mesa/` | Mesa's tegra driver fix, upstream merge request !45355 |
+| `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress semaphore, tegra-drm's imported buffers |
+| `patches/mesa/` | Mesa's tegra driver fixes: upstream merge request !45355 (0001) and ours (0002-0007) |
 | `packages/mesa-darcy/` | The Mesa package `scripts/19` builds: Arch Linux ARM's release for Tegra210, with `patches/mesa` |
 | `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
 | `rootfs/` | Files `scripts/13` and `scripts/18` put in the installed system as they are: the thermal guard (`darcy-thermal-guard`, slows the CPUs at 86 °C, reboots at 92 °C) |
@@ -307,6 +310,7 @@ nouveau still loads only by hand (`modprobe --ignore-install nouveau`).
 | `tools/gpu-power-probe/` | A kernel module that powers the GPU up step by step, as nouveau does, logging each step (`tools/build-module.sh` builds both) |
 | `tools/power-status.sh` | What the SHIELD's power management does, read-only, over SSH: CPU idle, CPU frequency and the DFLL, cooling, temperatures, fan and power |
 | `tools/gpu-smoke.c` | The smallest picture a compositor needs (KMS, GBM, EGL, GLES2) on the TV, printing each step before it runs |
+| `tools/hyprland-try.sh` | Plain Hyprland on the TV over SSH, before Omarchy: packages, a minimal config for `alarm`, console 7; `--stop` ends it |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |
