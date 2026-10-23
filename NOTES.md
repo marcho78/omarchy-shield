@@ -1099,6 +1099,97 @@ network's 5 GHz access point (channel 48, −69 dBm). iwd ranks by signal; 5 GHz
 and the scan heard 10 networks there. `[Rank] BandModifier5GHz` in
 `/etc/iwd/main.conf` (iwd 3.12) would favour 5 GHz. It's left as is.
 
+### HDMI through tegra-drm (2026-10-22)
+
+**The evidence first: cboot's live SOR1 state.** It was read over SSH with
+`tools/mmio-read.c` (an mmap of `/dev/mem`; `read()` isn't safe on device
+memory). SOR1 was checked clocked and out of reset first: the clock and
+reset controller's `CLK_OUT_ENB_X` bit 23 set, `RST_DEVICES_X` bit 23
+clear.
+
+| SOR1 register | cboot | mainline, 150 MHz entry (`sor.c:92`) | under tegra-drm |
+|---|---|---|---|
+| head timing (`0x07`) | `0x04650898`, 2200×1125 | | the same |
+| PLL0 (`0x17`): ichpmp, vcocap | 1, 3 | 1, 3 | the same |
+| PLL1 (`0x18`): loadadj, termadj | 3, 9 | 3, 9 | the same |
+| PLL3 (`0x1a`): bg temp, bg vref, avdd14, avdd10 | 3, 8, 4, 4 | 3, 8, 4, 4 | the same |
+| XBAR_CTRL (`0x4a`) | `0x8d111828` | default {2,1,0,3,4} | `0x8d111828` |
+| LANE_DRIVE_CURRENT0 (`0x4e`) | `0x2d303030` | {0x33,0x3a,0x3a,0x3a} | `0x3a3a3a33` |
+| pre-emphasis (`0x52`), TX_PU (`0x5c`) | 0, `0x66` | 0, `0x66` | the same |
+| INPUT_CONTROL (`0xe8`) | `0x2`, limited-range RGB | | 0, full range |
+
+- **No `nvidia,xbar-cfg`:** the crossbar cboot programs is exactly what
+  mainline writes from its Tegra210 default (`sor.c:2389`).
+- **cboot's drive current is stock darcy's prod** for 54–300 MHz
+  (`tegra210-darcy-prods.dtsi`). Mainline doesn't read prods; its table is
+  Jetson TX1's.
+- **GPIO port CC:** CC1 (hot-plug) is an input reading low with the TV
+  connected (active low). CC7 (HDMI 5V) is an output driven high.
+
+**The device tree** (`darcy.dts`) is Jetson TX1's recipe, and the stock
+darcy DT wires it the same way:
+- DPAUX1 on (its pads carry the DDC bus)
+- SOR1 with ldo8 / sd3 / `vdd_hdmi`, DDC on I2C4, hot-plug on CC1 active
+  low
+- `hdmi_ddc: i2c@7000c700` at 100 kHz
+- `vdd_hdmi` no longer disabled, and always on
+
+**Kept off at boot until proven:**
+- `module_blacklist=tegra_drm` is gone from the command line: it refuses a
+  manual load too.
+- The root filesystem's `/etc/modprobe.d/20-darcy-tegra-drm.conf` has
+  `blacklist tegra_drm` and `install tegra_drm /bin/true`.
+  - The blacklist alone stopped udev's device loads: the kernel's
+    refusals per boot went from 11 to 1.
+  - What was left is host1x's soft dependency, `softdep host1x post:
+    tegra-drm`. `modprobe -b --show-depends host1x` still listed
+    `tegra-drm.ko`. With `install` it shows `/bin/true`, and the next boot
+    had 0 attempts.
+  - By hand: `modprobe --ignore-install tegra_drm`.
+- At boot, I2C4 waits ("wait for supplier .../dpaux@54040000/pinmux-off"):
+  with modules enabled, a missing pin controller is `-EPROBE_DEFER` with no
+  timeout (`drivers/pinctrl/devicetree.c`).
+
+**The reviews** are in `research/*hdmi-drm*`. Z.ai was at its usage limit.
+- **All three:** the recipe is right, with no crossbar override, and
+  mainline's drive current is fine for a first picture.
+- **n-codex:** the SOR enable path has two unbounded waits
+  (`sor.c:2322-2340`). The watchdog doesn't cover them while systemd still
+  runs, hence a sysrq reboot timer during the test. Also `vdd_hdmi` always
+  on, so that a failed SOR probe can't cut the TV's 5V.
+- **n-grok:** the DC and SOR probes reset cboot's display at load
+  (`dc.c:3316-3344`, `sor.c:3940`). The DRM device waits for every host1x
+  engine (`host1x/bus.c:125`, `drm.c:1379-1385`). The first boot's journal
+  shows DC, VIC, NVDEC and NVJPG already probing on darcy: "Initialized
+  tegra 1.0.0", then "Cannot find any crtc".
+- **Corrected:**
+  - n-grok said no SMC write to the PMC had been seen. The reboot reason
+    (`PMC_SCRATCH0`), XUSB's powergates and PCIe's IO pads (`IO_DPD_REQ`,
+    the HDMI pad's register) all go through it, and no kept boot logs "SMC
+    failed".
+  - antigravity said `vdd_hdmi` would be switched off 30 s after boot for
+    want of `regulator_ignore_unused`. That's on the command line ("Not
+    disabling unused regulators"), and stock darcy has no startup delay on
+    `vdd_hdmi`.
+- **Missed by all three:** host1x's soft dependency (above).
+
+**The first load works.** Over SSH, with a 3-minute sysrq reboot armed and
+`ignore_loglevel` on, `modprobe --ignore-install tegra_drm` finished in a
+quarter of a second:
+- "Initialized tegra 1.0.0 for drm on minor 1". The console moved to
+  `tegradrmfb` (120x33).
+- HDMI-A-1 connected. The EDID (256 bytes) came over I2C4: "LG FHD"
+  (GSM 23766), modes up to 1920x1080.
+- CRTC 0 active at 1920x1080@60, 148.5 MHz, 2200×1125 (the CEA timing).
+- No warnings, and no memory-controller or SMMU faults.
+
+**Open:**
+- the TV's view of it
+- loading it at boot (drop the modprobe.d file)
+- the colour range: full-range RGB, where cboot sent limited range
+- darcy's drive current, if the picture needs it
+- then the GPU
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

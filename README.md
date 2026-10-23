@@ -21,7 +21,8 @@ Android stays installed, so you can go back.
 > - **Done too:** Arch Linux ARM runs from a USB SSD, with the console on
 >   HDMI, Wi-Fi (2.4 and 5 GHz), SSH and Bluetooth. New builds go on over
 >   the network, with nothing to press on the TV.
-> - **Next:** HDMI through tegra-drm for a desktop, then Omarchy.
+> - **In progress:** tegra-drm drives HDMI (loaded by hand for now), then
+>   the GPU and Omarchy.
 >
 > `NOTES.md` is the research log.
 
@@ -257,7 +258,8 @@ To see them all again until the next boot, run this on the SHIELD:
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. Extend the device tree: HDMI through tegra-drm, GPU (nouveau), audio,
+2. Extend the device tree: tegra-drm at boot (it already drives HDMI when
+   loaded by hand: `modprobe --ignore-install tegra_drm`), GPU (nouveau), audio,
    fan.
 3. Install `omarchy-arm`.
 
@@ -271,6 +273,7 @@ To see them all again until the next boot, run this on the SHIELD:
 | `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`) |
 | `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
 | `tools/darcy-init.c` | The first payload's `/init` |
+| `tools/mmio-read.c` | Reads hardware registers on the SHIELD, read-only, to compare what cboot set with what Linux sets |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |
 | `research/` | Brainstorms and background |

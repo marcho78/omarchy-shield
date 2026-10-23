@@ -17,17 +17,21 @@
 		 * filesystem after 30 s, the kernel panics, and U-Boot shows
 		 * the log after the reset.
 		 *
-		 * tegra-drm stays out until its HDMI bring-up is done: when
-		 * udev loads it, it removes the simple framebuffer the console
-		 * is on, then finds no output it can drive ("Cannot find any
-		 * crtc or sizes"), and the TV goes dark.
+		 * tegra-drm takes the screen over from the simple framebuffer
+		 * the console is on: loading it blanks the TV until it has set
+		 * a mode itself. Until it is proven, the root filesystem keeps
+		 * it from loading at boot (modprobe.d, scripts/13), and it is
+		 * tried by hand over SSH; module_blacklist= would refuse that
+		 * too.
+		 * video= holds its console at 1080p, the mode cboot uses, rather
+		 * than the TV's preferred mode.
 		 *
 		 * Unlike darcy.dts, no ignore_loglevel: the boot shows on the
 		 * TV, and once systemd is up the rootfs lowers the console
 		 * level (sysctl.d/20-quiet-console.conf, scripts/13), so later
 		 * kernel messages stay off the login prompt.
 		 */
-		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=10 printk.devkmsg=on module_blacklist=tegra_drm cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
+		bootargs = "earlycon=uart8250,mmio32,0x70006000 console=ttyS0,115200n8 console=tty0 fbcon=font:TER16x32 consoleblank=0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=10 printk.devkmsg=on video=HDMI-A-1:1920x1080@60 cfg80211.ieee80211_regdom=@WIFI_COUNTRY@ root=@SYSTEM_ROOT@ rootwait=30 rw";
 
 		/*
 		 * U-Boot boots it again after a reboot, and shows its log only

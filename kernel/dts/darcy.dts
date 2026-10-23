@@ -81,16 +81,21 @@
 };
 
 /*
- * Left as cboot set them until a driver owns them: the HDMI 5V switch
- * (tegra-drm) and the fan (pwm-fan). Probing either would take over its
- * GPIO, and the fan's would be driven low.
+ * Left as cboot set it until a driver owns it: the fan (pwm-fan). Probing
+ * it would take over its GPIO and drive it low.
  */
-&vdd_hdmi {
+&vdd_fan {
 	status = "disabled";
 };
 
-&vdd_fan {
-	status = "disabled";
+/*
+ * The HDMI 5V switch (GPIO CC7), SOR1's hdmi-supply. Boot-on, so its probe
+ * keeps the pin high (regulator/fixed.c), and always on, so that SOR1
+ * giving it up (a failed probe, the module unloading) doesn't cut the TV's
+ * 5V: the TV signals hot-plug from that 5V.
+ */
+&vdd_hdmi {
+	regulator-always-on;
 };
 
 /*
@@ -138,6 +143,41 @@
 };
 
 /delete-node/ &pd_sor;
+
+/*
+ * HDMI through tegra-drm: SOR1, as on Jetson TX1 and Nano
+ * (tegra210-p2597.dtsi, tegra210-p3450-0000.dts) and as the stock darcy
+ * device tree wires it (tegra210-ers-hdmi-e2190-1100-a00.dtsi):
+ *  - DDC on I2C4, through DPAUX1's pads, so DPAUX1 is on for their pinmux
+ *  - hot-plug on GPIO CC1, low while a TV is connected
+ *  - the supplies NVIDIA's darcy power tree names: ldo8 for the PHY, sd3
+ *    for the PLL, vdd_hdmi for the connector's 5V
+ * The lane crossbar cboot programs (SOR_XBAR_CTRL 0x8d111828) is mainline's
+ * Tegra210 default, so there is no nvidia,xbar-cfg. SOR1, DPAUX1 and the
+ * display controllers are drivers in the tegra-drm module: until it loads,
+ * only vdd_hdmi probes (keeping CC7 high), and I2C4 waits for DPAUX1's
+ * pinmux. Loading it resets the display at once (the DC and SOR probes),
+ * and the TV stays dark until tegra-drm has set a mode.
+ */
+&dpaux1 {
+	status = "okay";
+};
+
+&sor1 {
+	avdd-io-hdmi-dp-supply = <&max77620_ldo8>;
+	vdd-hdmi-dp-pll-supply = <&max77620_sd3>;
+	hdmi-supply = <&vdd_hdmi>;
+	nvidia,ddc-i2c-bus = <&hdmi_ddc>;
+	nvidia,hpd-gpio = <&gpio TEGRA_GPIO(CC, 1) GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+/ {
+	hdmi_ddc: i2c@7000c700 {
+		clock-frequency = <100000>;
+		status = "okay";
+	};
+};
 
 /*
  * USB: the port near HDMI as a host, wired as in the stock darcy device tree
