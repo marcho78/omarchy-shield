@@ -122,6 +122,10 @@ ROOTFS_PACKAGES=(
   sudo
 )
 
+# The desktop user scripts/20 installs Omarchy for (created if missing, with a
+# temporary password: OMARCHY_PASSWORD, or the user name)
+OMARCHY_USER=devsecai
+
 # Host packages (Arch Linux / Omarchy, x86_64)
 HOST_PACKAGES=(
   base-devel git curl avahi bc swig python-pyelftools python-setuptools

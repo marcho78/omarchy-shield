@@ -1,0 +1,241 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: marcho78 <marcho78@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:40:00 -0700
+Subject: [PATCH] Add the Tegra210 platform (SHIELD TV, Jetson TX1 and Nano)
+
+Tegra210 boards fell through to generic-aarch64, which installs the
+virtual machine's Vulkan drivers and the stock Hyprland look. Detect
+them from the nvidia,tegra210 compatible as "tegra210", with an
+omarchy-hw-tegra predicate. Install no Vulkan driver (NVK has no Tegra
+support yet), and give Hyprland the Pi's light defaults plus a pointer
+drawn in software, in the session and in SDDM's greeter: Tegra210's
+cursor plane takes only RGBA8888.
+
+Tested on a SHIELD TV 2017 (darcy) with mainline Linux and Mesa's tegra
+driver; both need fixes that aren't upstream yet (Mesa merge request
+!45355 among them).
+---
+diff --git a/bin/omarchy-hw-platform b/bin/omarchy-hw-platform
+index 0d0c8dd..70a3029 100755
+--- a/bin/omarchy-hw-platform
++++ b/bin/omarchy-hw-platform
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ 
+-# omarchy:summary=Print the hardware platform Omarchy is running on (apple-silicon, raspberry-pi-5, raspberry-pi, generic-aarch64 or x86_64).
++# omarchy:summary=Print the hardware platform Omarchy is running on (apple-silicon, raspberry-pi-5, raspberry-pi, tegra210, generic-aarch64 or x86_64).
+ # omarchy:examples=omarchy hw platform
+ 
+ # Detection reads the flattened device tree, which is where every aarch64
+@@ -35,6 +35,12 @@ case "$compatible " in
+     echo "raspberry-pi"
+     exit 0
+     ;;
++  # The SHIELD TV, Jetson TX1 and Nano, and Pixel C: tegra-drm shows,
++  # nouveau draws, and Mesa's tegra driver joins the two.
++  *"nvidia,tegra210 "*)
++    echo "tegra210"
++    exit 0
++    ;;
+ esac
+ 
+ # Asahi kernels that predate the apple,arm-platform compatible still name the
+diff --git a/bin/omarchy-hw-tegra b/bin/omarchy-hw-tegra
+new file mode 100755
+index 0000000..7537591
+--- /dev/null
++++ b/bin/omarchy-hw-tegra
+@@ -0,0 +1,5 @@
++#!/bin/bash
++
++# omarchy:summary=Detect whether the computer is an NVIDIA Tegra210 board (SHIELD TV, Jetson TX1 or Nano).
++
++[[ $(omarchy-hw-platform) == "tegra210" ]]
+diff --git a/default/hypr/platform.lua b/default/hypr/platform.lua
+index 00cac67..f32f224 100644
+--- a/default/hypr/platform.lua
++++ b/default/hypr/platform.lua
+@@ -17,4 +17,6 @@ local require_optional = require("default.hypr.require_optional")
+ 
+ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-raspberry-pi")) then
+   require_optional.module("default.hypr.platform.raspberry-pi")
++elseif o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-tegra")) then
++  require_optional.module("default.hypr.platform.tegra")
+ end
+diff --git a/default/hypr/platform/tegra.lua b/default/hypr/platform/tegra.lua
+new file mode 100644
+index 0000000..382cb13
+--- /dev/null
++++ b/default/hypr/platform/tegra.lua
+@@ -0,0 +1,34 @@
++-- NVIDIA Tegra210 defaults (SHIELD TV, Jetson TX1 and Nano).
++--
++-- tegra-drm shows the frames, nouveau draws them, and Mesa's tegra driver
++-- joins the two. The GPU is a 256-core Maxwell sharing a 64-bit LPDDR4 bus
++-- with the CPU, so the per-frame full-screen passes of animations, blur and
++-- shadows are what it can least afford, as on the Pi.
++--
++-- The pointer is drawn in software: Tegra210's cursor plane takes only
++-- RGBA8888, linear and square, which compositors don't allocate for cursors.
++--
++-- Everything here is a default, not a lock: ~/.config/hypr/looknfeel.lua
++-- loads after this file and wins.
++
++hl.config({
++  animations = {
++    enabled = false,
++  },
++
++  decoration = {
++    rounding = 0,
++
++    blur = {
++      enabled = false,
++    },
++
++    shadow = {
++      enabled = false,
++    },
++  },
++
++  cursor = {
++    no_hardware_cursors = 1,
++  },
++})
+diff --git a/default/sddm/hyprland.lua b/default/sddm/hyprland.lua
+index 977ae17..e7765d8 100644
+--- a/default/sddm/hyprland.lua
++++ b/default/sddm/hyprland.lua
+@@ -11,3 +11,15 @@ hl.config({
+     enabled = false,
+   },
+ })
++
++-- Tegra210's cursor plane takes only RGBA8888, so the pointer is drawn in
++-- software there, as default/hypr/platform/tegra.lua does for the session.
++-- (On success os.execute gives true from Lua 5.2 on, and 0 in LuaJIT.)
++local tegra = os.execute("/usr/share/omarchy/bin/omarchy-hw-tegra")
++if tegra == true or tegra == 0 then
++  hl.config({
++    cursor = {
++      no_hardware_cursors = 1,
++    },
++  })
++end
+diff --git a/install.sh b/install.sh
+index 97ffdb2..98581bf 100755
+--- a/install.sh
++++ b/install.sh
+@@ -59,7 +59,8 @@ Options:
+   --link             Point the target at this checkout with a symlink instead
+                      of copying it, for working on the fork itself
+   --profile NAME     Override hardware detection: apple-silicon,
+-                     raspberry-pi-5, raspberry-pi or generic-aarch64
++                     raspberry-pi-5, raspberry-pi, tegra210 or
++                     generic-aarch64
+   -h, --help         Show this message
+ USAGE
+ }
+@@ -200,6 +201,9 @@ case "$platform" in
+     ok "Platform: Raspberry Pi (pre-5)"
+     warn "Only the Pi 5 is tested. Older Pis have no Vulkan-capable GPU for Hyprland."
+     ;;
++  tegra210)
++    ok "Platform: NVIDIA Tegra210 (SHIELD TV, Jetson TX1 or Nano)"
++    ;;
+   generic-aarch64)
+     ok "Platform: generic aarch64 (virtual machine or unrecognised board)"
+     ;;
+diff --git a/install/hardware/all.sh b/install/hardware/all.sh
+index 4e0eb9d..92ece1d 100644
+--- a/install/hardware/all.sh
++++ b/install/hardware/all.sh
+@@ -21,6 +21,7 @@ run_logged_x86 "$OMARCHY_INSTALL/hardware/vulkan.sh"
+ run_logged_arm "$OMARCHY_INSTALL/hardware/arm/vulkan.sh"
+ run_logged_arm "$OMARCHY_INSTALL/hardware/arm/apple-silicon.sh"
+ run_logged_arm "$OMARCHY_INSTALL/hardware/arm/raspberry-pi.sh"
++run_logged_arm "$OMARCHY_INSTALL/hardware/arm/tegra.sh"
+ 
+ run_logged_x86 "$OMARCHY_INSTALL/hardware/intel/video-acceleration.sh"
+ run_logged_x86 "$OMARCHY_INSTALL/hardware/intel/lpmd.sh"
+diff --git a/install/hardware/arm/tegra.sh b/install/hardware/arm/tegra.sh
+new file mode 100644
+index 0000000..bd66faa
+--- /dev/null
++++ b/install/hardware/arm/tegra.sh
+@@ -0,0 +1,16 @@
++# NVIDIA Tegra210 quirks (SHIELD TV, Jetson TX1 and Nano).
++#
++# The display is tegra-drm's and the GPU is nouveau's; Mesa's tegra driver
++# renders on nouveau and hands the frames to tegra-drm. That needs a Mesa and
++# a kernel with the fixes in the SHIELD TV port's patches (Mesa merge request
++# !45355, among others): stock ones crash or show half-drawn frames. The
++# Hyprland side is default/hypr/platform/tegra.lua; this leaf owns the system
++# side.
++
++source "$OMARCHY_INSTALL/arm/platform.sh"
++
++omarchy-hw-tegra || return 0
++
++state_dir="${OMARCHY_STATE_DIR:-/var/lib/omarchy}"
++mkdir -p "$state_dir"
++omarchy-hw-platform >"$state_dir/platform"
+diff --git a/install/hardware/arm/vulkan.sh b/install/hardware/arm/vulkan.sh
+index 097ec12..0255bc1 100644
+--- a/install/hardware/arm/vulkan.sh
++++ b/install/hardware/arm/vulkan.sh
+@@ -14,6 +14,11 @@ case "$(omarchy-hw-platform)" in
+     # V3DV, Mesa's Vulkan driver for VideoCore.
+     omarchy_arm_pkg_add_available vulkan-broadcom
+     ;;
++  tegra210)
++    # None: Mesa's Vulkan driver for NVIDIA (NVK) has no Tegra support yet
++    # (Mesa issue #14105). Hyprland renders with OpenGL ES, which nouveau
++    # gives through Mesa's tegra driver.
++    ;;
+   generic-aarch64)
+     # A VM with no accelerated GPU: virtio-gpu with Venus, and the software
+     # rasterizer as the fallback that keeps Hyprland able to start at all.
+diff --git a/test/shell.d/arm64-gating-test.sh b/test/shell.d/arm64-gating-test.sh
+index 9a48a40..1bafa82 100755
+--- a/test/shell.d/arm64-gating-test.sh
++++ b/test/shell.d/arm64-gating-test.sh
+@@ -38,7 +38,7 @@ for leaf in "${x86_only[@]}"; do
+ done
+ pass "every x86-only hardware leaf is gated"
+ 
+-for leaf in hardware/arm/vulkan.sh hardware/arm/apple-silicon.sh hardware/arm/raspberry-pi.sh; do
++for leaf in hardware/arm/vulkan.sh hardware/arm/apple-silicon.sh hardware/arm/raspberry-pi.sh hardware/arm/tegra.sh; do
+   grep -q "run_logged_arm \"\$OMARCHY_INSTALL/$leaf\"" "$all" ||
+     fail "$leaf runs on aarch64 only"
+   [[ -f $ROOT/install/$leaf ]] || fail "$leaf exists"
+diff --git a/test/shell.d/arm64-platform-test.sh b/test/shell.d/arm64-platform-test.sh
+index b183e0a..d7c9cc4 100755
+--- a/test/shell.d/arm64-platform-test.sh
++++ b/test/shell.d/arm64-platform-test.sh
+@@ -30,6 +30,7 @@ pi5=$(fixture pi5 "raspberrypi,5-model-b brcm,bcm2712" "Raspberry Pi 5 Model B R
+ pi4=$(fixture pi4 "raspberrypi,4-model-b brcm,bcm2711" "Raspberry Pi 4 Model B Rev 1.4")
+ mac=$(fixture mac "apple,j413 apple,t8112 apple,arm-platform" "Apple MacBook Air (13-inch, M2, 2022)")
+ vm=$(fixture vm "linux,dummy-virt")
++shield=$(fixture shield "nvidia,p2894-0050-a08 nvidia,darcy nvidia,tegra210" "NVIDIA Shield TV")
+ # An Asahi kernel old enough to predate the apple,arm-platform compatible.
+ mac_old=$(fixture mac_old "apple,j274" "Apple Mac mini (M1, 2020)")
+ 
+@@ -45,6 +46,17 @@ pass "an Apple Silicon Mac is recognised"
+ [[ $(platform_of "$mac_old") == "apple-silicon" ]] || fail "a Mac is recognised from its model string alone" "$(platform_of "$mac_old")"
+ pass "a Mac is recognised from its model string alone"
+ 
++[[ $(platform_of "$shield") == "tegra210" ]] || fail "a Tegra210 board (SHIELD TV) is recognised" "$(platform_of "$shield")"
++pass "a Tegra210 board (SHIELD TV) is recognised"
++
++OMARCHY_ARCH=aarch64 OMARCHY_DEVICETREE="$shield" omarchy-hw-tegra ||
++  fail "omarchy-hw-tegra matches a SHIELD TV"
++pass "omarchy-hw-tegra matches a SHIELD TV"
++
++OMARCHY_ARCH=aarch64 OMARCHY_DEVICETREE="$pi5" omarchy-hw-tegra &&
++  fail "omarchy-hw-tegra rejects a Pi"
++pass "omarchy-hw-tegra rejects a Pi"
++
+ [[ $(platform_of "$vm") == "generic-aarch64" ]] || fail "an aarch64 VM falls through to generic" "$(platform_of "$vm")"
+ pass "an aarch64 VM falls through to generic"
+ 
