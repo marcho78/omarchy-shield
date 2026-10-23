@@ -1356,6 +1356,55 @@ The applied patch makes the release string `7.2.11-ga2de78ee6ed8-dirty`.
 `scripts/17` copies the modules under that name. Out-of-tree modules
 (`tools/`) must be rebuilt against it.
 
+Then Mesa (26.2.5) gave OpenGL 4.3 and OpenGL ES 3.2 on `NV12B` (the GM20B),
+through both the surfaceless and the GBM platforms. `glmark2-es2-drm`
+couldn't find "the main graphic card" among two DRM devices.
+
+### The SHIELD overheated and powered off (2026-10-22)
+
+**About 1.5 h up**, with nouveau loaded, Mesa installed and a compile
+starting, the board switched itself off: TV dark, LEDs off, the case "really
+hot" (the user). The last readings, 2 min before, were 92.5 °C CPU,
+88.5 °C GPU, 93.5 °C memory, still rising. Unplugged and plugged back in, it
+booted normally.
+
+**Why it runs hot: our system has no CPU power management yet.**
+- `cpuidle.off=1`, a precaution from the first boots (commit 371a6dc), so
+  idle CPUs never enter C7. The boot log says "failed to register cpuidle
+  driver".
+- No DFLL (`clock@70110000`, disabled in mainline's darcy files), so
+  `cpufreq-tegra124` fails with -2. `cclk_g` stays on `pll_x` at cboot's
+  1017.6 MHz. The DFLL's PWM pin (`dvfs_pwm_pbb1`, `0x11`: CLDVFS,
+  tristated) leaves the CPU rail at its tristate level: 1.0 V by stock's
+  `pwm-tristate-microvolts`.
+- The board draws 6.0–6.35 W idle (INA3221, 18.9 V input) and climbs from
+  about 65 °C at boot to 83–89 °C at idle. That is passive cooling with no
+  fan: antigravity is checking the stock DT on that.
+- Stock darcy's DFLL (`tegra210-p2530-common.dtsi:54-72`) matches Jetson
+  Nano's mainline PWM-mode DFLL (`tegra210-p3450-0000.dts:594-613`) value
+  for value, plus two downstream-only flags.
+
+**A mainline regression made it worse: no hardware throttling before
+shutdown.**
+- `tegra_soctherm_set_hwtrips()` programs the throttle with the shutdown
+  temperature ("throttrip: will throttle when cpu reaches 102500 mC").
+  Since commit 5136f99b9a4a (2024-08-01, "Use thermal_zone_for_each_trip()
+  for walking trip points"), it looks up the hot trip but uses the critical
+  temperature. Upstream mainline still has it (checked 2026-10-22).
+- `patches/linux/0002` throttles at the hot trip's temperature again, as
+  before that commit: now "throttle when cpu reaches 98500 mC", gpu 100000.
+  It is a candidate to send upstream.
+- `tegra-soctherm` is a module, so the fix left the kernel's build stamp as
+  it was. `scripts/17` then skipped the modules. It now compares the
+  modules by a hash, which the SHIELD keeps in `.darcy-modules-hash`.
+
+**Next:** the reviews of the power-management plan (n-codex, antigravity;
+n-grok and Z.ai are out of usage), then one change at a time, measured with
+the INA3221 and soctherm:
+1. drop `cpuidle.off=1`
+2. the DFLL in PWM mode
+3. passive cooling through cpufreq
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or

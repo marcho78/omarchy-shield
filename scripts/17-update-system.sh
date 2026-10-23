@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Put a new build on a SHIELD that runs the installed system, with nothing
 # to press on the TV, over SSH and the USB cable:
-#   1. The kernel's modules (scripts/11) replace the SHIELD's when the build's
-#      kernel is not the one running, or with --modules: a kernel and its
-#      modules must come from the same build.
+#   1. The kernel's modules (scripts/11) replace the SHIELD's when they
+#      differ from the ones it has, or with --modules: a kernel and its
+#      modules must come from the same build. A change to a module alone
+#      leaves the kernel's build stamp as it was, so the modules are
+#      compared by a hash, which the SHIELD keeps next to them.
 #   2. Linux reboots into the bootloader menu (fastboot).
 #   3. scripts/14 writes build/boot-uboot-darcy-system.img the moment fastboot
 #      shows up: the menu Linux reboots into does not always wait (NOTES.md).
@@ -50,21 +52,29 @@ running=$(on_shield uname -rv) || die "no SSH to root@$host"
 log "the SHIELD at $host runs $running"
 [[ $running == "$built" ]] || modules=true
 
+log "staging the modules of $built in build/modules"
+rm -rf "$stage"
+make -s -C "$ROOT/vendor/linux" O="$kbuild" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+  INSTALL_MOD_PATH="$stage/usr" INSTALL_MOD_STRIP=1 modules_install
+rm -f "$stage/usr/lib/modules/$release/build"
+hash=$(cd "$stage/usr/lib/modules/$release" && find . -type f -print0 | LC_ALL=C sort -z |
+  xargs -0 sha256sum | sha256sum | cut -c1-16)
+rel=$(printf %q "$release")
+[[ $(on_shield "cat /usr/lib/modules/$rel/.darcy-modules-hash 2> /dev/null") == "$hash" ]] ||
+  modules=true
+
 if $modules; then
-  log "staging the modules of $built in build/modules"
-  rm -rf "$stage"
-  make -s -C "$ROOT/vendor/linux" O="$kbuild" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
-    INSTALL_MOD_PATH="$stage/usr" INSTALL_MOD_STRIP=1 modules_install
-  rm -f "$stage/usr/lib/modules/$release/build"
-  log "replacing the SHIELD's /usr/lib/modules/$release"
+  log "replacing the SHIELD's /usr/lib/modules/$release (modules $hash)"
   # Unpacked next to the old tree and swapped in only once complete, so a
   # broken copy leaves the old modules in place
-  rel=$(printf %q "$release")
   tar -C "$stage/usr/lib/modules" --owner=0 --group=0 --numeric-owner -cf - "$release" |
     on_shield "set -e; cd /usr/lib/modules; rm -rf .darcy-new .darcy-old; mkdir .darcy-new
       tar -xf - -C .darcy-new; test -s .darcy-new/$rel/modules.dep
+      echo $hash > .darcy-new/$rel/.darcy-modules-hash
       if [ -d $rel ]; then mv $rel .darcy-old; fi
       mv .darcy-new/$rel $rel; rm -rf .darcy-new .darcy-old; sync"
+else
+  log "the SHIELD has these modules already ($hash)"
 fi
 
 before=$(nvidia_usb)
