@@ -1221,6 +1221,53 @@ That Mesa has what the GPU step needs: `tegra_dri.so` (render-only,
 tegra-drm's display with nouveau's rendering), `nouveau_dri.so` and GBM.
 `vulkan-nouveau` is a separate package.
 
+### The GPU (GM20B): the evidence (2026-10-22)
+
+**Mainline's recipe:** the GPU node is in `tegra210.dtsi:440-457`
+(`nvidia,gm20b`, no power domain, disabled). Jetson TX1 and Nano enable it
+with `vdd-supply = <&vdd_gpu>`. That's a `pwm-regulator` on PWM channel 1
+(8 µs period), 710–1320 mV, switched by PMIC GPIO 6
+(`tegra210-p2180.dtsi:426-436`, `tegra210-p3450-0000.dts:1858-1870`).
+Mainline's darcy files have no GPU and no GPU rail.
+
+**darcy's rail is the same circuit:** stock `gpu_ovr_reg`
+(`tegra210-ers-power-dvfs-e2174-1101-a00.dtsi:110-123`, included by
+darcy's power tree) has the same PWM channel, period, range, enable GPIO
+and delays. Nothing in darcy's chain overrides it, and the alternative I2C
+GPU regulator is disabled.
+- Polarity can't be measured: darcy's INA3221 watches main-board input,
+  SoC and CPU, not the GPU.
+- The family's CPU rail, the same kind of circuit, maps duty step 0 to
+  708 mV, rising to 1322.4 mV.
+
+**Live state, read-only:**
+- **The GPU is off,** as cboot leaves it:
+  - clock off
+  - PMIC GPIO 6 (`CNFG_GPIO6` `0x03`) an input reading low
+  - PWM channel 1 disabled
+  - `GPU_RG_CNTRL` `0x1` (clamped)
+- **The PWM controller is clocked.** Its channel 0 runs the lightbar LED
+  (stock `pwm-leds`), and channel 3 is a fan this model doesn't have.
+- **The GPU's PWM pin is not muxed for it.** `lcd_gpio2_pv4` (`0x7000320c`)
+  reads function 0, DISPLAYB.
+  - Stock darcy muxes it to `pwm1` in its `default` pinmux, which Android's
+    kernel applies.
+  - Mainline's p2894 has `pwm1` only in the `boot` state, which Linux never
+    applies.
+  - Without the mux, the duty cycle never reaches the regulator.
+- **Silicon:** Tegra210 A02, SKU 135 (Jetson TX1's revision). The GM20B
+  firmware is on the SSD (`linux-firmware-nvidia`).
+
+**The PMC register nouveau adds:** on Tegra210, removing the GPU's clamps
+writes 0 to `GPU_RG_CNTRL` (`0x2d4`, `pmc.c:725-726`), an offset not used
+through the secure monitor before.
+- `tools/pmc-read` (a module that makes the PMC driver's SMC read and
+  unloads itself) got status 0 there, value `0x1`.
+- `PWRGATE_STATUS` (`0x3156cf09`) shows DISB off, which tegra-drm's DC B
+  probe switched off through the monitor (cboot had it on).
+- TF-A's PMC handler filters offsets for reads and writes alike, so the
+  write is very likely accepted too.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
