@@ -35,6 +35,6 @@ n-grok and Z.ai stopped answering at their usage limits, and antigravity at its 
 | `nouveau-dirty` | The page-tracking rewrite | n-codex | All five fixes (43a9559) | none |
 | `omarchy` | The Tegra platform and the network switch | n-codex | Rollback switch, detection, PSI and zram, visudo (f53a3c9) | none; the firewall failure was outside its checklist |
 | `omarchy-color` | The colour fix, and restarting while locked | n-codex | `Commons.Color` (54988ed) | Restart while locked: only a workaround, unlock first |
-| `docs-research` | This index, and the claims to correct | n-codex | This table, the corrections in `docs/problems.md` | none |
+| `docs-research` | This index, and the claims to correct | n-codex | This table, the corrections in `docs/lessons.md` | none |
 | `docs-audit` | Is every claim and number in the new docs right? | n-codex | Its points, checked first (a2db954, 255cf26) | Left as they are: the raw files keep the user name, as the user chose. `--dry-run` is documented, not made read-only. A private LAN address stays in one raw log. Git history keeps the NOTES lines since removed; the user chose no rewrite. Changing the desktop password is the user's call. |
 | `docs-recheck` | Were the audit's fixes right? | n-codex | Three wordings, this row, and the scripts' account and unlock checks | none |

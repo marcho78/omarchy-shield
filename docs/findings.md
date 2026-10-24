@@ -1,6 +1,6 @@
 # Findings
 
-What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Each finding gives the cause, the fix and the evidence: a commit, a patch, or a section of `NOTES.md`. [Problems](problems.md) has the dead ends and what is still open; [benchmarks](benchmarks.md) has the numbers.
+What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Each finding gives the cause, the fix and the evidence: a commit, a patch, or a section of `NOTES.md`. [Lessons learned](lessons.md) has the constraints and what went wrong; [benchmarks](benchmarks.md) has the numbers.
 
 ## Boot chain: cboot → U-Boot → Linux
 

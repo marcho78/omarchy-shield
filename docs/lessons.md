@@ -1,6 +1,6 @@
-# Problems, constraints and open issues
+# Lessons learned
 
-This page covers what limits the project, what went wrong on the way, the claims we got wrong and corrected, and what is still open. [Findings](findings.md) has the fixes.
+What the port works within, what went wrong on the way and how it was fixed, and the claims we got wrong and corrected. [Findings](findings.md) has the fixes area by area, and the README's status table shows what isn't done yet.
 
 ## Constraints
 
@@ -18,6 +18,9 @@ These are facts we work within.
   - Once, the menu went on by itself after 15–18 s, so `scripts/17` flashes at once.
 - **USB:** the laptop needs a USB-A male-to-male cable to the port far from HDMI; a phone cable won't do. The bootloader menu needs a USB keyboard or controller in the port near HDMI, as it has no Bluetooth.
 - **The GPU stack** is nouveau and Mesa, without NVIDIA's own driver. On GM20B that means no compression and 4 KiB GPU pages only. There's no GPU compute either: NVK, the Vulkan driver, doesn't support Tegra, and no OpenCL driver is set up.
+- **HDMI** runs at 1920x1080. The colour range, the drive current and 4K/HDMI 2.0 weren't tested. Linux doesn't manage the SOR power partition: the device tree keeps `pd_sor` from it, so the HDMI encoder stays powered as cboot left it.
+- **The CPU's DFLL** runs low requests up to 15% fast. Mainline lacks stock's one-shot floor calibration and cold-temperature floor, reads its monitor once, and can't show the live PWM output. Timing safety is plausible, not proved (NOTES.md "CPU power management").
+- **The logins:** with root's password locked, there's no root login at the TV (the desktop user's sudo instead) and no emergency shell (NOTES.md B9). Don't restart Omarchy's shell while the screen is locked; that kills its lock screen (NOTES.md B5).
 - **No real network addresses.** The board stores no Wi-Fi or Bluetooth address, so both use the firmware's placeholder addresses. Two SHIELDs on one network could clash.
 - **Review agents have quotas.** n-grok ran out of credits, Z.ai hit its usage limit, and antigravity ran out of quota, so n-codex reviewed the later work alone. Agents also make confident wrong claims, so we check each one in the source before using it. NOTES lists the ones that were wrong.
 
@@ -59,21 +62,3 @@ These are facts we work within.
 | Kernel #20 revokes mappings with `ttm_bo_unmap_virtual()` (d4401c6) | That also freed I/O mappings; #21 uses `drm_vma_node_unmap()` (43a9559) |
 | The hub holds the SSD to USB 2 (0b5f5c0) | The hub is USB 3; the SSD's own link is USB 2 (2c9e98a) |
 | Memory writes at 19.6 GB/s (0b5f5c0, the results card) | 19,632 MiB/s, which is 20.6 GB/s (0ca6d06) |
-
-## Open issues
-
-- **The SSD runs at USB 2** (480 Mbit/s, 25–28 MiB/s). Try a USB 3 cable, with the SHIELD off, since it runs from that SSD.
-- **1600 MHz memory isn't the boot default.** Each boot starts at 800 MHz, and `tools/emc-rate.sh` raises it. To do before making it the default: an overnight soak, cold boots, then a service that sets the rate last.
-- **Wi-Fi is weak, and it drops.**
-  - The signal is −67 dBm. The access point dropped the SHIELD twice in an hour under iwd, and it reconnected about 90 s later. Why is still open; Wi-Fi power saving is one suspect.
-  - It hasn't been re-checked since the move to NetworkManager.
-- **Untested or not started:** an Ethernet link (no switch to plug into), audio, video playback and decoding, and Bluetooth keyboard pairing.
-- **Omarchy isn't trimmed** for the media center.
-- **HDMI:**
-  - The colour range (full where cboot sent limited), the drive current and 4K/HDMI 2.0 are untested.
-  - The device tree still keeps the SOR power partition from Linux (`pd_sor` deleted), though the plan was to give it back once tegra-drm drove HDMI.
-- **The CPU's DFLL** runs low requests up to 15% fast. Mainline lacks stock's one-shot floor calibration and cold-temperature floor, reads its monitor once, and can't show the live PWM output. Timing safety is plausible, not proved (NOTES.md "CPU power management").
-- **Restarting Omarchy's shell while the screen is locked** kills its lock screen, so unlock first (NOTES.md B5).
-- **SuperTuxKart with dynamic lighting** is 5.6 times slower. The GPU-side causes haven't been measured yet: compression, big pages, the IOMMU.
-- **Nothing has gone upstream yet:** the kernel fixes, the Mesa fixes, the omarchy-arm patches, and the debugfs oops. That's the user's call.
-- **Losses from locking root:** no root login at the TV (the desktop user's sudo instead), and no emergency shell (NOTES.md B9).

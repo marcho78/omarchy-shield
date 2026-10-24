@@ -4,7 +4,7 @@ Goal: run Omarchy natively on the Shield, by booting Arch Linux ARM on a
 mainline kernel and installing the community `omarchy-arm` port on top.
 
 This is the day-by-day log, kept as it was written. `README.md` and `docs/`
-summarize it, and `docs/problems.md` lists what later work corrected.
+summarize it, and `docs/lessons.md` lists what later work corrected.
 Notes marked *[Later: …]* point from an early statement to its correction.
 
 ## The device

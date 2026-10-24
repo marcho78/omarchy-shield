@@ -26,7 +26,7 @@ Our numbers come from runs on the SHIELD TV 2017 on 2026-10-23, and `benchmarks/
 | Power in SuperTuxKart | 12.5 W | at 1920x1080 |
 | 7-Zip 26.05 `7z b`, four cores | 9,853 MIPS | 7,015 compressing, 12,690 decompressing |
 | Memory, sysbench, 4 threads, 64 MiB blocks | read 9,769 MiB/s (10.2 GB/s), write 19,632 MiB/s (20.6 GB/s) | At 800 MHz: 8,802 and 10,442 MiB/s. Writes gain 88% at 1600 MHz. The bus peaks at 25.6 GB/s. |
-| Storage, fio, 1 GiB file, direct I/O | write 25 MiB/s, read 28 MiB/s, 4 KiB random reads 2,670 IOPS | The SSD is on a USB 2 link (480 Mbit/s), see [problems](problems.md) |
+| Storage, fio, 1 GiB file, direct I/O | write 25 MiB/s, read 28 MiB/s, 4 KiB random reads 2,670 IOPS | The SSD is on a USB 2 link (480 Mbit/s), most likely its cable |
 | Wi-Fi, TCP with a laptop | 47 Mbit/s to the SHIELD, 22 Mbit/s from it | 5 GHz at −67 dBm; the link reports 270 Mbit/s down and 88 up. The laptop was on Wi-Fi too, so both shared the air. |
 
 Two corrections to the first write-up (NOTES.md B8, commit 0b5f5c0, the results card):

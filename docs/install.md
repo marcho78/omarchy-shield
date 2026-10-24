@@ -307,4 +307,4 @@ default after longer soaks and cold boots.
 4. The SSD on a USB 3 link (most likely a matter of its cable).
 5. Omarchy trimmed down for a media center.
 
-`docs/problems.md` lists every open issue.
+The README's status table shows what isn't done yet.

@@ -44,7 +44,7 @@ All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 |---|---|
 | [docs/install.md](docs/install.md) | The steps, from a stock SHIELD to Omarchy: what you need, the safety rules, every script |
 | [docs/findings.md](docs/findings.md) | What we found, area by area: cause, fix, evidence |
-| [docs/problems.md](docs/problems.md) | Constraints, dead ends, claims we corrected, open issues |
+| [docs/lessons.md](docs/lessons.md) | Constraints, what went wrong and how it was fixed, claims we corrected |
 | [docs/benchmarks.md](docs/benchmarks.md) | The numbers, how they were measured, against Android |
 | [docs/timeline.md](docs/timeline.md) | The work in milestones, and the kernel builds |
 | [NOTES.md](NOTES.md) | The day-by-day log, as it was written |
