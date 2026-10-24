@@ -2341,10 +2341,15 @@ The rest:
   800x600, 288 at 1920x1080
 - SuperTuxKart 1.5 benchmark, 1920x1080 full screen: 31.3 FPS (B6)
 - storage, fio on the root filesystem: 25 MB/s sequential write, 28 MB/s
-  read, 2670 IOPS random 4 KiB reads. The SSD (an SSK enclosure) sits
-  behind a Genesys Logic USB 2.1 hub, at 480 Mbit/s: the SHIELD's
-  SuperSpeed bus is up (`usb2`, 5000 Mbit/s, four ports), so a USB 3 hub
-  would lift this. Not tried yet.
+  read, 2670 IOPS random 4 KiB reads: the SSD runs at USB 2 speed. Not the
+  SHIELD's nor the hub's doing: the hub is a Genesys Logic USB 3.2 hub,
+  whose SuperSpeed half (`2-2`, "USB3.2 Hub") is up at 5000 Mbit/s on the
+  SHIELD's SuperSpeed port 2 (usb3-1) and idle (U3); its USB 2 half (`1-3`,
+  "USB2.1 Hub") carries the keyboard, the mouse and the SSD. The SSD (an SSK
+  enclosure, JMicron bridge 152d:581d, `usb-storage`) linked to the hub at
+  480 Mbit/s (bcdUSB 2.10, as a USB 3 device on a USB 2 link reports
+  itself): its cable, most likely, carries USB 2 only. To try: a USB 3
+  cable, with the SHIELD off (it runs from this SSD).
 - Wi-Fi: 5 GHz (5240 MHz), -67 to -69 dBm, link 270 Mbit/s down and
   88 Mbit/s up; TCP with the laptop, itself on Wi-Fi: 47 Mbit/s to the
   SHIELD, 22 Mbit/s from it.
