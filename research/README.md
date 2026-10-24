@@ -9,7 +9,7 @@ Hard problems went to other AI agents for review. A self-contained brief (`*-bri
 | antigravity | Gemini | 7 |
 | Z.ai | GLM, through opencode | 4 |
 
-n-grok and Z.ai stopped answering at their usage limits. Antigravity is out of quota until about Oct 29; its review of these docs (`docs-readability-brief.md`) goes out after that, when the user says so. n-codex built this index (`ncodex-docs-research-review.md`, from `docs-research-brief.md`) and gives the evidence for each row line by line.
+n-grok and Z.ai stopped answering at their usage limits, and antigravity at its quota, so n-codex reviewed the later work alone. n-codex built this index (`ncodex-docs-research-review.md`, from `docs-research-brief.md`) and gives the evidence for each row line by line.
 
 | Topic | The question | Answered by | Used | Wrong, or not used |
 |---|---|---|---|---|
