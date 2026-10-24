@@ -27,8 +27,10 @@ different boards and are not covered.
 ## Safety rules
 
 - **Unlocking the bootloader erases Android's apps, accounts and settings.**
-  Android itself stays, and the recovery image restores it completely.
-- **Only ever flash `boot` or `recovery`.** Never `dtb`, `staging`/blob, BCT,
+  Android itself stays. The recovery image reinstalls stock Android if
+  needed, but can't bring back what the unlock erased.
+- **Only ever flash `boot` or `recovery`**, plus `userdata` for the eMMC
+  option (step 10). Never `dtb`, `staging`/blob, BCT,
   the bootloader, TOS, EKS or the partition table. A bad DTB has hard-bricked
   Shields before.
 - **Use the 2017 recovery image at the same or a newer version** than the one
@@ -37,8 +39,9 @@ different boards and are not covered.
 
 ## Steps
 
-Every script is safe to re-run. Unless a step says otherwise, nothing on the
-SHIELD changes.
+The scripts can be run again. Unless a step says otherwise, nothing on the
+SHIELD changes. The steps that flash or erase ask first: `CONFIRM_…=yes`,
+or the disk's name.
 
 ### 0. Host tools
 
@@ -179,7 +182,7 @@ with `scripts/09`, without going through Android.
   board-specific names.
 - **SSH** takes a key made for the SHIELD, `device-info/ssh/id_ed25519`;
   passwords are refused over the network. On the TV, Arch Linux ARM's
-  default logins work, `root`/`root` and `alarm`/`alarm`, until
+  default root and alarm logins (from its installation notes) work until
   `scripts/22` locks them (step 13).
 - **Wi-Fi without the TV:** put two lines in `device-info/wifi` before the
   build, `SSID=...` and `PASSPHRASE=...`, and the SHIELD joins that network
@@ -258,22 +261,23 @@ With `--no-install` it stops after the build, so the package can be tried
 from its build tree first. `pacman -S mesa` brings Arch Linux ARM's back.
 nouveau loads at boot. A system an older `scripts/13` made has
 `/etc/modprobe.d/20-darcy-nouveau.conf`, which blocks it: delete that file.
-The kernel needs `patches/linux/0004` and `0005` for the GPU: without them
-nouveau rejects command batches after a second's wait, and the TV shows
-half-drawn frames.
+Besides `patches/linux/0001`, without which the GPU doesn't start at all,
+the kernel needs `0004` and `0005`. Without them, nouveau rejects command
+batches after a second's wait, and the TV shows half-drawn frames.
 
 ### 13. Omarchy
 
 The omarchy-arm port at its pin, with a Tegra210 platform and a fix for
 Qt 6.12 (`patches/omarchy-arm/`), for the desktop user `config.sh` names
 (`OMARCHY_USER`: `omarchy`, unless `config.local.sh` names another).
-`scripts/20` asks for that user's password at the start, then runs by
-itself. `scripts/22` then locks the default logins:
+`scripts/20` asks for a new user's password at the start, then runs by
+itself. An existing user keeps its password. `scripts/22` then locks the
+default logins, once you confirm the user's password is one you chose:
 
-    scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # the plan, nothing changes
+    scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # install.sh's plan only; it still runs on the SHIELD
     scripts/20-install-omarchy.sh <the SHIELD's address>             # 30-60 minutes
     scripts/21-switch-to-networkmanager.sh <the SHIELD's address>    # Wi-Fi, with a way back
-    scripts/22-lock-default-logins.sh <the SHIELD's address>         # root/root and alarm/alarm off
+    scripts/22-lock-default-logins.sh <the SHIELD's address>         # the default root and alarm logins off
     ssh ... root@<address> systemctl reboot                          # into the login screen
 
 Omarchy runs on NetworkManager. `scripts/20` gives it the Wi-Fi networks
@@ -286,7 +290,7 @@ password: it logs in as that user.
 
 The memory clock starts at 800 MHz, where cboot leaves it. The kernel's EMC
 driver and the trained table U-Boot passes on take it to stock's 1600 MHz,
-which makes the GPU 50 to 100% faster:
+where glmark2's scenes ran 50 to 100% faster and SuperTuxKart about 17%:
 
     tools/emc-rate.sh <the SHIELD's address> 1600000000   # a reboot timer covers a hung switch
     tools/emc-rate.sh <the SHIELD's address> status

@@ -1,10 +1,10 @@
 # Research: briefs and reviews
 
-Hard problems went to other AI agents for review before we acted. Each review went the same way: a self-contained brief (`*-brief.md`) went to each agent, each answered in its own file, and every claim was checked against the source before anything changed. NOTES.md records the claims that turned out wrong.
+Hard problems went to other AI agents for review. A self-contained brief (`*-brief.md`) went to each agent, and each answered in its own file. Their claims were checked against the source before we used them, and NOTES.md records the ones that turned out wrong. Most reviews came before the change they shaped. Some checked a change already prepared or tested.
 
 | Agent | Tool | Reviews |
 |---|---|---|
-| n-codex | Codex | 23 |
+| n-codex | Codex | 24 |
 | n-grok | Grok | 8 |
 | antigravity | Gemini | 7 |
 | Z.ai | GLM, through opencode | 4 |
@@ -18,13 +18,13 @@ n-grok and Z.ai stopped answering at their usage limits. Antigravity is out of q
 | U-Boot patch (no brief) | Hazards in our board code | n-codex | Seven of nine findings fixed (1db0e92) | The predicted relocation overlap never happened |
 | `linux-handoff` | Keep cboot's picture through the first Linux boot | n-codex, n-grok | no-map framebuffer and ramoops, boot-on rails (371a6dc) | Turning off the pinmux, PMIC and IOMMU was turned down after checking |
 | `hdmi-black` | Was the PMIC blanking HDMI? | n-codex, n-grok, Z.ai | Stock PMIC values (e91a6a4) | The PMIC wasn't the cause |
-| `hdmi-link` | Which Linux probe drops the HDMI link? | all four | All four found the power-partition teardown (06ec1f0) | No record of anything else |
+| `hdmi-link` | Which Linux probe drops the HDMI link? | all four | n-codex and n-grok found the power-partition teardown independently, and antigravity and Z.ai agreed (06ec1f0) | No record of anything else |
 | `firstboot` | The installed system's first boots | all four | Keep tegra-drm out, matching modules, iwd's crypto (7847688) | Z.ai's module name and antigravity's quoted code were wrong |
 | `step3` | Wi-Fi: kernel options, country, module update | all four | Crypto options, the country map, two script bugs (7907e0f, 2778bdf) | Much of antigravity's ordering section describes code we don't have |
 | `hdmi-drm` | tegra-drm's first HDMI bring-up | n-codex, n-grok, antigravity | The device-tree recipe, always-on HDMI 5 V (7cf0d01) | Two review claims were corrected in NOTES |
 | `gpu-review` | A safe first nouveau load | n-codex, n-grok, antigravity | The rail, pinmux and rollback plan (708b4f6) | The expected firmware issues never came; a missing fuse clock did |
 | `gpu-hang` | Why the first register read hangs | n-codex | The fuse clock (b09a55d) | Reset and memory-flush changes weren't needed |
-| `thermal` | Why it shut down, and how to cool it | n-codex, antigravity | Fan, throttle, idle, DFLL, in that order (d4cd616, 4d82b89) | A guessed thermal-trip write wasn't used |
+| `thermal` | Why it shut down, and how to cool it | n-codex, antigravity | Throttle, fan, idle, DFLL, in that order (4d82b89, d4cd616) | A guessed thermal-trip write wasn't used |
 | `plan2` | Order of CPU, GPU and desktop work | n-codex, antigravity | The staged plan (bdccfb0) | antigravity's speedo, GPU-trip, package and "kmsro stub" claims were wrong |
 | `dfll-followup` | Reading the DFLL's monitor | n-codex | Cautious reading, staged clock steps (a92151d) | Timing safety is plausible, not proved |
 | `mesa-tegra` | Is upstream's Mesa fix enough? | n-codex | Six more fixes in `mesa-darcy` (2d4908d) | The upstream fix alone wasn't enough |
@@ -36,3 +36,4 @@ n-grok and Z.ai stopped answering at their usage limits. Antigravity is out of q
 | `omarchy` | The Tegra platform and the network switch | n-codex | Rollback switch, detection, PSI and zram, visudo (f53a3c9) | none; the firewall failure was outside its checklist |
 | `omarchy-color` | The colour fix, and restarting while locked | n-codex | `Commons.Color` (54988ed) | Restart while locked: only a workaround, unlock first |
 | `docs-research` | This index, and the claims to correct | n-codex | This table, the corrections in `docs/problems.md` | none |
+| `docs-audit` | Is every claim and number in the new docs right? | n-codex | All its points, checked first, but three | The raw files keep the user name, as the user chose. `--dry-run` is documented, not made read-only. A private LAN address stays in one raw log. |

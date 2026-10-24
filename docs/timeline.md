@@ -19,7 +19,7 @@ The work ran from 2026-10-21 to 2026-10-23. The bring-up is 89 commits, a8fab0c 
 | 08:16–11:07 | **The GPU draws on the TV.** Mesa's tegra driver needed seven fixes, and the kernel two: stale progress reads, and half-drawn frames. Hyprland runs, and nouveau loads at boot. | bdccfb0 → 648ea26 |
 | 11:20–13:57 | **Omarchy installed.** It needed a Tegra210 platform, a firewall-capable kernel, SDDM's last user and a Qt 6.12 colour fix. | ae087db → 54988ed |
 | 14:38–17:06 | Performance. At the same settings, SuperTuxKart goes from 17.7 to 37.2 FPS, and runs at 31.3 FPS full screen at 1080p. Two changes did it: nouveau's cache cleaning, fixed in two rounds, and the memory clock, raised from 800 to 1600 MHz with cboot's trained tables. Along the way, two refresh bugs in mainline's memory-clock driver were found and fixed. | f6abea2 → 74115dc |
-| 17:54 onward | Whole-system benchmarks. The SSD turns out to be on a USB 2 link. The raw outputs are saved, and the logins changed: the user picks the password, and the default ones are locked. | 0b5f5c0 onward |
+| 17:54 onward | Whole-system benchmarks. The SSD turns out to be on a USB 2 link. The raw outputs are saved, and the logins changed: a new desktop user picks its password, and the default logins are locked. | 0b5f5c0 onward |
 
 ## Kernel builds
 

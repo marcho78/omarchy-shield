@@ -17,7 +17,7 @@ The approach:
 | USB | Works | The SSD links at USB 2, most likely its cable |
 | Wi-Fi | Works | 2.4 and 5 GHz. The signal is weak here, and drops were seen. |
 | Ethernet | Driver works | The link hasn't been tested yet (no switch) |
-| Bluetooth | Works | Pairing a keyboard hasn't been tried yet |
+| Bluetooth | Controller works | Pairing a keyboard hasn't been tried yet |
 | GPU | Works | OpenGL ES 3.2 through nouveau and our Mesa fixes. No Vulkan. |
 | CPU, cooling | Works | Up to stock's 2.0 GHz, idle sleep, the fan, throttling |
 | Memory clock | Works, by hand | 1600 MHz like stock, set after each boot; it boots at 800 |
@@ -36,7 +36,7 @@ All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 | Boot to the login screen | 20.9 s |
 | Power | 6.7 W idle, 12.5 W in a game |
 
-[docs/benchmarks.md](docs/benchmarks.md) has every number with its conditions, and `benchmarks/` the raw outputs.
+[docs/benchmarks.md](docs/benchmarks.md) has every number with its conditions, and `benchmarks/` the raw outputs of our runs.
 
 ## Read next
 
@@ -50,14 +50,14 @@ All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 | [NOTES.md](NOTES.md) | The day-by-day log, as it was written |
 | [research/README.md](research/README.md) | The reviews by other AI agents, and what we used from them |
 
-**Read the safety rules in [docs/install.md](docs/install.md) first.** Unlocking the bootloader erases Android's user data. Only the boot and recovery partitions are ever written, and the board's DTB and bootloader never are.
+**Read the safety rules in [docs/install.md](docs/install.md) first.** Unlocking the bootloader erases Android's user data. On the default path, with Linux on a USB SSD, only the boot and recovery partitions are written. The eMMC option also overwrites Android's user data. The board's DTB and bootloader are never written.
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `config.sh` | Every pinned version, commit and checksum |
-| `config.local.sh` | Your own settings, such as the desktop user's name. Optional, and git ignores it. |
+| `config.local.sh` | Your own settings, such as the desktop user's name. It's shell, read after `config.sh` and trusted like it. Optional, and git ignores it. |
 | `scripts/` | The numbered steps; `lib.sh` holds shared helpers |
 | `patches/u-boot/` | U-Boot for darcy (target `p2894`). It also passes on cboot's device tree and its trained memory table. |
 | `patches/linux/` | Kernel fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress counter and cache cleaning, tegra-drm's imported buffers, the memory-clock driver's refresh |
@@ -85,8 +85,8 @@ All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 ## Credits
 
 - The NVIDIA darcy device tree in mainline Linux (Mark Zhang and Thierry Reding).
-- archeYR's mainline port for the 2015 SHIELD
-  ([postmarketOS](https://wiki.postmarketos.org/wiki/Nvidia_SHIELD_TV_2015_/_2015_Pro_/_2017_Pro_(nvidia-foster))).
-- The LineageOS SHIELD maintainers, for the U-Boot chainload approach and the
-  mirrored NVIDIA sources.
+- archeYR's mainline port for the 2015 SHIELD, the proven U-Boot chain on a
+  SHIELD ([postmarketOS](https://wiki.postmarketos.org/wiki/Nvidia_SHIELD_TV_2015_/_2015_Pro_/_2017_Pro_(nvidia-foster))).
+- The LineageOS SHIELD maintainers, for the mirrored NVIDIA sources and the
+  model for wrapping U-Boot in a boot image.
 - The `omarchy-arm` contributors.

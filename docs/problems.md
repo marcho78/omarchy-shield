@@ -6,10 +6,10 @@ This page covers what limits the project, what went wrong on the way, the claims
 
 These are facts we work within.
 
-- **Android stays whole.** The user chose this, so Linux runs from a USB SSD, and only the boot and recovery partitions are ever written. The never-flash list in `NOTES.md` covers the DTB, the bootloader blob, BCT, TOS, EKS and the partition table, since a bad DTB has bricked SHIELDs.
-- **Unlocking the bootloader erases Android's user data.** NVIDIA's recovery image restores everything.
-- **NVIDIA's files can't go in the repo.** That covers the recovery image and the Wi-Fi, Bluetooth and GPU firmware. Each user downloads the image, and `scripts/04` takes the firmware from it.
-- **No serial port.** We debug with photos of the TV, the kernel's log kept in RAM (shown by U-Boot after a reset), and SSH once the system is up.
+- **Android stays whole.** The user chose this, so Linux runs from a USB SSD, and only the boot and recovery partitions are written. The eMMC option would also overwrite Android's user data. The never-flash list in `NOTES.md` covers the DTB, the bootloader blob, BCT, TOS, EKS and the partition table, since a bad DTB has bricked SHIELDs.
+- **Unlocking the bootloader erases Android's user data.** NVIDIA's recovery image reinstalls stock Android, but can't bring back what the unlock erased.
+- **NVIDIA's files can't go in the repo.** That covers the recovery image and the Wi-Fi and Bluetooth firmware in it. Each user downloads the image, and `scripts/04` takes that firmware from it. The USB and GPU firmware come from linux-firmware.
+- **No known way to reach a serial port.** We debug with photos of the TV, the kernel's log kept in RAM (shown by U-Boot after a reset), and SSH once the system is up.
 - **cboot's limits:**
   - `fastboot boot` doesn't work.
   - A download can be 32 MiB at most, and a slot holds 25.5 MiB.
@@ -17,7 +17,7 @@ These are facts we work within.
   - The bootloader menu clears the RAM that holds the kernel's log.
   - Once, the menu went on by itself after 15–18 s, so `scripts/17` flashes at once.
 - **USB:** the laptop needs a USB-A male-to-male cable to the port far from HDMI; a phone cable won't do. The bootloader menu needs a USB keyboard or controller in the port near HDMI, as it has no Bluetooth.
-- **The GPU stack** is nouveau and Mesa, without NVIDIA's own driver. On GM20B that means no compression, 4 KiB GPU pages only, and no Vulkan (NVK doesn't support Tegra), so no GPU compute.
+- **The GPU stack** is nouveau and Mesa, without NVIDIA's own driver. On GM20B that means no compression and 4 KiB GPU pages only. There's no GPU compute either: NVK, the Vulkan driver, doesn't support Tegra, and no OpenCL driver is set up.
 - **No real network addresses.** The board stores no Wi-Fi or Bluetooth address, so both use the firmware's placeholder addresses. Two SHIELDs on one network could clash.
 - **Review agents have quotas.** n-grok ran out of credits, Z.ai hit its usage limit, and antigravity is out of quota until about Oct 29. Agents also make confident wrong claims, so we check each one in the source before acting. NOTES lists the ones that were wrong.
 
@@ -39,7 +39,8 @@ These are facts we work within.
 | Omarchy's install stopped at the firewall | The kernel had no nf_tables | Kernel #15 (47a3653) |
 | The login screen refused the password | SDDM's last user was never recorded | `scripts/20` records it (54988ed) |
 | The bar and menus lost their colours | Qt 6.12's `Color` hid the shell's | `patches/omarchy-arm/0002` (54988ed) |
-| SuperTuxKart at 3 FPS | nouveau cleaned caches for every buffer, every submit | `0006`, twice (f6abea2, d4401c6, 43a9559) |
+| SuperTuxKart at 3 FPS with dynamic lighting | First, nouveau cleaned caches for every buffer on every submit. With that cut, the GPU's deferred lighting was the limit. | `0006` (f6abea2). Without dynamic lighting: 17.9 FPS. |
+| Cache cleaning still took 41% of the CPU at 20.7 FPS | `0006` still cleaned every buffer userspace had ever mapped, whole | `0006` tracks written pages: 37.2 FPS (d4401c6, 43a9559) |
 | Hot memory would have been refreshed less often | Two bugs in mainline's EMC driver | `0007` (4c8e65b, d005f18) |
 | Two benchmark runs read about 10 FPS | The screen was locked, and Hyprland slows hidden windows | Runs only with the user at the TV (NOTES.md B7) |
 
@@ -68,6 +69,10 @@ These are facts we work within.
   - It hasn't been re-checked since the move to NetworkManager.
 - **Untested or not started:** an Ethernet link (no switch to plug into), audio, video playback and decoding, and Bluetooth keyboard pairing.
 - **Omarchy isn't trimmed** for the media center.
+- **HDMI:**
+  - The colour range (full where cboot sent limited), the drive current and 4K/HDMI 2.0 are untested.
+  - The device tree still keeps the SOR power partition from Linux (`pd_sor` deleted), though the plan was to give it back once tegra-drm drove HDMI.
+- **The CPU's DFLL** runs low requests up to 15% fast. Mainline lacks stock's one-shot floor calibration and cold-temperature floor, reads its monitor once, and can't show the live PWM output. Timing safety is plausible, not proved (NOTES.md "CPU power management").
 - **Restarting Omarchy's shell while the screen is locked** kills its lock screen, so unlock first (NOTES.md B5).
 - **SuperTuxKart with dynamic lighting** is 5.6 times slower. The GPU-side causes haven't been measured yet: compression, big pages, the IOMMU.
 - **Nothing has gone upstream yet:** the kernel fixes, the Mesa fixes, the omarchy-arm patches, and the debugfs oops. That's the user's call.

@@ -10,12 +10,13 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 - **U-Boot must be gzipped**, as NVIDIA's kernels are. A raw one made cboot fall back to fastboot (686b74f).
 - **cboot reports no framebuffer.** U-Boot reads the address and format from display controller A, which shows cboot's logo (1216ac1). U-Boot's console shows on the TV (fa74230).
 - **Size limits:** cboot takes at most 32 MiB per download, and the boot and recovery slots hold 25.5 MiB each (b7ddcb2).
-- **No serial port, so the TV is the debug channel.** After any reset, U-Boot shows the end of the last kernel's log, read from RAM (ramoops), and then reboots into the bootloader menu. That makes a test loop that needs no Android (7b3709a, 092a153, c4660af).
+- **No known way to reach a serial port, so the TV is the debug channel.** After any reset, U-Boot shows the end of the last kernel's log, read from RAM (ramoops), and then reboots into the bootloader menu. That makes a test loop that needs no Android (7b3709a, 092a153, c4660af).
 - **A watchdog catches hangs.** U-Boot arms one for every kernel (150 s). It reset a deliberately hung kernel (d8ac237, 5453afb).
 
 ## Display (HDMI)
 
-- **The first Linux boot went black.** Linux's power-controller driver (PMC) switches off every power partition that is on when it starts. One of them, `pd_sor`, feeds SOR1, the HDMI encoder cboot left running. All four reviewers found this independently (`research/*hdmi-link*`). The first suspect, the PMIC's HDMI power path, differed from stock but wasn't the cause (e91a6a4, then 06ec1f0).
+- **Keeping cboot's picture through the first Linux boot.** The framebuffer is reserved as no-map memory, so Linux can map it. Three always-on rails are marked boot-on, because the fixed-regulator driver otherwise pulses them off at probe. The HDMI 5 V and the fan stayed as cboot set them (371a6dc).
+- **The first Linux boot went black.** Linux's power-controller driver (PMC) switches off every power partition that is on when it starts. One of them, `pd_sor`, feeds SOR1, the HDMI encoder cboot left running. n-codex and n-grok found it independently, and antigravity and Z.ai agreed (`research/*hdmi-link*`). The first suspect, the PMIC's HDMI power path, differed from stock but wasn't the cause (e91a6a4, then 06ec1f0).
 - **Fix, in two stages:**
   - While the simple framebuffer drove the console, the device tree kept that partition away from the PMC (06ec1f0, e5503b4).
   - Then HDMI was described as on the Jetson TX1 and stock darcy (DPAUX1, SOR1's supplies, DDC on I2C4, hot-plug), and tegra-drm, the real display driver, drives 1080p from boot (7cf0d01, 6521017).
@@ -51,7 +52,7 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
   - Its 5 V supply and PWM pin were off, and its PWM input is inverted.
   - With it running, the idle CPU sits at 43 °C instead of 67–70 °C.
 - **Power management now:**
-  - Idle cores sleep in C7 (7a322c8).
+  - Idle cores sleep in C7 (7a322c8). The secure monitor turns down 1–4% of the attempts, at no cost. Power and heat didn't change, since the cores were already clock-gated when idle.
   - A thermal guard slows the CPUs at 86 °C and reboots at 92 °C (9736e5b).
   - The DFLL runs the CPU up to stock's 2014.5 MHz (`patches/linux/0003`, 5fc27a7 to 4a93eab).
   - Passive cooling starts at 82 °C (c16b710).
@@ -88,5 +89,5 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 
 ## Logins
 
-- **The desktop user's password is the user's own.** `scripts/20` asks for it.
-- **The default logins are locked.** `scripts/22` locks Arch Linux ARM's `root`/`root` and `alarm`/`alarm`, after checking that root's SSH key keeps working (NOTES.md B9, 4c9d7a8).
+- **A new desktop user's password is the user's own.** `scripts/20` asks for it; an existing user keeps its password.
+- **The default logins are locked.** `scripts/22` locks Arch Linux ARM's default root and alarm logins, after checking that root's SSH key keeps working (NOTES.md B9, 4c9d7a8).

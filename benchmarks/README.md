@@ -40,6 +40,7 @@ All files are in `glmark2/`. The overall scores, 847 at 800x600 and 288 at 1920x
 | File | What |
 |---|---|
 | `system/k21-system-benchmark.txt` | `tools/system-benchmark.sh`, first run: boot time, idle power, 7-Zip, glmark2, storage, Wi-Fi. Its memory lines used 1 MiB blocks, which measured the CPU's 2 MiB L2 cache, not the memory: use the rerun. Its storage lines say MB/s, but they are MiB/s. |
+| `system/k21-boot-later.txt` | systemd-analyze on a later boot of the same kernel: 22.4 s |
 | `system/k21-reruns.txt` | Memory with 64 MiB blocks at 1600 and at 800 MHz, the SSD's USB link (480 Mbit/s) and the Wi-Fi link |
 | `geekbench/k21-cli.txt` | What Geekbench 6.7.1 (the Linux AArch64 preview) printed. It shows no scores and uploads every result. |
 | `geekbench/k21-result-page.txt` | The text of the result page, browser.geekbench.com/v6/cpu/19382032: 317 single-core, 854 multi-core, and each subtest |

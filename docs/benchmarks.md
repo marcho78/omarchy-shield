@@ -1,6 +1,6 @@
 # Benchmarks
 
-Every number here comes from a run on the SHIELD TV 2017 on 2026-10-23, and `benchmarks/` keeps each run's raw output. Unless a section says otherwise, the conditions were:
+Our numbers come from runs on the SHIELD TV 2017 on 2026-10-23, and `benchmarks/` keeps their raw output. The two exceptions it lists are one run read by hand, and Android's figures, which were reported to us. Unless a section says otherwise, the conditions were:
 - Linux 7.2.11 with our patches, kernel build #21
 - Mesa 26.2.5 with our tegra fixes
 - CPU up to 2014.5 MHz, memory clock (EMC) at 1600 MHz
@@ -21,7 +21,7 @@ Every number here comes from a run on the SHIELD TV 2017 on 2026-10-23, and `ben
 
 | Test | Result | Notes |
 |---|---|---|
-| Boot to the login screen | 20.9 s (10.8 kernel + 10.2 userspace) | 22.4 s on a later boot. Most of the kernel's time is spent waiting for the SSD, which appears about 9 s in. |
+| Boot to the login screen | 20.94 s (10.75 kernel + 10.18 userspace) | 22.4 s on a later boot (`benchmarks/system/k21-boot-later.txt`). Most of the kernel's time is spent waiting for the SSD, which appears about 9 s in. |
 | Idle power | 6.7 W | CPU 46 °C, GPU 44 °C, memory 49 °C |
 | Power in SuperTuxKart | 12.5 W | at 1920x1080 |
 | 7-Zip 26.05 `7z b`, four cores | 9,853 MIPS | 7,015 compressing, 12,690 decompressing |

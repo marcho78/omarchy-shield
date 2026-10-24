@@ -1,0 +1,5 @@
+# systemd-analyze on a later boot of kernel #21 (2026-10-23), the one docs/benchmarks.md quotes as 22.4 s:
+#21 SMP PREEMPT
+2026-10-23 18:07:05
+Startup finished in 11.211s (kernel) + 11.192s (userspace) = 22.404s 
+graphical.target reached after 11.191s in userspace.

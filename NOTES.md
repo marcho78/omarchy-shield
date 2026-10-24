@@ -1874,7 +1874,7 @@ thermal guard running.
 ### B4: Omarchy, the plan after n-codex's review (2026-10-23)
 
 The desktop user is `devsecai` (the user's choice; config.sh
-`OMARCHY_USER`), in wheel, with a temporary password equal to the name
+`OMARCHY_USER`), in wheel, with a temporary password
 (the user deferred passwords; SSH takes keys only, so it counts at the TV
 alone; since B9, `scripts/20` asks for the password, and config.sh's default
 user is `omarchy`). omarchy-arm's `install.sh --dry-run`: 124 repository packages
@@ -2377,15 +2377,13 @@ The rest:
 
 ### B9: Logins: the user's own password, the defaults locked (2026-10-23)
 
-- **The user's name stays local.** `config.sh`'s `OMARCHY_USER` is
-  `omarchy`. A name of your own goes in `config.local.sh`, which git ignores
-  and `scripts/lib.sh` reads after `config.sh`. This computer's names
-  devsecai.
+- **`config.sh` names no one's account.** Its `OMARCHY_USER` is `omarchy`.
+  A name of your own goes in `config.local.sh`, which git ignores and
+  `scripts/lib.sh` reads after `config.sh`.
 - **`scripts/20` asks for a new user's password** at the start, twice and
   hidden, and sends it to `chpasswd` through SSH's input, so it appears in
-  no command line or log. It no longer makes the user name the password. A
-  user that exists keeps its password.
-- **`scripts/22` locks Arch Linux ARM's `root`/`root` and `alarm`/`alarm`**
+  no command line or log. A user that exists keeps its password.
+- **`scripts/22` locks Arch Linux ARM's default root and alarm logins**
   once the desktop user has a password and is in wheel. It first checks
   that sshd uses PAM: with `UsePAM yes`, sshd doesn't turn a key away for a
   locked password; without PAM it does. (This OpenSSH's `sshd -T` prints
@@ -2396,8 +2394,16 @@ The rest:
 - **What it costs:** no root login at the TV (the desktop user's sudo
   instead), and systemd's emergency shell, which asks for root's password,
   won't open.
-- devsecai keeps the password `scripts/20` gave it at the install.
-  Changing it (`passwd`) is the user's call.
+- **After n-codex's audit** (`research/ncodex-docs-audit-review.md`):
+  - `scripts/22` asks you to confirm the desktop user's password is one you
+    chose (`CONFIRM_OWN_PASSWORD=yes` answers for you), since a password's
+    existence says nothing about who chose it.
+  - It stops the unlock timer and its service, and fails unless root then
+    reads locked.
+  - `scripts/20` sets a password for an existing user that has none, as a
+    run cut off between `useradd` and `chpasswd` would leave.
+  - `scripts/lib.sh` refuses an `OMARCHY_USER` that isn't a plain account
+    name, since it goes into commands run as root.
 
 ## Never flash
 
