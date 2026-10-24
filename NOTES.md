@@ -2307,6 +2307,10 @@ VMA), and GUP, `process_vm_writev`, io_uring, COW and mremap can't write a
   x86) aren't marked, so their mappings aren't revoked for nothing;
 - kernel maps mark the BO only once they exist.
 
+Kernel #21, full screen at 1920x1080 with the HUD, filmed by the user:
+31.3 FPS (1195 frames in 38 s; steady 18, mostly stable 23, typical 31),
+CPU load 26%, 12.5 W, CPU 57 °C: the fixes cost nothing.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
