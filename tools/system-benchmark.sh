@@ -72,12 +72,12 @@ on_shield 'd=$(lsblk -no PKNAME $(findmnt -no SOURCE /) | head -1)
   echo "    /dev/$d: $(cat $p/manufacturer 2>/dev/null) $(cat $p/product 2>/dev/null), USB link $(cat $p/speed) Mbit/s"
   f=/var/tmp/darcy-fio.test
   fio --name=w --filename=$f --rw=write --bs=1M --size=1G --direct=1 --ioengine=libaio --iodepth=16 --output-format=terse 2>/dev/null |
-    awk -F";" "{printf \"    sequential write: %.0f MB/s\n\", \$48 / 1024}"
+    awk -F";" "{printf \"    sequential write: %.0f MiB/s\n\", \$48 / 1024}"
   sync; echo 3 > /proc/sys/vm/drop_caches
   fio --name=r --filename=$f --rw=read --bs=1M --size=1G --direct=1 --ioengine=libaio --iodepth=16 --output-format=terse 2>/dev/null |
-    awk -F";" "{printf \"    sequential read: %.0f MB/s\n\", \$7 / 1024}"
+    awk -F";" "{printf \"    sequential read: %.0f MiB/s\n\", \$7 / 1024}"
   fio --name=rr --filename=$f --rw=randread --bs=4k --size=1G --direct=1 --ioengine=libaio --iodepth=32 --runtime=20 --time_based --output-format=terse 2>/dev/null |
-    awk -F";" "{printf \"    random 4 KiB read: %.0f IOPS (%.0f MB/s)\n\", \$8, \$7 / 1024}"
+    awk -F";" "{printf \"    random 4 KiB read: %.0f IOPS (%.0f MiB/s)\n\", \$8, \$7 / 1024}"
   rm -f $f' >&2
 
 log "Wi-Fi: the link, and TCP throughput with this computer"
