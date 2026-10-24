@@ -745,7 +745,7 @@ The first image with both worked. The kernel builds `r8169`, `rfkill`,
 **Ethernet:**
 - `pcieport 0000:00:02.0`: the RTL8168 is behind the **x1** root port
   (`pci@2,0`, lane `pcie-0`). The x4 port is empty.
-- `r8169 0000:01:00.0 eth0: RTL8168g/8111g, 00:04:4b:b2:35:bb, XID 4c0`.
+- `r8169 0000:01:00.0 eth0: RTL8168g/8111g, 00:04:4b:xx:xx:xx, XID 4c0`.
   The MAC is the board's own (NVIDIA's OUI `00:04:4b`).
 - `eth0` is down, with no cable.
 
@@ -1033,7 +1033,7 @@ nothing with `-D` here).
 - **Bluetooth:** `btmgmt info` shows `hci0` powered, br/edr + le, and
   configured, with no missing options. The address is the chip's
   placeholder, `43:50:C0:00:1F:AC`.
-- **Ethernet** is `enp1s0` (r8169, `00:04:4b:b2:35:bb`), up, with no cable.
+- **Ethernet** is `enp1s0` (r8169, `00:04:4b:xx:xx:xx`), up, with no cable.
 - **Open:**
   - the board's real Wi-Fi and Bluetooth addresses, probably in `NCT`
   - pairing a Bluetooth keyboard
@@ -1617,7 +1617,7 @@ a warm reboot):
 
 **Wi-Fi drops, twice in an hour** (00:16:55, 01:11:43). Each time:
 - The access point deauthenticated the SHIELD (reason 1, `from_ap`).
-- Within a second, iwd's quick reconnects to all four BSSes of `secnet`
+- Within a second, iwd's quick reconnects to all four BSSes of the home network
   failed with status 16 (authentication timeout).
 - iwd blacklisted each one (`[Blacklist] InitialTimeout`, 60 s by
   default, longer after repeated failures) and reconnected 88–90 s later.
@@ -1896,7 +1896,7 @@ n-codex's review (`research/ncodex-omarchy-review.md`), each point checked:
   enabled, so the install keeps SSH, but NetworkManager would come up
   without the Wi-Fi. `scripts/20` writes it a profile from iwd's, with the
   permanent MAC and networkd's DHCPv4 client ID
-  (`ff:de:41:47:63:00:02:00:00:ab:11:c9:55:1e:cf:b6:a7:c5:6e`: 0xff, IAID,
+  (`ff:…`: 0xff, IAID,
   systemd's DUID) so the router hands out the same lease, and
   `scripts/21` tries the switch live, with a timer that puts iwd and
   networkd back unless SSH comes back through NetworkManager.
