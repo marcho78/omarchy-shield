@@ -1,6 +1,23 @@
-# Omarchy on the NVIDIA SHIELD TV 2017
+<h1 align="center">omarchy-shield</h1>
 
-A reproducible path to running [Omarchy](https://omarchy.org) (Arch Linux and Hyprland) natively on an NVIDIA SHIELD TV 2017, which uses the Tegra X1. Every step is a script, and every version is pinned. Android stays installed, so you can go back.
+<p align="center">
+  <b>Omarchy on the NVIDIA SHIELD TV 2017, on mainline Linux</b><br>
+  A reproducible path from a stock SHIELD to Arch Linux and Hyprland, with every step scripted and every version pinned
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="Device: SHIELD TV 2017" src="https://img.shields.io/badge/device-SHIELD%20TV%202017%20(darcy)-informational">
+  <img alt="Linux 7.2.11" src="https://img.shields.io/badge/linux-7.2.11%20mainline-informational">
+  <img alt="Desktop: Omarchy" src="https://img.shields.io/badge/desktop-Omarchy%20%2B%20Hyprland-informational">
+  <img alt="Status: work in progress" src="https://img.shields.io/badge/status-work%20in%20progress-yellow">
+</p>
+
+---
+
+## About
+
+[Omarchy](https://omarchy.org) is an Arch Linux and Hyprland setup for x86 PCs. This project runs it natively on the NVIDIA SHIELD TV 2017, a Tegra X1 box. Android stays installed, so you can go back.
 
 The approach:
 1. NVIDIA's own bootloader (cboot) starts U-Boot.
@@ -8,51 +25,74 @@ The approach:
 3. The kernel boots Arch Linux ARM from a USB SSD. The internal eMMC is an option, in place of Android's data.
 4. The community [`omarchy-arm`](https://github.com/alexisraitano-myffu/omarchy-arm) port installs Omarchy on top.
 
+## Highlights
+
+- **Mainline Linux** on a board where it had only a bare device tree. HDMI, USB, Wi-Fi, Bluetooth and Ethernet have drivers running, and so do the GPU, the fan and the CPU's power management.
+- **The GPU draws the desktop.** OpenGL ES 3.2 runs through nouveau, with three kernel fixes and seven Mesa patches for Tegra.
+- **Stock speeds.** The CPU runs up to 2.0 GHz. The memory reaches 1600 MHz from the timing tables cboot trains at every boot, though for now it's set by hand.
+- **Bugs found and fixed along the way**, among them two in mainline's memory-clock driver and one in nouveau's cache handling. The cache fix alone raised a game's frame rate by 80%. The patches are in `patches/`.
+- **Ahead of stock Android's reported Geekbench 6 scores.**
+- **Reproducible:** 23 numbered scripts, pinned sources and checksums, and the raw output of the benchmark runs.
+
 ## Status
 
 | Area | State | Notes |
 |---|---|---|
 | Boot chain | Works | cboot → U-Boot → mainline Linux, with a test loop that needs no Android |
 | HDMI | Works | tegra-drm at 1920x1080 from boot |
-| USB | Works | The SSD links at USB 2, most likely its cable |
-| Wi-Fi | Works | 2.4 and 5 GHz. The signal is weak here, and drops were seen. |
+| USB | Works | The SSD links at USB 2, most likely because of its cable |
+| Wi-Fi | Works | 2.4 and 5 GHz, on NetworkManager |
 | Ethernet | Driver works | The link hasn't been tested yet (no switch) |
 | Bluetooth | Controller works | Pairing a keyboard hasn't been tried yet |
 | GPU | Works | OpenGL ES 3.2 through nouveau and our Mesa fixes. No Vulkan. |
 | CPU, cooling | Works | Up to stock's 2.0 GHz, idle sleep, the fan, throttling |
-| Memory clock | Works, by hand | 1600 MHz like stock, set after each boot; it boots at 800 |
+| Memory clock | Works, set by hand | 1600 MHz like stock after `tools/emc-rate.sh`; it boots at 800 |
 | Omarchy | Works | Hyprland, the login screen, the bar and the lock screen |
 | Audio, video playback | Not started | |
 
-## Numbers
+## Benchmarks
 
-All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
+Measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 
-| | |
+| Test | Result |
 |---|---|
-| Geekbench 6 | 317 single-core, 854 multi-core. Stock Android 11 is reported at 302 / 789. |
-| SuperTuxKart 1.5 benchmark | 31.3 FPS at 1920x1080 full screen. In a 1054x1054 window, the kernel and memory work took it from 17.7 to 37.2 FPS. |
+| Geekbench 6 | **317** single-core, **854** multi-core ([result](https://browser.geekbench.com/v6/cpu/19382032)). Stock Android 11 is reported at 302 / 789. |
+| SuperTuxKart 1.5 benchmark | **31.3 FPS** at 1920x1080 full screen. In a 1054x1054 window, the kernel and memory work took it from 17.7 to 37.2 FPS. |
 | glmark2 2023.01 | 847 at 800x600, 288 at 1920x1080 |
+| Memory bandwidth | 20.6 GB/s write, 10.2 GB/s read |
 | Boot to the login screen | 20.9 s |
 | Power | 6.7 W idle, 12.5 W in a game |
 
-[docs/benchmarks.md](docs/benchmarks.md) has every number with its conditions, and `benchmarks/` the raw outputs of our runs.
+[docs/benchmarks.md](docs/benchmarks.md) gives every number with its conditions. `benchmarks/` keeps the raw outputs.
 
-## Read next
+## Quick start
+
+Read [docs/install.md](docs/install.md) first. It has what you need, the safety rules and every command. The steps come in four stages:
+
+| Stage | Scripts | What happens |
+|---|---|---|
+| Prepare | `00`–`04` | Host tools; find and survey the SHIELD; fetch the sources; unpack NVIDIA's recovery image, the safety net |
+| Boot chain | `05`–`10` | Build U-Boot; check fastboot; unlock the bootloader (this erases Android's user data); test from the recovery slot |
+| System | `11`–`18` | Build the kernel and its payload; build the root filesystem; write the USB SSD; install; update over the network |
+| Desktop | `19`–`22` | Mesa for the GPU; Omarchy; NetworkManager; lock the default logins |
+
+> [!WARNING]
+> On the default path, only the boot and recovery partitions are written. Never flash `dtb`, the bootloader blob, BCT, TOS, EKS or the partition table: a bad DTB has bricked SHIELDs before. Only the SHIELD TV 2017 (`darcy`) is supported, and the scripts refuse other boards.
+
+## Documentation
 
 | Document | What's in it |
 |---|---|
-| [docs/install.md](docs/install.md) | The steps, from a stock SHIELD to Omarchy: what you need, the safety rules, every script |
+| [docs/install.md](docs/install.md) | The steps, from a stock SHIELD to Omarchy |
 | [docs/findings.md](docs/findings.md) | What we found, area by area: cause, fix, evidence |
 | [docs/lessons.md](docs/lessons.md) | Constraints, what went wrong and how it was fixed, claims we corrected |
 | [docs/benchmarks.md](docs/benchmarks.md) | The numbers, how they were measured, against Android |
 | [docs/timeline.md](docs/timeline.md) | The work in milestones, and the kernel builds |
-| [NOTES.md](NOTES.md) | The day-by-day log, as it was written |
-| [research/README.md](research/README.md) | The reviews by other AI agents, and what we used from them |
+| [NOTES.md](NOTES.md) | The day-by-day engineering log |
+| [research/README.md](research/README.md) | Reviews by other AI agents, and what we used from them |
 
-**Read the safety rules in [docs/install.md](docs/install.md) first.** Unlocking the bootloader erases Android's user data. On the default path, with Linux on a USB SSD, only the boot and recovery partitions are written. The eMMC option also overwrites Android's user data. The board's DTB and bootloader are never written.
-
-## Layout
+<details>
+<summary><b>Repository layout</b></summary>
 
 | Path | What |
 |---|---|
@@ -66,27 +106,34 @@ All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 | `packages/mesa-darcy/` | The Mesa package `scripts/19` builds |
 | `kernel/` | The kernel config fragment, our darcy device trees, the FIT description |
 | `rootfs/` | Files the installed system gets as they are: the thermal guard |
-| `tools/nvblob.py` | Lists and extracts NVIDIA's bootloader packages |
-| `tools/darcy-init.c` | The first payload's `/init`: it reports what Linux sees |
-| `tools/mmio-read.c`, `tools/pmc-read/` | Read hardware registers, read-only. The power controller's go through the secure monitor. |
-| `tools/gpu-power-probe/`, `tools/build-module.sh` | Powers the GPU up step by step, as nouveau does, logging each step. The script builds both kernel modules. |
-| `tools/gpu-smoke.c` | The smallest picture a compositor needs (KMS, GBM, EGL, GLES2), printing each step |
-| `tools/hyprland-try.sh` | Plain Hyprland on the TV over SSH, before Omarchy |
-| `tools/power-status.sh` | Power management at a glance over SSH: CPU idle and clocks, cooling, temperatures, fan, power |
-| `tools/emc-table.py`, `tools/emc-rate.sh` | The memory clock: cboot's table as Linux takes it, and moving the rate, with a reboot timer |
-| `tools/stk-benchmark.sh`, `tools/system-benchmark.sh` | The benchmarks in `docs/benchmarks.md` |
-| `benchmarks/` | The raw outputs of our benchmark runs, with an index that names the exceptions |
+| `tools/` | Diagnostics and benchmarks: register readers, a GPU power-up probe, a minimal GPU test, power and memory-clock tools, the benchmark scripts |
+| `benchmarks/` | The raw outputs of our benchmark runs, with an index |
 | `docs/` | The documents above |
 | `research/` | The briefs, the agents' reviews, and an index |
 | `build/`, `vendor/` | Build output and fetched sources (git-ignored) |
 | `device-info/` | Your device snapshot and SSH key (git-ignored; private) |
 | `recovery/` | Your unpacked recovery image (git-ignored; NVIDIA's, not redistributable) |
 
+</details>
+
+## Contributing
+
+Contributions are welcome: code, testing on your own SHIELD TV 2017, documentation, and problem reports. The open work is in the status table above: audio, video playback, Bluetooth pairing, the memory clock at boot. Sending the fixes upstream is open too. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to report a problem and how to make a change: safety first, reproducible steps, evidence for every number.
+
+## Disclaimer
+
+This is an independent community project. It isn't affiliated with or endorsed by NVIDIA, Omarchy or omarchy-arm. NVIDIA and SHIELD are trademarks of NVIDIA Corporation. Unlocking and flashing can leave a device unusable: follow the safety rules, and proceed at your own risk.
+
+## License
+
+This project's own files are under the [MIT license](LICENSE), with these exceptions:
+- **GPL-2.0, as their SPDX headers say:** the device trees in `kernel/dts/`, `tools/mmio-read.c`, `tools/pmc-read/` and `tools/gpu-power-probe/`.
+- **`patches/`:** each patch carries the license of the project it applies to. That's GPL-2.0 for Linux and U-Boot, and MIT for Mesa and omarchy-arm.
+- **NVIDIA's firmware and recovery image** aren't included. The scripts take them from your own download.
+
 ## Credits
 
 - The NVIDIA darcy device tree in mainline Linux (Mark Zhang and Thierry Reding).
-- archeYR's mainline port for the 2015 SHIELD, the proven U-Boot chain on a
-  SHIELD ([postmarketOS](https://wiki.postmarketos.org/wiki/Nvidia_SHIELD_TV_2015_/_2015_Pro_/_2017_Pro_(nvidia-foster))).
-- The LineageOS SHIELD maintainers, for the mirrored NVIDIA sources and the
-  model for wrapping U-Boot in a boot image.
-- The `omarchy-arm` contributors.
+- archeYR's mainline port for the 2015 SHIELD, the proven U-Boot chain on a SHIELD ([postmarketOS](https://wiki.postmarketos.org/wiki/Nvidia_SHIELD_TV_2015_/_2015_Pro_/_2017_Pro_(nvidia-foster))).
+- The LineageOS SHIELD maintainers, for the mirrored NVIDIA sources and the model for wrapping U-Boot in a boot image.
+- The [`omarchy-arm`](https://github.com/alexisraitano-myffu/omarchy-arm) contributors, and [Omarchy](https://omarchy.org) itself.
