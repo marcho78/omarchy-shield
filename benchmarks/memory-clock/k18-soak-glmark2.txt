@@ -1,0 +1,360 @@
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 87.708 ms
+[texture] duration=30: FPS: 425 FrameTime: 2.355 ms
+=======================================================
+                                  glmark2 Score: 217 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 88.003 ms
+[texture] duration=30: FPS: 429 FrameTime: 2.334 ms
+=======================================================
+                                  glmark2 Score: 219 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 84.816 ms
+[texture] duration=30: FPS: 422 FrameTime: 2.375 ms
+=======================================================
+                                  glmark2 Score: 216 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 89.454 ms
+[texture] duration=30: FPS: 418 FrameTime: 2.394 ms
+=======================================================
+                                  glmark2 Score: 214 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 87.559 ms
+[texture] duration=30: FPS: 426 FrameTime: 2.350 ms
+=======================================================
+                                  glmark2 Score: 218 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 13 FrameTime: 83.232 ms
+[texture] duration=30: FPS: 451 FrameTime: 2.222 ms
+=======================================================
+                                  glmark2 Score: 231 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 88.680 ms
+[texture] duration=30: FPS: 422 FrameTime: 2.374 ms
+=======================================================
+                                  glmark2 Score: 216 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 87.134 ms
+[texture] duration=30: FPS: 433 FrameTime: 2.313 ms
+=======================================================
+                                  glmark2 Score: 221 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 83.423 ms
+[texture] duration=30: FPS: 424 FrameTime: 2.363 ms
+=======================================================
+                                  glmark2 Score: 217 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 88.047 ms
+[texture] duration=30: FPS: 420 FrameTime: 2.381 ms
+=======================================================
+                                  glmark2 Score: 215 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 86.818 ms
+[texture] duration=30: FPS: 423 FrameTime: 2.365 ms
+=======================================================
+                                  glmark2 Score: 216 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 14 FrameTime: 76.591 ms
+[texture] duration=30: FPS: 424 FrameTime: 2.363 ms
+=======================================================
+                                  glmark2 Score: 218 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 11 FrameTime: 92.398 ms
+[texture] duration=30: FPS: 416 FrameTime: 2.404 ms
+=======================================================
+                                  glmark2 Score: 212 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 87.259 ms
+[texture] duration=30: FPS: 423 FrameTime: 2.369 ms
+=======================================================
+                                  glmark2 Score: 216 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 90.367 ms
+[texture] duration=30: FPS: 418 FrameTime: 2.394 ms
+=======================================================
+                                  glmark2 Score: 214 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 11 FrameTime: 91.089 ms
+[texture] duration=30: FPS: 419 FrameTime: 2.388 ms
+=======================================================
+                                  glmark2 Score: 214 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 11 FrameTime: 90.996 ms
+[texture] duration=30: FPS: 421 FrameTime: 2.381 ms
+=======================================================
+                                  glmark2 Score: 215 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 14 FrameTime: 76.255 ms
+[texture] duration=30: FPS: 419 FrameTime: 2.391 ms
+=======================================================
+                                  glmark2 Score: 215 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 11 FrameTime: 91.003 ms
+[texture] duration=30: FPS: 417 FrameTime: 2.400 ms
+=======================================================
+                                  glmark2 Score: 213 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 13 FrameTime: 78.859 ms
+[texture] duration=30: FPS: 432 FrameTime: 2.318 ms
+=======================================================
+                                  glmark2 Score: 221 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 87.870 ms
+[texture] duration=30: FPS: 421 FrameTime: 2.380 ms
+=======================================================
+                                  glmark2 Score: 215 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 11 FrameTime: 91.296 ms
+[texture] duration=30: FPS: 422 FrameTime: 2.371 ms
+=======================================================
+                                  glmark2 Score: 215 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 12 FrameTime: 89.839 ms
+[texture] duration=30: FPS: 417 FrameTime: 2.403 ms
+=======================================================
+                                  glmark2 Score: 213 
+=======================================================
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA
+    GL_RENDERER:    tegra
+    GL_VERSION:     OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   1920x1080 windowed
+=======================================================
+[terrain] duration=60: FPS: 21 FrameTime: 49.024 ms
+[texture] duration=30: FPS: 448 FrameTime: 2.235 ms
+=======================================================
+                                  glmark2 Score: 233 
+=======================================================

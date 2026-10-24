@@ -1,0 +1,4 @@
+1920x1080: terrain 15 fps (71.412 ms) texture 201 fps (4.981 ms) build 217 fps (4.612 ms) 
+960x540: terrain 28 fps (36.997 ms) texture 707 fps (1.415 ms) build 680 fps (1.471 ms) 
+480x270: terrain 44 fps (23.099 ms) texture 1727 fps (0.579 ms) build 1277 fps (0.783 ms) 
+240x135: terrain 51 fps (19.830 ms) texture 3477 fps (0.288 ms) build 1412 fps (0.709 ms)

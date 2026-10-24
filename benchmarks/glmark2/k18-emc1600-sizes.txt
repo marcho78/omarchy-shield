@@ -1,0 +1,3 @@
+EMC: 1600000000 Hz
+1920x1080: terrain 24 fps (42.554 ms) texture 353 fps (2.840 ms) build 433 fps (2.314 ms) 
+960x540: terrain 42 fps (23.922 ms) texture 1200 fps (0.834 ms) build 1177 fps (0.850 ms)

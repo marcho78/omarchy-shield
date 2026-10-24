@@ -1,0 +1,22 @@
+# Ten minutes on all four cores at 2014 MHz (commit 4a93eab, 2026-10-23 01:00-01:18 PDT).
+# Part 1: the first SSH session, which timed out on a Wi-Fi drop at about 240 s:
+start: 1326/2014 MHz, cooling 0, fan level 1 2343 rpm | cpu 42 gpu 42 pllx 39 mem 45 | 5600 mW
+load 30 s: 2014/2014 MHz, cooling 0, fan level 2 3401 rpm | cpu 58 gpu 53 pllx 50 mem 51 | 12520 mW
+load 60 s: 2014/2014 MHz, cooling 0, fan level 2 3398 rpm | cpu 59 gpu 54 pllx 52 mem 53 | 12067 mW
+load 90 s: 2014/2014 MHz, cooling 0, fan level 2 3401 rpm | cpu 60 gpu 55 pllx 53 mem 53 | 12671 mW
+load 120 s: 2014/2014 MHz, cooling 0, fan level 2 3398 rpm | cpu 60 gpu 56 pllx 53 mem 54 | 12369 mW
+load 150 s: 2014/2014 MHz, cooling 0, fan level 2 3398 rpm | cpu 61 gpu 56 pllx 53 mem 54 | 12218 mW
+load 180 s: 2014/2014 MHz, cooling 0, fan level 2 3372 rpm | cpu 61 gpu 56 pllx 53 mem 54 | 12369 mW
+load 210 s: 2014/2014 MHz, cooling 0, fan level 2 3372 rpm | cpu 61 gpu 56 pllx 54 mem 55 | 12369 mW
+load 240 s: 2014/2014 MHz, cooling 0, fan level 2 3398 rpm | cpu 61 gpu 57 pllx 54 mem 54 | 12218 mW
+Timeout, server 192.168.1.122 not responding.
+# Part 2: a second session, to the end of the load:
+soak ends in 230 s
+466 s: 2014 MHz, cooling 0, fan level 2 | cpu 62 gpu 57 pllx 54 mem 55 | 12665 mW | loops 5
+496 s: 2014 MHz, cooling 0, fan level 2 | cpu 61 gpu 57 pllx 54 mem 55 | 12972 mW | loops 5
+527 s: 2014 MHz, cooling 0, fan level 2 | cpu 61 gpu 57 pllx 54 mem 55 | 12822 mW | loops 5
+557 s: 2014 MHz, cooling 0, fan level 2 | cpu 61 gpu 57 pllx 54 mem 55 | 12515 mW | loops 5
+588 s: 2014 MHz, cooling 0, fan level 2 | cpu 61 gpu 57 pllx 54 mem 55 | 12972 mW | loops 5
+619 s: 2014 MHz, cooling 0, fan level 2 | cpu 61 gpu 56 pllx 54 mem 55 | 12665 mW | loops 5
+649 s: 2014 MHz, cooling 0, fan level 2 | cpu 61 gpu 57 pllx 54 mem 55 | 12671 mW | loops 5
+681 s: 1224 MHz, cooling 0, fan level 1 | cpu 49 gpu 48 pllx 46 mem 50 | 6051 mW | loops 1

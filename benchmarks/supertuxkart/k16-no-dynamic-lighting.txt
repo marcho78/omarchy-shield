@@ -1,0 +1,18 @@
+==> supertuxkart, on 7.2.11-ga2de78ee6ed8-dirty #16 SMP PREEMPT Fri Oct 23 14:22:36 PDT 2026
+warning: supertuxkart-1.5-1 is up to date -- skipping
+==> waiting for devsecai to log in at the TV
+==> the benchmark, on the TV, and the recording
+==> running; it exits by itself
+==> the result
+    792 frames in 44 s: 17.9 FPS on average
+    steady, mostly stable, typical FPS: 11, 14, 17
+    at 1054x1054, dynamic lighting 0, shadows 0
+    CPU time per frame, the biggest stages:
+         56.6 ms  Main loop(1)
+         51.0 ms  IrrDriver update(5)
+         44.5 ms  drawAll() for kart 0(7)
+         31.9 ms  SP::Draw normal with first pass(14)
+          8.5 ms  - Draw Call Generation(8)
+          7.3 ms  - culling(9)
+    while it ran (30 samples): power 11.3 W on average, CPU load 30%, GPU at 998 MHz 80% of the time
+    hottest: cpu 53 C, gpu 49 C, mem 50 C

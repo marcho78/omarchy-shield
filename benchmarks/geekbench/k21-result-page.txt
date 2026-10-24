@@ -1,0 +1,126 @@
+Title: NVIDIA Shield TV - Geekbench
+URL: https://browser.geekbench.com/v6/cpu/19382032
+NVIDIA Shield TV
+This result is from Geekbench 6, a legacy version of Geekbench, and can only be compared with other Geekbench 6 results. We recommend Geekbench 7 for testing modern hardware.
+317
+Single-Core Score
+854
+Multi-Core Score
+Geekbench 6.7.1 Preview for Linux AArch64
+Result Information
+Upload Date October 24 2026 12:37 AM
+Views 1
+System Information
+System Information
+Operating System Arch Linux ARM
+Model NVIDIA Shield TV
+Motherboard N/A
+CPU Information
+Name ARM ARMv8
+Topology 1 Processor, 4 Cores
+Identifier ARM implementer 65 architecture 8 variant 1 part 3335 revision 1
+Base Frequency 2.01 GHz
+Cluster 1 0 Cores
+Instruction Sets neon aes sha1 sha2
+Memory Information
+Size 2.81 GB
+Single-Core Performance
+Single-Core Score 317
+File Compression
+491
+70.5 MB/sec
+Navigation
+513
+3.09 routes/sec
+HTML5 Browser
+427
+8.74 pages/sec
+PDF Renderer
+530
+12.2 Mpixels/sec
+Photo Library
+249
+3.38 images/sec
+Clang
+461
+2.27 Klines/sec
+Text Processing
+397
+31.8 pages/sec
+Asset Compression
+373
+11.6 MB/sec
+Object Detection
+99
+2.95 images/sec
+Background Blur
+175
+0.72 images/sec
+Horizon Detection
+394
+12.3 Mpixels/sec
+Object Remover
+195
+15.0 Mpixels/sec
+HDR
+344
+10.1 Mpixels/sec
+Photo Filter
+166
+1.65 images/sec
+Ray Tracer
+352
+340.9 Kpixels/sec
+Structure from Motion
+236
+7.48 Kpixels/sec
+Multi-Core Performance
+Multi-Core Score 854
+File Compression
+929
+133.4 MB/sec
+Navigation
+1617
+9.74 routes/sec
+HTML5 Browser
+1331
+27.3 pages/sec
+PDF Renderer
+1250
+28.8 Mpixels/sec
+Photo Library
+937
+12.7 images/sec
+Clang
+1499
+7.38 Klines/sec
+Text Processing
+483
+38.7 pages/sec
+Asset Compression
+1428
+44.2 MB/sec
+Object Detection
+236
+7.06 images/sec
+Background Blur
+496
+2.05 images/sec
+Horizon Detection
+1234
+38.4 Mpixels/sec
+Object Remover
+689
+53.0 Mpixels/sec
+HDR
+1146
+33.6 Mpixels/sec
+Photo Filter
+148
+1.47 images/sec
+Ray Tracer
+1439
+1.39 Mpixels/sec
+Structure from Motion
+927
+29.3 Kpixels/sec

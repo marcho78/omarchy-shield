@@ -1,0 +1,71 @@
+Geekbench 6.7.1 Preview : https://www.geekbench.com/
+
+Geekbench 6 for Linux/AArch64 is a preview build. Preview builds require an 
+active Internet connection and automatically upload benchmark results to the 
+Geekbench Browser.
+
+System Information
+  Operating System              Arch Linux ARM
+  Kernel                        Linux 7.2.11-ga2de78ee6ed8-dirty aarch64
+  Model                         NVIDIA Shield TV
+  Motherboard                   N/A
+
+CPU Information
+  Name                          ARM ARMv8
+  Topology                      1 Processor, 4 Cores
+  Identifier                    ARM implementer 65 architecture 8 variant 1 part 3335 revision 1
+  Base Frequency                2.01 GHz
+  Instruction Sets              neon aes sha1 sha2
+
+Memory Information
+  Size                          2.81 GB
+
+
+Single-Core
+  Running File Compression
+  Running Navigation
+  Running HTML5 Browser
+  Running PDF Renderer
+  Running Photo Library
+  Running Clang
+  Running Text Processing
+  Running Asset Compression
+  Running Object Detection
+  Running Background Blur
+  Running Horizon Detection
+  Running Object Remover
+  Running HDR
+  Running Photo Filter
+  Running Ray Tracer
+  Running Structure from Motion
+
+Multi-Core
+  Running File Compression
+  Running Navigation
+  Running HTML5 Browser
+  Running PDF Renderer
+  Running Photo Library
+  Running Clang
+  Running Text Processing
+  Running Asset Compression
+  Running Object Detection
+  Running Background Blur
+  Running Horizon Detection
+  Running Object Remover
+  Running HDR
+  Running Photo Filter
+  Running Ray Tracer
+  Running Structure from Motion
+
+
+Uploading results to the Geekbench Browser. This could take a minute or two 
+depending on the speed of your internet connection.
+
+Upload succeeded. Visit the following link and view your results online:
+
+  https://browser.geekbench.com/v6/cpu/19382032
+
+Visit the following link and add this result to your profile:
+
+  [the claim link, which lets anyone add the result to their profile, is removed]
+

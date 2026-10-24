@@ -1,0 +1,15 @@
+# Reruns after the first system run, kernel #21 (2026-10-23).
+# Memory: sysbench, 4 threads, 64 MiB blocks; EMC at 1600 MHz, then 800, then back to 1600:
+== EMC 1600000000 Hz
+    read: 9769.37 MiB/sec
+    write: 19632.28 MiB/sec
+    800000000 Hz from pll_m_ud; DRAM temperature state 2
+    read: 8802.33 MiB/sec
+    write: 10441.57 MiB/sec
+    1600000000 Hz from pll_mb_ud; DRAM temperature state 2
+# Storage link and Wi-Fi link, from the revised tools/system-benchmark.sh:
+    /dev/sda: SSK  SSK  Storage, USB link 480 Mbit/s
+    freq: 5240.0
+    signal: -67 dBm
+    rx bitrate: 270.0 MBit/s
+    tx bitrate: 87.7 MBit/s

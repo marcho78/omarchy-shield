@@ -1,0 +1,20 @@
+==> supertuxkart, on 7.2.11-ga2de78ee6ed8-dirty #20 SMP PREEMPT Fri Oct 23 16:49:32 PDT 2026
+warning: supertuxkart-1.5-1 is up to date -- skipping
+==> waiting for devsecai to log in at the TV
+==> the benchmark, on the TV, and the recording
+==> running; it exits by itself
+==> the result
+    renderer: OpenGL ES 3.2 Mesa 26.2.5-darcy1.2
+    float colour buffers: yes
+    1182 frames in 38 s: 30.9 FPS on average
+    steady, mostly stable, typical FPS: 17, 23, 31
+    at 1920x1080, dynamic lighting 0, shadows 0
+    CPU time per frame, the biggest stages:
+         32.2 ms  Main loop(1)
+         29.5 ms  IrrDriver update(5)
+         24.8 ms  drawAll() for kart 0(7)
+         12.3 ms  - Draw Call Generation(8)
+         10.2 ms  SP::Draw normal with first pass(14)
+          5.6 ms  - Sync Stall(11)
+    while it ran (25 samples): power 13.6 W on average, CPU load 31%, GPU at 998 MHz 84% of the time
+    hottest: cpu 58 C, gpu 54 C, mem 55 C

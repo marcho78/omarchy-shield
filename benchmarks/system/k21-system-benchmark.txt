@@ -1,0 +1,25 @@
+==> the tools
+==> the system
+    kernel 7.2.11-ga2de78ee6ed8-dirty #21 SMP PREEMPT
+    Mesa 1:26.2.5-2
+    CPU up to 2014 MHz, memory (EMC) at 1600 MHz
+    Startup finished in 10.752s (kernel) + 10.184s (userspace) = 20.937s 
+==> idle power (20 s)
+    6722 mW; cpu 46°C  gpu 44°C  pllx 44°C  mem 49°C  
+==> CPU: 7-Zip (all four cores)
+    Avr:      6673   303   2312   7015  |     145664   382   3320  12690
+    Tot:             343   2816   9853
+==> memory bandwidth: sysbench, 4 threads, 1 MiB blocks
+    read: 26561.94 MiB/sec
+    write: 31349.17 MiB/sec
+==> GPU: glmark2 off-screen (waiting for devsecai's desktop)
+    800x600: score 847
+    1920x1080: score 288
+==> storage: fio on / (1 GiB file, direct I/O)
+    sequential write: 25 MB/s
+    sequential read: 28 MB/s
+    random 4 KiB read: 2670 IOPS (10 MB/s)
+==> Wi-Fi: TCP throughput with this computer
+    to the SHIELD: 47 Mbit/s
+    from the SHIELD: 22 Mbit/s
+
