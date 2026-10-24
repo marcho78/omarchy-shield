@@ -19,7 +19,7 @@ These are facts we work within.
 - **USB:** the laptop needs a USB-A male-to-male cable to the port far from HDMI; a phone cable won't do. The bootloader menu needs a USB keyboard or controller in the port near HDMI, as it has no Bluetooth.
 - **The GPU stack** is nouveau and Mesa, without NVIDIA's own driver. On GM20B that means no compression, 4 KiB GPU pages only, and no Vulkan (NVK doesn't support Tegra), so no GPU compute.
 - **No real network addresses.** The board stores no Wi-Fi or Bluetooth address, so both use the firmware's placeholder addresses. Two SHIELDs on one network could clash.
-- **Review agents have quotas.** n-grok ran out of credits, Z.ai hit its usage limit, and antigravity ran out of quota. n-codex alone reviewed the later work and these docs. Agents also make confident wrong claims, so we check each one in the source before acting. NOTES lists the ones that were wrong.
+- **Review agents have quotas.** n-grok ran out of credits, Z.ai hit its usage limit, and antigravity is out of quota until about Oct 29. Agents also make confident wrong claims, so we check each one in the source before acting. NOTES lists the ones that were wrong.
 
 ## What went wrong, and what it taught us
 
@@ -72,3 +72,4 @@ These are facts we work within.
 - **SuperTuxKart with dynamic lighting** is 5.6 times slower. The GPU-side causes haven't been measured yet: compression, big pages, the IOMMU.
 - **Nothing has gone upstream yet:** the kernel fixes, the Mesa fixes, the omarchy-arm patches, and the debugfs oops. That's the user's call.
 - **Losses from locking root:** no root login at the TV (the desktop user's sudo instead), and no emergency shell (NOTES.md B9).
+- **Antigravity's review of these docs** waits until its quota resets, and then for the user's go.
