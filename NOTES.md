@@ -2289,6 +2289,24 @@ frametime;cpu`, `GALLIUM_HUD_SCALE=2`) and STK's own counter
 (`show_fps="true"` in its config), for the user to film; STK keeps
 `--fullscreen` in its config afterwards.
 
+n-codex's review of v3 (`research/ncodex-nouveau-dirty-review.md`, after
+#20 was flashed): the revoke-then-clean ordering holds on arm64 (the
+broadcast TLBI's DSB ISH completes the stores through the old mappings
+before the clean), the page range is right (TTM prefaults forward only,
+PTE by PTE; `vmf->pgoff - drm_vma_node_start()` is the BO's page for any
+VMA), and GUP, `process_vm_writev`, io_uring, COW and mremap can't write a
+`VM_IO|VM_PFNMAP` mapping. Fixed in kernel #21:
+- the fault marked its pages before `nouveau_ttm_fault_reserve_notify()`,
+  which can validate the BO (relocating a tiled one) and so consume the
+  mark: it marks after now, right before the pages are mapped;
+- a ptrace write (`.access`) marked under one reservation and wrote under
+  another: it makes the BO sync whole for good instead;
+- `ttm_bo_unmap_virtual()` also frees the BO's I/O mapping, which a lasting
+  kmap of a tiled BO may still use: `drm_vma_node_unmap()` only;
+- coherent BOs and coherent devices (`dma_dev_need_sync()` false, as on
+  x86) aren't marked, so their mappings aren't revoked for nothing;
+- kernel maps mark the BO only once they exist.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
