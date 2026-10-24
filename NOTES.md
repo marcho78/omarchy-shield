@@ -3,6 +3,10 @@
 Goal: run Omarchy natively on the Shield, by booting Arch Linux ARM on a
 mainline kernel and installing the community `omarchy-arm` port on top.
 
+This is the day-by-day log, kept as it was written. `README.md` and `docs/`
+summarize it, and `docs/problems.md` lists what later work corrected.
+Notes marked *[Later: …]* point from an early statement to its correction.
+
 ## The device
 
 | | |
@@ -164,6 +168,8 @@ mkbootimg), `qemu-user-static` with binfmt.
 2. **Prove the chain.** U-Boot is built (`scripts/05`). The boot image is
    U-Boot plus a FIT payload (kernel, DTB, initramfs) as its ramdisk
    (`scripts/06`). Try `fastboot boot`; if that fails, flash `recovery` only.
+   *[Later: `fastboot boot` freezes cboot, so tests use the recovery slot;
+   see "First device test".]*
    See "Boot chain design" below.
 3. **Bring up the darcy DT.** Add XUSB, PCIe Ethernet, HDMI (SOR1), GPU,
    Wi-Fi, audio and fan. Port from the foster DTs, the live downstream DT and
@@ -409,6 +415,8 @@ Limits of this first kernel, to fix during DT bring-up:
   node and the fan stays as cboot left it. Stock Android's "quiet"
   fan profile is 0% at the lowest state, so idle tests are fine. Long runs
   need both drivers built in, plus a `pwm-fan` node (stock: PWM channel 3).
+  *[Later: the fan never ran under Linux, and the SHIELD overheated; see
+  "The SHIELD overheated and powered off".]*
 - **CPU clock.** Mainline's darcy DT has no CPU DFLL, so the CPUs stay at
   cboot's clock.
 - **Idle.** Mainline enables the C7 state (PSCI `0x40000007`, the same one
@@ -477,6 +485,9 @@ The next test proved the reboot-into-recovery path: Linux's
 and RAM keeping the log. The watchdog path has not been exercised yet.
 
 ### The first log: Linux runs, and the PMIC probe drops HDMI (2026-10-22)
+
+*[Later: the PMIC wasn't the cause. The PMC switching off `pd_sor` was; see
+"Milestone: mainline Linux keeps the HDMI console".]*
 
 U-Boot showed the end of the log on the first try. It shows:
 - **Linux 7.2.11 boots fully:** 4 CPUs, 2.9 GB (MemTotal 2949824 kB), and
@@ -750,6 +761,8 @@ The first image with both worked. The kernel builds `r8169`, `rfkill`,
 USB, the display and the log loop are unchanged.
 
 **Decision (2026-10-22): the root filesystem goes on the internal eMMC.**
+*[Later the same day: a USB disk instead, so Android stays whole; see "The
+installed system: design and build" and commit a33f734.]*
 - **The goal** is a stripped-down media center, which fits in the 11–13
   GiB a reused `userdata` (plus `system`, `cache`) gives.
 - **A USB SSD doesn't fit the hardware.** It would need a hub on the SHIELD:
@@ -1248,6 +1261,8 @@ GPU regulator is disabled.
   - `GPU_RG_CNTRL` `0x1` (clamped)
 - **The PWM controller is clocked.** Its channel 0 runs the lightbar LED
   (stock `pwm-leds`), and channel 3 is a fan this model doesn't have.
+  *[Wrong: darcy has a fan on channel 3; see "The SHIELD overheated and
+  powered off".]*
 - **The GPU's PWM pin is not muxed for it.** `lcd_gpio2_pv4` (`0x7000320c`)
   reads function 0, DISPLAYB.
   - Stock darcy muxes it to `pwm1` in its `default` pinmux, which Android's
@@ -1758,7 +1773,8 @@ idle, it stays at 76.8 MHz. Pinned at 998.4 MHz (`userspace` governor,
 `/sys/class/devfreq/57000000.gpu/userspace/set_freq`), glmark2 has **no
 rejected batch and no crash**, scores 308 (119 on the default policy), and
 stays at or below 53 °C (GPU 50 °C), 10.5-12.4 W. So the flapping clock,
-not the GPU, caused the timeouts, and the timeouts the crash.
+not the GPU, caused the timeouts, and the timeouts the crash. *[Later:
+stale progress reads caused them; see "The clock wasn't the cause" below.]*
 
 The GPU's voltage per step (vdd-gpu, read back):
 
@@ -2269,7 +2285,9 @@ mapped: Mesa's `mm_GART` slabs (vertex, index and uniform buffers, created
 #20) tracks writes instead: a fault marks the pages it maps (the faulting
 one and TTM's 16 prefaulted after it), and before the GPU's use the BO's
 mappings are revoked (`ttm_bo_unmap_virtual()`) and only the marked pages
-cleaned; the next write faults in again. Kernel maps (kmap, vmap) stay
+cleaned; the next write faults in again. *[Kernel #21 revokes only the
+userspace mappings, with `drm_vma_node_unmap()`: see n-codex's review
+below.]* Kernel maps (kmap, vmap) stay
 "whole BO, every time", new pages "whole BO, once". (The other route,
 write-combined GART slabs in Mesa with `NOUVEAU_BO_COHERENT`, as Mesa
 already does for its fence BO, would make CPU reads of those buffers
@@ -2335,14 +2353,16 @@ The rest:
 - 7-Zip 26.05 `7z b`, four cores: 7015 MIPS compressing, 12690
   decompressing, 9853 total
 - memory, sysbench, 4 threads, 64 MiB blocks: read 9.8 GB/s, write
-  19.6 GB/s at 1600 MHz; 8.8 and 10.4 GB/s at 800 MHz. (1 MiB blocks read
+  19.6 GB/s at 1600 MHz; 8.8 and 10.4 GB/s at 800 MHz. *[Later: those are
+  thousands of MiB/s, not GB/s. The writes, 19,632 MiB/s, are 20.6 GB/s; see
+  `docs/benchmarks.md`.]* (1 MiB blocks read
   26.6 and 31.3 GB/s: the 2 MiB L2, not the DRAM, past the 25.6 GB/s a
   64-bit LPDDR4 bus at 1600 MHz carries.)
 - glmark2 2023.01 `glmark2-es2-wayland --off-screen`: 847 at its default
   800x600, 288 at 1920x1080
 - SuperTuxKart 1.5 benchmark, 1920x1080 full screen: 31.3 FPS (B6)
 - storage, fio on the root filesystem: 25 MB/s sequential write, 28 MB/s
-  read, 2670 IOPS random 4 KiB reads: the SSD runs at USB 2 speed. Not the
+  read *[MiB/s: the tool's label was wrong]*, 2670 IOPS random 4 KiB reads: the SSD runs at USB 2 speed. Not the
   SHIELD's nor the hub's doing: the hub is a Genesys Logic USB 3.2 hub,
   whose SuperSpeed half (`2-2`, "USB3.2 Hub") is up at 5000 Mbit/s on the
   SHIELD's SuperSpeed port 2 (usb3-1) and idle (U3); its USB 2 half (`1-3`,
