@@ -8,6 +8,9 @@ recovery/
 # Fetched at pinned commits by scripts/03-fetch-sources.sh
 vendor/
 
+# Your own settings (OMARCHY_USER, for one), read after config.sh
+config.local.sh
+
 # Build output
 build/
 out/

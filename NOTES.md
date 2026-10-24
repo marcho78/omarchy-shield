@@ -1026,7 +1026,7 @@ nothing with `-D` here).
   - pairing a Bluetooth keyboard
   - quieting the kernel messages on the console (`ignore_loglevel`)
   - the root password, still Arch Linux ARM's default `root`; SSH is
-    key-only
+    key-only (locked since B9, by `scripts/22`)
   - a USB 3 cable for the SSD
   - HDMI through tegra-drm for the desktop
 
@@ -1860,7 +1860,8 @@ thermal guard running.
 The desktop user is `devsecai` (the user's choice; config.sh
 `OMARCHY_USER`), in wheel, with a temporary password equal to the name
 (the user deferred passwords; SSH takes keys only, so it counts at the TV
-alone). omarchy-arm's `install.sh --dry-run`: 124 repository packages
+alone; since B9, `scripts/20` asks for the password, and config.sh's default
+user is `omarchy`). omarchy-arm's `install.sh --dry-run`: 124 repository packages
 (Chromium, Docker, clang and CUPS among them), 2 AUR ones (`mise-bin`,
 `ufw-docker`, built with yay), 13 with no aarch64 build left out, the boot
 chain's files skipped ("not ours on ARM").
@@ -2353,6 +2354,30 @@ The rest:
 - Wi-Fi: 5 GHz (5240 MHz), -67 to -69 dBm, link 270 Mbit/s down and
   88 Mbit/s up; TCP with the laptop, itself on Wi-Fi: 47 Mbit/s to the
   SHIELD, 22 Mbit/s from it.
+
+### B9: Logins: the user's own password, the defaults locked (2026-10-23)
+
+- **The user's name stays local.** `config.sh`'s `OMARCHY_USER` is
+  `omarchy`. A name of your own goes in `config.local.sh`, which git ignores
+  and `scripts/lib.sh` reads after `config.sh`. This computer's names
+  devsecai.
+- **`scripts/20` asks for a new user's password** at the start, twice and
+  hidden, and sends it to `chpasswd` through SSH's input, so it appears in
+  no command line or log. It no longer makes the user name the password. A
+  user that exists keeps its password.
+- **`scripts/22` locks Arch Linux ARM's `root`/`root` and `alarm`/`alarm`**
+  once the desktop user has a password and is in wheel. It first checks
+  that sshd uses PAM: with `UsePAM yes`, sshd doesn't turn a key away for a
+  locked password; without PAM it does. (This OpenSSH's `sshd -T` prints
+  `UsePAM`, not `usepam`.) A timer on the SHIELD unlocks root after 2
+  minutes unless a new SSH login gets in. On this SHIELD: root and alarm
+  locked, devsecai with a password; a new key login worked, and the timer
+  was stopped.
+- **What it costs:** no root login at the TV (the desktop user's sudo
+  instead), and systemd's emergency shell, which asks for root's password,
+  won't open.
+- devsecai keeps the password `scripts/20` gave it at the install.
+  Changing it (`passwd`) is the user's call.
 
 ## Never flash
 

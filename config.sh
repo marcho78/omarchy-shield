@@ -122,9 +122,10 @@ ROOTFS_PACKAGES=(
   sudo
 )
 
-# The desktop user scripts/20 installs Omarchy for (created if missing, with a
-# temporary password: OMARCHY_PASSWORD, or the user name)
-OMARCHY_USER=devsecai
+# The desktop user scripts/20 installs Omarchy for: created if missing, with
+# the password scripts/20 asks for. For a name of your own, put
+# OMARCHY_USER=<name> in config.local.sh, which git ignores.
+OMARCHY_USER=omarchy
 
 # Host packages (Arch Linux / Omarchy, x86_64)
 HOST_PACKAGES=(

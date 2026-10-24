@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck source=../config.sh
 source "$ROOT/config.sh"
+# Your own settings go on top, in config.local.sh, which git ignores
+if [[ -f $ROOT/config.local.sh ]]; then
+  source "$ROOT/config.local.sh"
+fi
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }

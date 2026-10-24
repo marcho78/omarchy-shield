@@ -212,8 +212,9 @@ with `scripts/09`, without going through Android.
 - **NVIDIA's Wi-Fi and Bluetooth firmware** goes in under darcy's
   board-specific names.
 - **SSH** takes a key made for the SHIELD, `device-info/ssh/id_ed25519`;
-  passwords are refused over the network. On the TV, the default logins
-  still work: `root`/`root` and `alarm`/`alarm`.
+  passwords are refused over the network. On the TV, Arch Linux ARM's
+  default logins work, `root`/`root` and `alarm`/`alarm`, until
+  `scripts/22` locks them (step 13).
 - **Wi-Fi without the TV:** put two lines in `device-info/wifi` before the
   build, `SSID=...` and `PASSPHRASE=...`, and the SHIELD joins that network
   by itself. Otherwise, join from the TV with `iwctl`.
@@ -294,12 +295,14 @@ half-drawn frames.
 
 The omarchy-arm port at its pin, with a Tegra210 platform and a fix for
 Qt 6.12 (`patches/omarchy-arm/`), for the desktop user `config.sh` names
-(`OMARCHY_USER`, created with a temporary password: change it with
-`passwd`):
+(`OMARCHY_USER`: `omarchy`, unless `config.local.sh` names another).
+`scripts/20` asks for that user's password at the start, then runs by
+itself. `scripts/22` then locks the default logins:
 
     scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # the plan, nothing changes
     scripts/20-install-omarchy.sh <the SHIELD's address>             # 30-60 minutes
     scripts/21-switch-to-networkmanager.sh <the SHIELD's address>    # Wi-Fi, with a way back
+    scripts/22-lock-default-logins.sh <the SHIELD's address>         # root/root and alarm/alarm off
     ssh ... root@<address> systemctl reboot                          # into the login screen
 
 Omarchy runs on NetworkManager. `scripts/20` gives it the Wi-Fi networks

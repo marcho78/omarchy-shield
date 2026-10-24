@@ -2,8 +2,9 @@
 # Install Omarchy on a SHIELD that runs the installed system, over SSH: the
 # omarchy-arm port at config.sh's pin with patches/omarchy-arm on top (the
 # Tegra210 platform), for the desktop user config.sh names (OMARCHY_USER).
-#   1. The user: created when missing, in wheel, with a temporary password
-#      (OMARCHY_PASSWORD, the user name if unset); passwd changes it. SSH
+#   1. The user: created when missing, in wheel, with the password typed at
+#      the start (twice, hidden). It reaches the SHIELD through SSH's input,
+#      never a command line. A user already there keeps its password. SSH
 #      takes keys only, so the password counts at the TV alone.
 #   2. Wi-Fi through the switch: Omarchy moves networking from iwd and
 #      systemd-networkd to NetworkManager at the next boot. Each network iwd
@@ -40,6 +41,18 @@ host=${1:-}
   die "no device-info/ssh/id_ed25519: scripts/13 makes it, with the root filesystem"
 
 user=$OMARCHY_USER
+# A new user's password, asked before the long part, which then runs by itself
+password=
+if ! $dry_run && ! on_shield "id $user >/dev/null 2>&1"; then
+  [[ -t 0 ]] || die "run this in a terminal: it asks for $user's password"
+  while :; do
+    IFS= read -rsp "Password for $user on the SHIELD: " password; echo >&2
+    IFS= read -rsp "The same again: " again; echo >&2
+    [[ -n $password && $password == "$again" ]] && break
+    warn "empty, or not the same twice; once more"
+  done
+  unset again
+fi
 src=$ROOT/vendor/omarchy-arm
 [[ -d $src/.git ]] || die "no vendor/omarchy-arm: run scripts/03-fetch-sources.sh"
 
@@ -51,12 +64,17 @@ for p in "$ROOT"/patches/omarchy-arm/*.patch; do
 done
 
 if $dry_run; then
-  on_shield "id $user >/dev/null 2>&1" || warn "would create the user $user (wheel, temporary password)"
+  on_shield "id $user >/dev/null 2>&1" || warn "would create the user $user (wheel), asking for its password"
   on_shield 'for f in /var/lib/iwd/*.psk; do [ -e "$f" ] && echo "    would give NetworkManager the network $(basename "$f" .psk)"; done' >&2
 else
   log "the user $user"
-  on_shield "id $user >/dev/null 2>&1 || { useradd -m -G wheel -s /bin/bash $user &&
-    echo '$user:${OMARCHY_PASSWORD:-$user}' | chpasswd && echo created; }"
+  if [[ -n $password ]]; then
+    printf '%s:%s\n' "$user" "$password" |
+      on_shield "useradd -m -G wheel -s /bin/bash $user && chpasswd && echo '    created'" >&2
+    unset password
+  else
+    log "    there already: its password stays"
+  fi
 
   log "NetworkManager profiles for the Wi-Fi networks iwd knows"
   on_shield 'bash -s' <<'EOF'
@@ -162,4 +180,4 @@ on_shield 'for u in sshd NetworkManager systemd-resolved avahi-daemon sddm iwd s
   ufw show added 2>/dev/null | grep -E "22|ssh" | sed "s/^/    /" || echo "    no SSH rule in ufw"
   grep -q "5353" /etc/ufw/before.rules 2>/dev/null && echo "    mDNS (5353) let in" || echo "    no mDNS rule in ufw"
   ls /etc/NetworkManager/system-connections/ | sed "s/^/    NetworkManager profile: /"' >&2
-log "installed; next: scripts/21-switch-to-networkmanager.sh, then reboot into the login screen"
+log "installed; next: scripts/21-switch-to-networkmanager.sh, scripts/22-lock-default-logins.sh, then reboot into the login screen"
