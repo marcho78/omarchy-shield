@@ -1,355 +1,86 @@
 # Omarchy on the NVIDIA SHIELD TV 2017
 
-A reproducible path to running [Omarchy](https://omarchy.org) (Arch Linux and
-Hyprland) natively on an NVIDIA SHIELD TV 2017, which uses the Tegra X1.
+A reproducible path to running [Omarchy](https://omarchy.org) (Arch Linux and Hyprland) natively on an NVIDIA SHIELD TV 2017, which uses the Tegra X1. Every step is a script, and every version is pinned. Android stays installed, so you can go back.
 
 The approach:
 1. NVIDIA's own bootloader (cboot) starts U-Boot.
-2. U-Boot starts a mainline Linux kernel with a device tree written for this board.
-3. The kernel boots Arch Linux ARM from a USB disk, or from the SHIELD's
-   internal eMMC in place of Android's data.
-4. The community [`omarchy-arm`](https://github.com/alexisraitano-myffu/omarchy-arm)
-   port installs Omarchy on top.
-
-Android stays installed, so you can go back.
-
-> **Status: work in progress.**
-> - **Done:** the boot chain is scripted and tested. cboot starts U-Boot from
->   the recovery slot, and U-Boot starts mainline Linux, whose console stays
->   on HDMI. Linux drives USB, Ethernet, Wi-Fi and Bluetooth, with NVIDIA's
->   firmware taken from the recovery image.
-> - **Done too:** Arch Linux ARM runs from a USB SSD, with the console on
->   HDMI, Wi-Fi (2.4 and 5 GHz), SSH and Bluetooth. New builds go on over
->   the network, with nothing to press on the TV.
-> - **Done too:** the real display driver, tegra-drm, drives HDMI from
->   boot, and the GPU's driver, nouveau, loads at boot too. With our Mesa
->   (`scripts/19`) and two kernel fixes, the GPU draws on the TV (OpenGL ES
->   3.2, glmark2 score 308) and plain Hyprland runs.
-> - **Done too:** cooling and power management. The fan runs, idle cores
->   sleep, the CPU scales its clock and voltage up to stock's 2.0 GHz, and
->   the kernel slows it when it runs hot. Ten minutes on all four cores at
->   2.0 GHz levels off at 62 °C.
-> - **Done too:** Omarchy runs on the TV: the omarchy-arm port, patched for
->   Tegra210 and for Qt 6.12, with SDDM's login screen, Hyprland, the
->   Omarchy bar and lock screen, on NetworkManager.
-> - **Next:** a Bluetooth keyboard, audio, the memory clock, and Omarchy
->   trimmed down for a media center.
->
-> `NOTES.md` is the research log.
-
-## Supported hardware
-
-Only the **SHIELD TV 2017, 16 GB** (retail P2897, board P2894, product name
-`darcy`). The scripts check this and refuse to touch anything else.
-
-The 2015 models (`foster`) and the 2019 models (`mdarcy`, `sif`, Tegra X1+) are
-different boards and are not covered.
-
-## What you need
-
-- An x86_64 Arch-based Linux host. Tested on Omarchy 4.5.
-- A USB-A male-to-male cable, plus a USB-C to USB-A adapter if your computer only
-  has USB-C. A plain USB-A-to-C phone cable will not work, because your computer
-  has to be the host end. This was confirmed on an Intel T2 MacBook: with that
-  cable the laptop sees no USB device at all.
-- A USB keyboard or a SHIELD controller with a USB cable, for the bootloader
-  menu (it has no Bluetooth). Plug it into the USB port **near** HDMI; the
-  computer goes in the port **far** from HDMI. A USB keyboard (arrow keys +
-  Enter) is confirmed to work on darcy; a mouse does not drive the menu.
-- A free NVIDIA developer account, to download the stock recovery image.
-
-## Safety rules
-
-- **Unlocking the bootloader erases Android's apps, accounts and settings.**
-  Android itself stays, and the recovery image restores it completely.
-- **Only ever flash `boot` or `recovery`.** Never `dtb`, `staging`/blob, BCT,
-  the bootloader, TOS, EKS or the partition table. A bad DTB has hard-bricked
-  Shields before.
-- **Use the 2017 recovery image at the same or a newer version** than the one
-  your SHIELD runs. Never use an older one, and never one meant for another model.
-- **Never relock the bootloader** while a custom image is installed.
-
-## Steps
-
-Every script is safe to re-run. Unless a step says otherwise, nothing on the
-SHIELD changes.
-
-### 0. Host tools
-
-    scripts/00-host-setup.sh
-
-### 1. Let the computer talk to the SHIELD
-
-On the SHIELD:
-1. Go to Settings → Device Preferences → About and press **Build** 7 times.
-2. Go to Developer options and turn on **Network debugging**.
-
-Then:
-
-    scripts/01-find-shield.sh           # prints the SHIELD's IP address
-    scripts/02-collect-device-info.sh   # read-only snapshot into device-info/
-
-Approve "Allow network debugging?" on the TV when it appears. Check
-`device-info/summary.txt`:
-- `product` must be `darcy`.
-- `SHIELD version` tells you which recovery image to download.
-- `verified boot: green` means the bootloader is still locked.
-
-### 2. Safety net: NVIDIA's recovery image
-
-1. At <https://developer.nvidia.com/tools-downloads>, search "SHIELD Android
-   TV 2017 Recovery".
-2. Download the **Recovery OS Image** that matches your SHIELD version (pinned in
-   `config.sh`). Save it in `~/Downloads`.
-3. Run:
-
-       scripts/04-unpack-recovery.sh
-
-This verifies the checksum, unpacks the image, splits the bootloader package
-and decompiles the board device trees. To restore stock Android later, use
-NVIDIA's `flash-all.sh` from inside `recovery/<version>/`.
-
-### 3. Sources
-
-    scripts/03-fetch-sources.sh
-
-This fetches NVIDIA's downstream darcy device trees and `omarchy-arm`, at the
-commits pinned in `config.sh`.
-
-### 4. Boot chain: U-Boot
-
-    scripts/05-build-u-boot.sh            # pinned LineageOS U-Boot + patches/u-boot/
-    scripts/06-make-bootimg.sh --probe    # -> build/boot-uboot-probe.img
-
-cboot starts U-Boot as if it were the kernel of an Android boot image. U-Boot
-reads what cboot handed over (memory map, HDMI framebuffer, ramdisk, board
-revision) and shows it on the TV. Given a FIT payload, it then boots it.
-
-The `--probe` image carries a dummy ramdisk with a known CRC32. U-Boot's
-report shows where cboot put it, and whether it arrived intact.
-
-`05` also checks the safety-critical settings on every build: `bootcmd`,
-environment never saved, no GPU/VPR writes, no networking/EFI/storage writes.
-
-For the design, see "Boot chain design" in `NOTES.md`.
-
-### 5. USB and the bootloader
-
-1. Connect the computer to the SHIELD's USB port **farthest from HDMI** with a
-   USB-A male-to-male cable. Use a hub or adapter if the computer only has
-   USB-C.
-2. Accept "Allow USB debugging?" on the TV. The remote works for this.
-3. Run:
-
-       scripts/07-check-fastboot.sh
-
-This reboots into the bootloader, checks fastboot over USB, records the lock
-state and board revision, and reboots back. It changes nothing.
-`device-info/fastboot.txt` should name `tegra210-darcy-p2894-0050-a08-00.dtb`.
-
-### 6. Unlock the bootloader (erases Android user data)
-
-    CONFIRM_UNLOCK=yes scripts/08-unlock-bootloader.sh
-
-The bootloader asks for confirmation on the TV. The bootloader menu has no
-Bluetooth, so plug a USB keyboard (arrow keys + Enter, confirmed on darcy) or a
-SHIELD controller with a USB cable into the port **near** HDMI. Check it first
-with `scripts/07-check-fastboot.sh --stay`: the arrow keys must move the
-highlight, and Enter on "Continue" boots Android. Afterwards, finish Android setup and turn debugging back on. Then
-`scripts/07` should report `unlocked: yes`.
-
-### 7. Run U-Boot (recovery slot)
-
-darcy's bootloader freezes on `fastboot boot`, so test images go into the
-recovery partition. Booting Android in between would put the stock recovery
-back (`vendor_flash_recovery`).
-
-    scripts/07-check-fastboot.sh --stay       # into the bootloader menu
-    CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-probe.img
-    scripts/10-watch-boot-outcome.sh          # optional: how the SHIELD comes back
-
-Choose "Boot recovery kernel" in the menu. U-Boot's report appears on the TV.
-The ramdisk CRC32 should equal `build/probe-ramdisk.crc32`, which shows U-Boot
-left the payload intact. If U-Boot finds no framebuffer, it reboots into the
-bootloader menu instead, and `scripts/10` reports `bootloader`.
-
-`CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh --restore` puts the stock
-recovery back.
-
-### 8. First Linux payload
-
-    scripts/11-build-kernel.sh    # pinned Linux, Tegra-only defconfig + kernel/darcy.config
-    scripts/12-make-payload.sh    # FIT: kernel + kernel/dts/darcy.dts + tiny initramfs
-    CONFIRM_FLASH=yes scripts/09-boot-via-recovery.sh build/boot-uboot-darcy.img
-
-Choose "Boot recovery kernel" again. U-Boot boots the FIT, and the kernel's
-console appears on the TV through the framebuffer U-Boot hands over: four
-penguins, then the kernel log. `/init` (`tools/darcy-init.c`) reports what
-Linux sees.
-
-Then the SHIELD comes back by itself, even if Linux lost the screen. Any of
-three things resets it:
-- `/init` reboots into the recovery slot after a minute.
-- A kernel panic resets the board after 10 s.
-- If Linux hangs, the watchdog U-Boot armed resets the board after 150 s
-  (`darcy_watchdog` in U-Boot's environment).
-
-Each time, cboot starts the recovery slot again. U-Boot then shows the end
-of the kernel's log, read from RAM (ramoops), instead of booting.
-Photograph it. After 60 s (`darcy_log_secs`) U-Boot reboots into the
-bootloader menu by itself, so the next image can be flashed straight away
-with `scripts/09`, without going through Android.
-
-### 9. Root filesystem
-
-    scripts/13-make-rootfs.sh             # build/rootfs.img and its sparse form, build/rootfs.simg
-    scripts/12-make-payload.sh --system   # build/boot-uboot-darcy-system.img
-
-`scripts/13` builds the system without root, in a user namespace (your
-`/etc/subuid` range), running Arch Linux ARM's own `pacman` through QEMU.
-- **The base** is Arch Linux ARM's signed aarch64 image, fully upgraded,
-  with Wi-Fi (`iwd`), Bluetooth (`bluez`), `sudo`, and the kernel's modules.
-- **NVIDIA's Wi-Fi and Bluetooth firmware** goes in under darcy's
-  board-specific names.
-- **SSH** takes a key made for the SHIELD, `device-info/ssh/id_ed25519`;
-  passwords are refused over the network. On the TV, Arch Linux ARM's
-  default logins work, `root`/`root` and `alarm`/`alarm`, until
-  `scripts/22` locks them (step 13).
-- **Wi-Fi without the TV:** put two lines in `device-info/wifi` before the
-  build, `SSID=...` and `PASSPHRASE=...`, and the SHIELD joins that network
-  by itself. Otherwise, join from the TV with `iwctl`.
-
-The system payload boots that filesystem from where `config.sh`
-`SYSTEM_ROOT` says it is. U-Boot boots it again after a normal reboot, and
-stops at its log (then fastboot) only after a panic or a watchdog reset.
-
-### 10. Install
-
-The root filesystem goes on a USB disk, `SYSTEM_ROOT=PARTLABEL=darcy-root`
-(the default), and Android's partitions stay as they are:
-
-1. Plug the disk into the computer and write it. This **erases the disk**:
-
-       sudo scripts/15-write-usb-disk.sh /dev/sdX
-
-   It only takes a whole, unmounted USB disk, and asks you to type its name
-   first.
-2. Plug the disk into the SHIELD, through a hub on the port **near** HDMI (the
-   keyboard can share the hub). Get to the bootloader menu, then:
-
-       CONFIRM_FLASH=yes scripts/14-install-system.sh
-
-   This puts U-Boot and the system into the boot partition, so the SHIELD
-   starts Linux from then on. Android's system and data stay. To go back,
-   `CONFIRM_FLASH=yes scripts/14-install-system.sh --restore` puts NVIDIA's
-   boot partition back.
-
-Alternatively, `SYSTEM_ROOT=PARTLABEL=UDA` puts the root filesystem on the
-eMMC: `scripts/14` then writes it over Android's user data too. Android must
-not start again while Linux is there, because it would offer to wipe it.
-
-### 11. Updates without the TV
-
-Once the installed system answers SSH, a new build goes on over the network
-and the USB cable, with nothing to press:
-
-    scripts/11-build-kernel.sh            # when the kernel changed
-    scripts/12-make-payload.sh --system   # build/boot-uboot-darcy-system.img
-    CONFIRM_FLASH=yes scripts/17-update-system.sh <the SHIELD's address>
-
-`scripts/17` copies the kernel's modules over SSH when the kernel changed
-(or with `--modules`). It then reboots the SHIELD into its bootloader,
-flashes the boot image as soon as fastboot appears, reboots into it, and
-checks that the new kernel runs. The computer must be on the SHIELD's USB
-port far from HDMI.
-
-Files of the installed system that this repository keeps under `rootfs/`
-(the thermal guard, for one) go on the same way, without a reboot:
-
-    scripts/18-update-files.sh <the SHIELD's address>
-
-`scripts/13` puts the same files in a new root filesystem.
-
-Once the system is up, the TV console shows only critical kernel messages.
-To see them all again until the next boot, run this on the SHIELD:
-`echo Y > /sys/module/printk/parameters/ignore_loglevel`.
-
-### 12. Mesa for the GPU
-
-Arch Linux ARM's Mesa crashes every OpenGL program on Tegra on its first
-draw (`NOTES.md`, "B1"). `scripts/19` builds the same release with
-upstream's fix and our further tegra driver fixes (`patches/mesa/`) on the
-SHIELD itself, in about 20 minutes, and puts it in place of `mesa`:
-
-    scripts/19-build-mesa.sh <the SHIELD's address>
-
-With `--no-install` it stops after the build, so the package can be tried
-from its build tree first. `pacman -S mesa` brings Arch Linux ARM's back.
-nouveau loads at boot. A system an older `scripts/13` made has
-`/etc/modprobe.d/20-darcy-nouveau.conf`, which blocks it: delete that file.
-The kernel needs `patches/linux/0004` and `0005` for the GPU: without them
-nouveau rejects command batches after a second's wait, and the TV shows
-half-drawn frames.
-
-### 13. Omarchy
-
-The omarchy-arm port at its pin, with a Tegra210 platform and a fix for
-Qt 6.12 (`patches/omarchy-arm/`), for the desktop user `config.sh` names
-(`OMARCHY_USER`: `omarchy`, unless `config.local.sh` names another).
-`scripts/20` asks for that user's password at the start, then runs by
-itself. `scripts/22` then locks the default logins:
-
-    scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # the plan, nothing changes
-    scripts/20-install-omarchy.sh <the SHIELD's address>             # 30-60 minutes
-    scripts/21-switch-to-networkmanager.sh <the SHIELD's address>    # Wi-Fi, with a way back
-    scripts/22-lock-default-logins.sh <the SHIELD's address>         # root/root and alarm/alarm off
-    ssh ... root@<address> systemctl reboot                          # into the login screen
-
-Omarchy runs on NetworkManager. `scripts/20` gives it the Wi-Fi networks
-iwd knows, asking for the same address, and `scripts/21` tries the switch
-before any reboot: unless SSH comes back through NetworkManager within two
-minutes, the SHIELD goes back to iwd. The login screen asks only for the
-password: it logs in as that user.
-
-### Next (not scripted yet)
-
-1. Pair a Bluetooth keyboard.
-2. Audio.
-3. The memory clock (EMC scaling up to 1600 MHz, from stock darcy's
-   tables), for the GPU and video.
-4. Omarchy trimmed down for a media center.
+2. U-Boot starts a mainline Linux kernel (7.2.11) with a device tree written for this board, and our patches.
+3. The kernel boots Arch Linux ARM from a USB SSD. The internal eMMC is an option, in place of Android's data.
+4. The community [`omarchy-arm`](https://github.com/alexisraitano-myffu/omarchy-arm) port installs Omarchy on top.
+
+## Status
+
+| Area | State | Notes |
+|---|---|---|
+| Boot chain | Works | cboot → U-Boot → mainline Linux, with a test loop that needs no Android |
+| HDMI | Works | tegra-drm at 1920x1080 from boot |
+| USB | Works | The SSD links at USB 2, most likely its cable |
+| Wi-Fi | Works | 2.4 and 5 GHz. The signal is weak here, and drops were seen. |
+| Ethernet | Driver works | The link hasn't been tested yet (no switch) |
+| Bluetooth | Works | Pairing a keyboard hasn't been tried yet |
+| GPU | Works | OpenGL ES 3.2 through nouveau and our Mesa fixes. No Vulkan. |
+| CPU, cooling | Works | Up to stock's 2.0 GHz, idle sleep, the fan, throttling |
+| Memory clock | Works, by hand | 1600 MHz like stock, set after each boot; it boots at 800 |
+| Omarchy | Works | Hyprland, the login screen, the bar and the lock screen |
+| Audio, video playback | Not started | |
+
+## Numbers
+
+All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
+
+| | |
+|---|---|
+| Geekbench 6 | 317 single-core, 854 multi-core. Stock Android 11 is reported at 302 / 789. |
+| SuperTuxKart 1.5 benchmark | 31.3 FPS at 1920x1080 full screen. In a 1054x1054 window, the kernel and memory work took it from 17.7 to 37.2 FPS. |
+| glmark2 2023.01 | 847 at 800x600, 288 at 1920x1080 |
+| Boot to the login screen | 20.9 s |
+| Power | 6.7 W idle, 12.5 W in a game |
+
+[docs/benchmarks.md](docs/benchmarks.md) has every number with its conditions, and `benchmarks/` the raw outputs.
+
+## Read next
+
+| Document | What's in it |
+|---|---|
+| [docs/install.md](docs/install.md) | The steps, from a stock SHIELD to Omarchy: what you need, the safety rules, every script |
+| [docs/findings.md](docs/findings.md) | What we found, area by area: cause, fix, evidence |
+| [docs/problems.md](docs/problems.md) | Constraints, dead ends, claims we corrected, open issues |
+| [docs/benchmarks.md](docs/benchmarks.md) | The numbers, how they were measured, against Android |
+| [docs/timeline.md](docs/timeline.md) | The work in milestones, and the kernel builds |
+| [NOTES.md](NOTES.md) | The day-by-day log, as it was written |
+| [research/README.md](research/README.md) | The reviews by other AI agents, and what we used from them |
+
+**Read the safety rules in [docs/install.md](docs/install.md) first.** Unlocking the bootloader erases Android's user data. Only the boot and recovery partitions are ever written, and the board's DTB and bootloader never are.
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `config.sh` | Every pinned version, commit and checksum |
-| `scripts/` | Numbered steps; `lib.sh` holds shared helpers |
-| `tools/nvblob.py` | Lists and extracts NVIDIA `NVIDIA__BLOB__V2` bootloader packages |
-| `patches/u-boot/` | Our U-Boot board support for darcy (target `p2894`), which also passes cboot's device tree and its trained EMC table to Linux |
-| `patches/linux/` | Linux fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress semaphore, tegra-drm's imported buffers, nouveau's cache cleaning on every submit, tegra210-emc's refresh at high DRAM temperature |
+| `config.local.sh` | Your own settings, such as the desktop user's name. Optional, and git ignores it. |
+| `scripts/` | The numbered steps; `lib.sh` holds shared helpers |
+| `patches/u-boot/` | U-Boot for darcy (target `p2894`). It also passes on cboot's device tree and its trained memory table. |
+| `patches/linux/` | Kernel fixes: the GPU's fuse clock, soctherm's throttle, the CPU's top rate, nouveau's progress counter and cache cleaning, tegra-drm's imported buffers, the memory-clock driver's refresh |
 | `patches/mesa/` | Mesa's tegra driver fixes: upstream merge request !45355 (0001) and ours (0002-0007) |
-| `patches/omarchy-arm/` | omarchy-arm's Tegra210 platform: detection, no Vulkan, the light look and a software pointer, tegra-drm's card for Hyprland and SDDM's greeter; and the shell's colours under Qt 6.12, whose own `Color` hid them |
-| `packages/mesa-darcy/` | The Mesa package `scripts/19` builds: Arch Linux ARM's release for Tegra210, with `patches/mesa` |
-| `kernel/` | Kernel config fragment, our darcy device tree, the FIT description |
-| `rootfs/` | Files `scripts/13` and `scripts/18` put in the installed system as they are: the thermal guard (`darcy-thermal-guard`, slows the CPUs at 86 °C, reboots at 92 °C) |
-| `tools/darcy-init.c` | The first payload's `/init` |
-| `tools/mmio-read.c` | Reads hardware registers on the SHIELD, read-only, to compare what cboot set with what Linux sets |
-| `tools/pmc-read/` | A kernel module that reads power-controller registers through the secure monitor (the SHIELD's PMC is secure-only), read-only |
-| `tools/gpu-power-probe/` | A kernel module that powers the GPU up step by step, as nouveau does, logging each step (`tools/build-module.sh` builds both) |
-| `tools/power-status.sh` | What the SHIELD's power management does, read-only, over SSH: CPU idle, CPU frequency and the DFLL, cooling, temperatures, fan and power |
-| `tools/gpu-smoke.c` | The smallest picture a compositor needs (KMS, GBM, EGL, GLES2) on the TV, printing each step before it runs |
-| `tools/hyprland-try.sh` | Plain Hyprland on the TV over SSH, before Omarchy: packages, a minimal config for `alarm`, console 7; `--stop` ends it |
-| `tools/emc-table.py` | cboot's trained EMC table as mainline's tegra210-emc driver takes it, from cboot's device tree; `--compare` checks the one U-Boot built |
-| `tools/emc-rate.sh` | The memory clock over SSH: its state, or a move to a rate of the table, with a reboot timer in case the switch hangs |
-| `tools/system-benchmark.sh` | Whole-system numbers over SSH: boot time, idle power, 7-Zip, memory bandwidth, glmark2, storage, Wi-Fi |
-| `tools/stk-benchmark.sh` | SuperTuxKart's built-in benchmark on the TV over SSH, with temperatures, power and clocks recorded: numbers that compare across kernels, Mesa builds and settings |
-| `build/` | Build output (git-ignored) |
-| `NOTES.md` | Research log: findings, decisions, sources |
-| `research/` | Brainstorms and background |
-| `device-info/` | Your device snapshot, SSH key and Wi-Fi settings (git-ignored; private) |
+| `patches/omarchy-arm/` | omarchy-arm's Tegra210 platform, and the shell's colours under Qt 6.12 |
+| `packages/mesa-darcy/` | The Mesa package `scripts/19` builds |
+| `kernel/` | The kernel config fragment, our darcy device trees, the FIT description |
+| `rootfs/` | Files the installed system gets as they are: the thermal guard |
+| `tools/nvblob.py` | Lists and extracts NVIDIA's bootloader packages |
+| `tools/darcy-init.c` | The first payload's `/init`: it reports what Linux sees |
+| `tools/mmio-read.c`, `tools/pmc-read/` | Read hardware registers, read-only. The power controller's go through the secure monitor. |
+| `tools/gpu-power-probe/`, `tools/build-module.sh` | Powers the GPU up step by step, as nouveau does, logging each step. The script builds both kernel modules. |
+| `tools/gpu-smoke.c` | The smallest picture a compositor needs (KMS, GBM, EGL, GLES2), printing each step |
+| `tools/hyprland-try.sh` | Plain Hyprland on the TV over SSH, before Omarchy |
+| `tools/power-status.sh` | Power management at a glance over SSH: CPU idle and clocks, cooling, temperatures, fan, power |
+| `tools/emc-table.py`, `tools/emc-rate.sh` | The memory clock: cboot's table as Linux takes it, and moving the rate, with a reboot timer |
+| `tools/stk-benchmark.sh`, `tools/system-benchmark.sh` | The benchmarks in `docs/benchmarks.md` |
+| `benchmarks/` | The raw output of every benchmark run, with an index |
+| `docs/` | The documents above |
+| `research/` | The briefs, the agents' reviews, and an index |
+| `build/`, `vendor/` | Build output and fetched sources (git-ignored) |
+| `device-info/` | Your device snapshot and SSH key (git-ignored; private) |
 | `recovery/` | Your unpacked recovery image (git-ignored; NVIDIA's, not redistributable) |
-| `vendor/` | Fetched third-party sources (git-ignored) |
 
 ## Credits
 
