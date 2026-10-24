@@ -75,7 +75,7 @@ All measured on 2026-10-23, kernel #21, memory at 1600 MHz:
 | `tools/power-status.sh` | Power management at a glance over SSH: CPU idle and clocks, cooling, temperatures, fan, power |
 | `tools/emc-table.py`, `tools/emc-rate.sh` | The memory clock: cboot's table as Linux takes it, and moving the rate, with a reboot timer |
 | `tools/stk-benchmark.sh`, `tools/system-benchmark.sh` | The benchmarks in `docs/benchmarks.md` |
-| `benchmarks/` | The raw output of every benchmark run, with an index |
+| `benchmarks/` | The raw outputs of our benchmark runs, with an index that names the exceptions |
 | `docs/` | The documents above |
 | `research/` | The briefs, the agents' reviews, and an index |
 | `build/`, `vendor/` | Build output and fetched sources (git-ignored) |

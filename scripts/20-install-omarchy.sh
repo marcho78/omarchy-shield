@@ -43,10 +43,20 @@ host=${1:-}
   die "no device-info/ssh/id_ed25519: scripts/13 makes it, with the root filesystem"
 
 user=$OMARCHY_USER
+# The user on the SHIELD: MISSING, SYSTEM (an account below UID 1000), or its
+# password state (P usable, L locked, NP none). An SSH failure stops here.
+state=$(on_shield "if ! id $user >/dev/null 2>&1; then echo MISSING
+  elif [ \$(id -u $user) -lt 1000 ]; then echo SYSTEM
+  else passwd -S $user | cut -d' ' -f2; fi")
+case $state in
+  MISSING|P|L|NP) ;;
+  SYSTEM) die "$user is a system account on the SHIELD: choose another OMARCHY_USER" ;;
+  *) die "unexpected answer about $user from the SHIELD: '$state'" ;;
+esac
 # A password for a new user, or for one without a usable password, asked
 # before the long part, which then runs by itself
 password=
-if ! $dry_run && [[ $(on_shield "passwd -S $user 2>/dev/null | cut -d' ' -f2") != P ]]; then
+if ! $dry_run && [[ $state != P ]]; then
   [[ -t 0 ]] || die "run this in a terminal: it asks for $user's password"
   while :; do
     IFS= read -rsp "Password for $user on the SHIELD: " password; echo >&2

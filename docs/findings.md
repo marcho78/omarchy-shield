@@ -89,5 +89,5 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 
 ## Logins
 
-- **A new desktop user's password is the user's own.** `scripts/20` asks for it; an existing user keeps its password.
+- **A new desktop user's password is the user's own.** `scripts/20` asks for it. An existing user with a usable password keeps it.
 - **The default logins are locked.** `scripts/22` locks Arch Linux ARM's default root and alarm logins, after checking that root's SSH key keeps working (NOTES.md B9, 4c9d7a8).

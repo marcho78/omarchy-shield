@@ -4,7 +4,7 @@ Hard problems went to other AI agents for review. A self-contained brief (`*-bri
 
 | Agent | Tool | Reviews |
 |---|---|---|
-| n-codex | Codex | 24 |
+| n-codex | Codex | 25 |
 | n-grok | Grok | 8 |
 | antigravity | Gemini | 7 |
 | Z.ai | GLM, through opencode | 4 |
@@ -36,4 +36,5 @@ n-grok and Z.ai stopped answering at their usage limits. Antigravity is out of q
 | `omarchy` | The Tegra platform and the network switch | n-codex | Rollback switch, detection, PSI and zram, visudo (f53a3c9) | none; the firewall failure was outside its checklist |
 | `omarchy-color` | The colour fix, and restarting while locked | n-codex | `Commons.Color` (54988ed) | Restart while locked: only a workaround, unlock first |
 | `docs-research` | This index, and the claims to correct | n-codex | This table, the corrections in `docs/problems.md` | none |
-| `docs-audit` | Is every claim and number in the new docs right? | n-codex | All its points, checked first, but three | The raw files keep the user name, as the user chose. `--dry-run` is documented, not made read-only. A private LAN address stays in one raw log. |
+| `docs-audit` | Is every claim and number in the new docs right? | n-codex | Its points, checked first (a2db954, 255cf26) | Left as they are: the raw files keep the user name, as the user chose. `--dry-run` is documented, not made read-only. A private LAN address stays in one raw log. Git history keeps the NOTES lines since removed; the user chose no rewrite. Changing the desktop password is the user's call. |
+| `docs-recheck` | Were the audit's fixes right? | n-codex | Three wordings, this row, and the scripts' account and unlock checks | none |

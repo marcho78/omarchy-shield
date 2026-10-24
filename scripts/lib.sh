@@ -18,6 +18,8 @@ die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 # only a plain account name will do
 [[ ${OMARCHY_USER:-} =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] ||
   die "OMARCHY_USER '${OMARCHY_USER:-}' is not a plain account name (config.sh, config.local.sh)"
+[[ $OMARCHY_USER != root && $OMARCHY_USER != alarm ]] ||
+  die "OMARCHY_USER can't be $OMARCHY_USER: the desktop user needs an account of its own"
 
 need() {
   local c

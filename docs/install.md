@@ -271,7 +271,7 @@ The omarchy-arm port at its pin, with a Tegra210 platform and a fix for
 Qt 6.12 (`patches/omarchy-arm/`), for the desktop user `config.sh` names
 (`OMARCHY_USER`: `omarchy`, unless `config.local.sh` names another).
 `scripts/20` asks for a new user's password at the start, then runs by
-itself. An existing user keeps its password. `scripts/22` then locks the
+itself. An existing user with a usable password keeps it. `scripts/22` then locks the
 default logins, once you confirm the user's password is one you chose:
 
     scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # install.sh's plan only; it still runs on the SHIELD

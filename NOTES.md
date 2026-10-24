@@ -2382,7 +2382,7 @@ The rest:
   `scripts/lib.sh` reads after `config.sh`.
 - **`scripts/20` asks for a new user's password** at the start, twice and
   hidden, and sends it to `chpasswd` through SSH's input, so it appears in
-  no command line or log. A user that exists keeps its password.
+  no command line or log. A user that exists keeps its password, if it has one.
 - **`scripts/22` locks Arch Linux ARM's default root and alarm logins**
   once the desktop user has a password and is in wheel. It first checks
   that sshd uses PAM: with `UsePAM yes`, sshd doesn't turn a key away for a
@@ -2398,8 +2398,12 @@ The rest:
   - `scripts/22` asks you to confirm the desktop user's password is one you
     chose (`CONFIRM_OWN_PASSWORD=yes` answers for you), since a password's
     existence says nothing about who chose it.
-  - It stops the unlock timer and its service, and fails unless root then
-    reads locked.
+  - It stops the unlock timer and its service and checks both are gone. It
+    locks root again, in case the unlock ran meanwhile, and fails unless
+    root reads locked.
+  - Neither script works on root, alarm or a system account (UID below
+    1000), and an SSH failure while checking the user stops them, rather
+    than being taken for a missing user.
   - `scripts/20` sets a password for an existing user that has none, as a
     run cut off between `useradd` and `chpasswd` would leave.
   - `scripts/lib.sh` refuses an `OMARCHY_USER` that isn't a plain account

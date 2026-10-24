@@ -19,7 +19,7 @@ These are facts we work within.
 - **USB:** the laptop needs a USB-A male-to-male cable to the port far from HDMI; a phone cable won't do. The bootloader menu needs a USB keyboard or controller in the port near HDMI, as it has no Bluetooth.
 - **The GPU stack** is nouveau and Mesa, without NVIDIA's own driver. On GM20B that means no compression and 4 KiB GPU pages only. There's no GPU compute either: NVK, the Vulkan driver, doesn't support Tegra, and no OpenCL driver is set up.
 - **No real network addresses.** The board stores no Wi-Fi or Bluetooth address, so both use the firmware's placeholder addresses. Two SHIELDs on one network could clash.
-- **Review agents have quotas.** n-grok ran out of credits, Z.ai hit its usage limit, and antigravity is out of quota until about Oct 29. Agents also make confident wrong claims, so we check each one in the source before acting. NOTES lists the ones that were wrong.
+- **Review agents have quotas.** n-grok ran out of credits, Z.ai hit its usage limit, and antigravity is out of quota until about Oct 29. Agents also make confident wrong claims, so we check each one in the source before using it. NOTES lists the ones that were wrong.
 
 ## What went wrong, and what it taught us
 
@@ -33,7 +33,7 @@ These are facts we work within.
 | tegra-drm blanked the TV | HDMI wasn't described in the device tree yet | Kept out until it was described (fd5f1a9, 7cf0d01) |
 | pacman refused to download | Its sandbox needs Landlock | Kernel #7 (31961db) |
 | The first GPU access froze the board | The fuse clock was off | `patches/linux/0001` (b09a55d) |
-| The SHIELD overheated and shut down | The fan never ran, and the hardware throttle was set at the shutdown temperature | Fan, `0002`, then CPU power management (4d82b89, d4cd616) |
+| The SHIELD overheated and shut down | The fan never ran, and the hardware throttle was set at the shutdown temperature | `0002`, the fan, then CPU power management (4d82b89, d4cd616) |
 | Every OpenGL program crashed | Mesa's tegra driver since 25.2 | `patches/mesa`, `mesa-darcy` (8e7e088, 2d4908d) |
 | GPU stalls, then half-drawn frames | Stale progress reads, then tegra-drm not waiting for the GPU | Kernels #12 and #13 (326afce, e841f9b) |
 | Omarchy's install stopped at the firewall | The kernel had no nf_tables | Kernel #15 (47a3653) |
