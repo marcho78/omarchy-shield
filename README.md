@@ -339,6 +339,7 @@ password: it logs in as that user.
 | `tools/hyprland-try.sh` | Plain Hyprland on the TV over SSH, before Omarchy: packages, a minimal config for `alarm`, console 7; `--stop` ends it |
 | `tools/emc-table.py` | cboot's trained EMC table as mainline's tegra210-emc driver takes it, from cboot's device tree; `--compare` checks the one U-Boot built |
 | `tools/emc-rate.sh` | The memory clock over SSH: its state, or a move to a rate of the table, with a reboot timer in case the switch hangs |
+| `tools/system-benchmark.sh` | Whole-system numbers over SSH: boot time, idle power, 7-Zip, memory bandwidth, glmark2, storage, Wi-Fi |
 | `tools/stk-benchmark.sh` | SuperTuxKart's built-in benchmark on the TV over SSH, with temperatures, power and clocks recorded: numbers that compare across kernels, Mesa builds and settings |
 | `build/` | Build output (git-ignored) |
 | `NOTES.md` | Research log: findings, decisions, sources |

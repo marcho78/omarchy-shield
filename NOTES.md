@@ -2311,6 +2311,44 @@ Kernel #21, full screen at 1920x1080 with the HUD, filmed by the user:
 31.3 FPS (1195 frames in 38 s; steady 18, mostly stable 23, typical 31),
 CPU load 26%, 12.5 W, CPU 57 °C: the fixes cost nothing.
 
+### B8: Whole-system benchmarks (2026-10-23)
+
+Kernel #21, Mesa 26.2.5-darcy, CPU up to 2014.5 MHz, EMC at 1600 MHz,
+Omarchy's desktop logged in and idle. `tools/system-benchmark.sh` runs
+everything but Geekbench, one test at a time.
+
+| | Linux (this) | Android 11 (stock, as reported) |
+|---|---|---|
+| Geekbench 6.7.1 single-core | **317** | 302 |
+| Geekbench 6.7.1 multi-core | **854** | 789 |
+
+Geekbench: the Linux/AArch64 preview (`cdn.geekbench.com/
+Geekbench-6.7.1-LinuxARMPreview.tar.gz`), which uploads every result:
+https://browser.geekbench.com/v6/cpu/19382032 (the user agreed to the
+upload). Its CLI shows no scores and exports nothing; the result page sits
+behind Cloudflare's browser check, so it was read in the user's Chrome.
+
+The rest:
+- boot: 10.75 s kernel + 10.18 s userspace = 20.9 s to the login screen
+- idle: 6.7 W (CPU 46 °C, GPU 44, mem 49) at EMC 1600 MHz
+- 7-Zip 26.05 `7z b`, four cores: 7015 MIPS compressing, 12690
+  decompressing, 9853 total
+- memory, sysbench, 4 threads, 64 MiB blocks: read 9.8 GB/s, write
+  19.6 GB/s at 1600 MHz; 8.8 and 10.4 GB/s at 800 MHz. (1 MiB blocks read
+  26.6 and 31.3 GB/s: the 2 MiB L2, not the DRAM, past the 25.6 GB/s a
+  64-bit LPDDR4 bus at 1600 MHz carries.)
+- glmark2 2023.01 `glmark2-es2-wayland --off-screen`: 847 at its default
+  800x600, 288 at 1920x1080
+- SuperTuxKart 1.5 benchmark, 1920x1080 full screen: 31.3 FPS (B6)
+- storage, fio on the root filesystem: 25 MB/s sequential write, 28 MB/s
+  read, 2670 IOPS random 4 KiB reads. The SSD (an SSK enclosure) sits
+  behind a Genesys Logic USB 2.1 hub, at 480 Mbit/s: the SHIELD's
+  SuperSpeed bus is up (`usb2`, 5000 Mbit/s, four ports), so a USB 3 hub
+  would lift this. Not tried yet.
+- Wi-Fi: 5 GHz (5240 MHz), -67 to -69 dBm, link 270 Mbit/s down and
+  88 Mbit/s up; TCP with the laptop, itself on Wi-Fi: 47 Mbit/s to the
+  SHIELD, 22 Mbit/s from it.
+
 ## Never flash
 
 `dtb`, `staging`/blob, BCT, bootloader/EBT, TOS, EKS, the GPT/partition table, or
