@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Lock the password logins Arch Linux ARM ships with, root/root and
-# alarm/alarm, once the desktop user (config.sh OMARCHY_USER) has a password
-# of its own. Afterwards:
+# Lock the default root and alarm password logins Arch Linux ARM ships with,
+# once the desktop user (config.sh OMARCHY_USER) has a password you chose.
+# You confirm that at the start (or CONFIRM_OWN_PASSWORD=yes): a password
+# exists, but only you know whose choice it was. Afterwards:
 #   - root still logs in over SSH with device-info/ssh/id_ed25519: a locked
 #     password doesn't stop a key, as sshd checks the account through PAM
 #     (UsePAM yes, checked first)
@@ -20,7 +21,12 @@ user=$OMARCHY_USER
 
 log "checks"
 [[ $(on_shield "passwd -S $user 2>/dev/null | cut -d' ' -f2") == P ]] ||
-  die "$user has no password of its own: scripts/20 sets one, or passwd $user at the TV"
+  die "$user has no password: scripts/20 sets one, or passwd $user on the SHIELD"
+if [[ ${CONFIRM_OWN_PASSWORD:-} != yes ]]; then
+  [[ -t 0 ]] || die "run this in a terminal, or with CONFIRM_OWN_PASSWORD=yes"
+  read -rp "After this, $user's password is the way in at the TV. Is it one you chose? [y/N] " answer
+  [[ $answer == [yY] ]] || die "set $user's password first: passwd $user on the SHIELD"
+fi
 on_shield "id -nG $user | grep -qw wheel" ||
   die "$user is not in wheel, so it couldn't get root at the TV"
 # sshd -T prints each keyword in its own case (UsePAM), older ones in lower case
@@ -33,8 +39,10 @@ on_shield "systemctl reset-failed darcy-root-unlock 2>/dev/null
     passwd -l root >/dev/null"
 on_shield true ||
   die "no new SSH login: root unlocks again within 2 minutes; look at sshd's log at the TV"
-on_shield "systemctl stop darcy-root-unlock.timer" ||
-  warn "the unlock timer may still run: root unlocks in 2 minutes; run this again"
+# The unlock stopped, then root checked: the timer may have fired meanwhile
+[[ $(on_shield "systemctl stop darcy-root-unlock.timer darcy-root-unlock.service 2>/dev/null
+  passwd -S root | cut -d' ' -f2") == L ]] ||
+  die "root isn't locked: the unlock may have run first; run this again"
 
 log "alarm"
 on_shield "! id alarm >/dev/null 2>&1 || passwd -l alarm >/dev/null"

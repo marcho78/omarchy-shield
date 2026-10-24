@@ -4,7 +4,8 @@
 # Tegra210 platform), for the desktop user config.sh names (OMARCHY_USER).
 #   1. The user: created when missing, in wheel, with the password typed at
 #      the start (twice, hidden). It reaches the SHIELD through SSH's input,
-#      never a command line. A user already there keeps its password. SSH
+#      never a command line. A user already there keeps its password, unless
+#      it has none (a run cut off between creating it and setting one). SSH
 #      takes keys only, so the password counts at the TV alone.
 #   2. Wi-Fi through the switch: Omarchy moves networking from iwd and
 #      systemd-networkd to NetworkManager at the next boot. Each network iwd
@@ -16,7 +17,8 @@
 #      and its install.sh runs as the user in a service (it outlives a dropped
 #      SSH session), with sudo needing no password for that user meanwhile.
 #      With --dry-run, install.sh only prints its plan, and steps 1-2 are
-#      shown, not done.
+#      shown, not done. The checkout still goes to the SHIELD, and install.sh
+#      runs there with the same temporary sudo rule.
 #   4. SDDM's last user: its Omarchy theme logs in as that user, and
 #      omarchy-arm records one only in its first-boot setup, which this
 #      skips.
@@ -41,9 +43,10 @@ host=${1:-}
   die "no device-info/ssh/id_ed25519: scripts/13 makes it, with the root filesystem"
 
 user=$OMARCHY_USER
-# A new user's password, asked before the long part, which then runs by itself
+# A password for a new user, or for one without a usable password, asked
+# before the long part, which then runs by itself
 password=
-if ! $dry_run && ! on_shield "id $user >/dev/null 2>&1"; then
+if ! $dry_run && [[ $(on_shield "passwd -S $user 2>/dev/null | cut -d' ' -f2") != P ]]; then
   [[ -t 0 ]] || die "run this in a terminal: it asks for $user's password"
   while :; do
     IFS= read -rsp "Password for $user on the SHIELD: " password; echo >&2
@@ -70,10 +73,11 @@ else
   log "the user $user"
   if [[ -n $password ]]; then
     printf '%s:%s\n' "$user" "$password" |
-      on_shield "useradd -m -G wheel -s /bin/bash $user && chpasswd && echo '    created'" >&2
+      on_shield "{ id $user >/dev/null 2>&1 || useradd -m -G wheel -s /bin/bash $user; } &&
+        chpasswd && echo '    its password is set'" >&2
     unset password
   else
-    log "    there already: its password stays"
+    log "    there already, with a password: it stays"
   fi
 
   log "NetworkManager profiles for the Wi-Fi networks iwd knows"

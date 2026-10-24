@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck source=../config.sh
 source "$ROOT/config.sh"
-# Your own settings go on top, in config.local.sh, which git ignores
+# Your own settings go on top, in config.local.sh, which git ignores. It's
+# shell, trusted like config.sh.
 if [[ -f $ROOT/config.local.sh ]]; then
   source "$ROOT/config.local.sh"
 fi
@@ -12,6 +13,11 @@ fi
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+# The desktop user's name goes into commands run as root on the SHIELD, so
+# only a plain account name will do
+[[ ${OMARCHY_USER:-} =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] ||
+  die "OMARCHY_USER '${OMARCHY_USER:-}' is not a plain account name (config.sh, config.local.sh)"
 
 need() {
   local c
