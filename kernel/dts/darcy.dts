@@ -190,6 +190,17 @@
 };
 
 /*
+ * HDMI audio: the HDA controller, which tegra210.dtsi leaves disabled, on as
+ * on Jetson TX1 and Nano (tegra210-p2597.dtsi, tegra210-p3450-0000.dts). It
+ * sits in the SOR partition, which stays on (above). The drivers are modules:
+ * snd-hda-tegra, and snd-hda-codec-tegrahdmi for SOR1's codec.
+ */
+&{/hda@70030000} {
+	nvidia,model = "NVIDIA SHIELD TV HDA";
+	status = "okay";
+};
+
+/*
  * The GPU (GM20B) for nouveau. Its rail is the stock darcy one (gpu_ovr_reg,
  * tegra210-ers-power-dvfs-e2174-1101-a00.dtsi): an open-loop regulator set
  * by PWM channel 1 and switched by PMIC GPIO 6, with the range, period and
