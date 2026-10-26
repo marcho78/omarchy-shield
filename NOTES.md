@@ -777,7 +777,9 @@ Media-center expectations with mainline:
   fine; HEVC/VP9 is borderline; 4K is not realistic. CPU DFLL scaling
   helps.
 - HDMI audio (`hda-tegra`) and HDMI-CEC (`tegra-cec`, for the TV's remote)
-  have mainline drivers.
+  have mainline drivers. *[Later: HDMI audio works since B10, with its
+  controller turned on in the device tree. CEC is still off: `CEC_TEGRA`
+  isn't set, and its node is disabled.]*
 
 **Open design question.** A Linux kept in the recovery slot is wiped whenever
 Android boots. Options for the permanent install:
@@ -1212,7 +1214,8 @@ tegra-drm at boot:
 **Open:**
 - the colour range: full-range RGB, where cboot sent limited range
 - darcy's drive current, if a picture ever shows sparkles
-- 4K and HDMI 2.0 scrambling: this TV ("LG FHD") stops at 1080p
+- 4K and HDMI 2.0 scrambling: this TV ("LG FHD") stops at 1080p *[Later: on
+  a 4K LG TV, Hyprland runs 3840x2160 at 60 Hz over HDMI 2.0 (B10).]*
 - the GPU (nouveau), for a desktop
 
 ### pacman on the SHIELD needs Landlock (2026-10-22)
@@ -2390,7 +2393,8 @@ The rest:
   `UsePAM`, not `usepam`.) A timer on the SHIELD unlocks root after 2
   minutes unless a new SSH login gets in. On this SHIELD: root and alarm
   locked, devsecai with a password; a new key login worked, and the timer
-  was stopped.
+  was stopped. *[Later: alarm also had to leave wheel: polkit asked for its
+  locked password, so Uber TV refused every password (B11).]*
 - **What it costs:** no root login at the TV (the desktop user's sudo
   instead), and systemd's emergency shell, which asks for root's password,
   won't open.
@@ -2408,6 +2412,143 @@ The rest:
     run cut off between `useradd` and `chpasswd` would leave.
   - `scripts/lib.sh` refuses an `OMARCHY_USER` that isn't a plain account
     name, since it goes into commands run as root.
+
+### B10: HDMI audio, and a 4K TV (2026-10-26)
+
+**No sound card.** `/proc/asound/cards` was empty, so PipeWire sent all sound
+to "Dummy Output". Build #21 has the drivers, as modules: `snd-hda-tegra`,
+and `snd-hda-codec-tegrahdmi` for SOR1's codec. But `tegra210.dtsi` leaves
+the HDA controller (`hda@70030000`) disabled, and Jetson TX1 and Nano turn
+it on with `nvidia,model` and `status = "okay"` (`tegra210-p2597.dtsi`,
+`tegra210-p3450-0000.dts`).
+
+**The fix:** the same two properties in `kernel/dts/darcy.dts`. The
+controller sits in the SOR power partition (`pd_sor`), which the device tree
+already keeps away from the PMC, so it stays on. Only the device tree
+changed: `scripts/12-make-payload.sh --system` packed build #21's own
+`Image.gz`, the new DTB differs from #21's in those two properties only, and
+`scripts/17` wrote it. The previous image is kept as
+`build/boot-uboot-darcy-system-k21.img` (git-ignored), the way back.
+
+**After the reboot:**
+- card 0, `NVIDIA SHIELD TV HDA`; device 3, `HDMI 0 [LG TV]`
+- the TV's ELD (`/proc/asound/card0/eld#3.0`), present and valid: LPCM 2
+  channels at 32 to 192 kHz, AC-3 6, Dolby Digital Plus 8, DTS 6, TrueHD 8
+- PipeWire's default output: "Built-in Audio HDMI / DisplayPort 1 Output
+  [LG TV]", at 40% volume
+- a test sound ran the PCM at 48 kHz, stereo, S32_LE, with nothing in the
+  kernel's log; HDMI, SDDM and Hyprland were unaffected
+
+**Silent at the TV, so the whole path was checked, read-only:**
+- The HDA side streams. The playback pointer moved 24,499 frames in half a
+  second (48 kHz), the controller's interrupts climbed, and its clocks run
+  at 51 MHz (`hda`), 48 MHz (`hda2codec_2x`) and 19.2 MHz (`hda2hdmi`).
+- The handshake with the encoder works. When HDMI comes up, tegra-drm
+  enables SOR1's SCRATCH0 interrupt (`tegra_sor_audio_prepare()`). The
+  codec writes the stream's format into SCRATCH0, and the interrupt handler
+  runs `tegra_sor_hdmi_audio_enable()`. SOR1's registers, read with
+  `tools/mmio-read.c` (base 0x54580000, word indexes), show all of it:
+
+| Register (index) | Value | Meaning |
+|---|---|---|
+| `SOR_INT_ENABLE`, `SOR_INT_MASK` (0x11e, 0x11d) | 0x3, 0x3 | the codec's interrupts on |
+| `SOR_AUDIO_HDA_PRESENSE` (0x10d) | 0x3 | ELD valid, a sink present |
+| `SOR_AUDIO_HDA_CODEC_SCRATCH0` (0x10a) | 0x40000031 | valid; PCM, 48 kHz, 24-bit, 2 channels |
+| `SOR_AUDIO_CNTRL` (0xfc) | 0x20221000 | HDA input, null samples, the FIFO flush bit set |
+| `SOR_AUDIO_SPARE` (0xfe) | 0x08000000 | HBR advertised |
+| `SOR_HDMI_SPARE` (0xcb) | 0x80010001 | hardware CTS, high ACR priority |
+| `SOR_HDMI_AUDIO_N` (0x13c) | 0x10000000 | N from the lookup table, out of reset |
+| `SOR_HDMI_CTRL` (0xc0) | 0x400f0438 | HDMI on, 15 audio/control packets per blank, bit 10, rekey 56 |
+| audio infoframe control (0x9a) | 0x201 | on, with a checksum |
+| audio infoframe header, payload (0x9c, 0x9d, 0x9e) | 0x000a0184, 0x170, 0 | type 0x84, version 1, 10 bytes; 2 channels, front left and right; the checksum adds up |
+
+- NVIDIA's own driver programs the same values. Compared with L4T's
+  `hda_dc.c`, `hdmi2.0.c` and `sor_regs.h` (OE4T's linux-tegra-4.9 at
+  30a11c940a50):
+  - the FIFO flush bit is set there too, so it isn't the cause. It was the
+    first suspect.
+  - bit 10 of `SOR_HDMI_CTRL` is NVIDIA's `AUDIO_LAYOUT_SELECT`; the rekey is
+    58 − 2
+  - N and AVAL use the same table and formula
+  - mainline's SOR audio was tested on Tegra186 and Tegra194 (Linux 4.21),
+    not on Tegra210
+- **The cause was the TV:** the user found that its Sound Out sent all sound
+  to their soundbar. The EDID's CEC physical address is 2.0.0.0, so the
+  SHIELD is on the TV's HDMI 2, and the TV forwards its sound like any
+  input's.
+
+**A different TV.** The one attached now reports "LG TV" (GSM, product
+0x0001), prefers 3840x2160 and has an HDMI 2.x block (600 MHz), where the
+bring-up TV was "LG FHD" (GSM 23766). Omarchy's monitor rule
+(`mode = "preferred"`) runs it at 3840x2160 at 60 Hz: SOR1 at 297 MHz and a
+594 MHz link, so HDMI 2.0 with scrambling. It works. tegra-drm's boot
+console stays 1920x1080.
+
+**Not done:**
+- surround passthrough: the TV takes Dolby and DTS, but PCM only in stereo
+- the soundbar's volume from the remote, over HDMI-CEC: `CEC_TEGRA` isn't
+  set, and `cec@70015000` is disabled
+- the box's own volume fixed at 100% when a soundbar does the volume
+
+The commands: `cat /proc/asound/cards`, `cat /proc/asound/card0/eld#3.0`,
+`wpctl status`, `edid-decode /sys/class/drm/card1-HDMI-A-1/edid`, and
+`/root/mmio-read 0x54580000 0x9a 0x9c 0x9d 0x9e 0xb1 0xc0 0xcb 0xfc 0xfe
+0x10a 0x10d 0x11c 0x11d 0x11e 0x13c` (SOR1 is clocked while HDMI is on).
+
+### B11: The running system: memory, Netflix, logins, updates (2026-10-26)
+
+**Memory.** 2,878 MiB of RAM, and a zram swap of the same size (zstd). With
+Omarchy's desktop idle, 1,591 MiB was in use and 1,287 available. The
+largest resident sets: quickshell 457 MiB (Omarchy's shell, with Uber TV in
+it), Hyprland 142, udiskie 69, the four xdg portal processes about 119,
+fcitx5 41, and Xwayland 39 with no X11 window open. What some of the rest
+are for:
+- printing: `cups` (with its socket and path units) and `cups-browsed`,
+  which needs avahi and had added a network printer by itself
+- `docker.socket` is enabled; Docker itself wasn't running
+- avahi (mDNS): pipewire-pulse depends on its library, but PipeWire's
+  config turns on no network audio
+- udiskie, from Omarchy's `autostart.lua`, and udisks: Uber TV records to
+  USB drives through them, so they stay
+- fcitx5 starts from `/etc/xdg/autostart`. The portals and at-spi are D-Bus
+  services.
+Nothing was turned off.
+
+**Under load:** during an Omarchy update (yay, then xz), 117 MiB was
+available and 1.8 GiB was in swap, about 310 MiB of it quickshell's. While
+Netflix played, Chromium's processes held 1.2 GiB between them and 597 MiB
+was available.
+
+**Netflix plays.** Uber TV's Netflix app is a launcher.
+`omarchy-launch-webapp` starts Chromium (Arch Linux ARM's 153.0.8010.36)
+with `--app=` as a full-screen Wayland window. Chromium's component updater
+fetched Google's Widevine for ARM64 Linux by itself: 4.10.3112.0, in
+`~/.config/chromium/WidevineCdm/.../linux_arm64/libwidevinecdm.so`, run in
+its own sandboxed process. That's Widevine L3, with decryption in software,
+so Netflix limits the resolution. The resolution wasn't measured
+(Ctrl+Alt+Shift+D in Netflix shows it). The CPU decodes the video. Average
+CPU while it played: the page 68% of a core, Widevine 23%, the GPU process
+19%. Until B10, its sound went to "Dummy Output".
+
+**Uber TV refused every password.** Its check is `pkexec /usr/bin/true`
+(`ChannelLock.qml`), and the phone remote's firewall rule goes through
+`pkexec ufw` too. polkit's default rule (`50-default.rules`) counts every
+wheel member as an admin, and the prompt asked for the first one's
+password: alarm's, which `scripts/22` had locked. The log: `unix_chkpwd:
+password check failed for user (alarm)`, then `pam_unix(polkit-1:auth):
+authentication failure ... user=alarm`. There was no lockout (`faillock`
+was empty). alarm came in wheel with Arch Linux ARM's image (our scripts
+don't add it). `gpasswd -d alarm wheel` leaves the desktop user as the only
+admin, and `scripts/22` now does that too.
+
+**Omarchy's channel switch isn't for ARM.** `omarchy-channel-set rc` was
+started from Omarchy's menu on the TV. Its `omarchy-refresh-pacman` copies
+Omarchy's own `pacman.conf` and mirror list over the system's (x86:
+`rc-mirror.omarchy.org` and Omarchy's repository, and no `[alarm]`), then
+runs `pacman -Syyuu --noconfirm`. It sat at a sudo step. Once it was no
+longer running: `pacman.conf` still had `[core]`, `[extra]`, `[alarm]` and
+`[aur]`, the mirror list was Arch Linux ARM's, neither backup file existed,
+and pacman's log had nothing after the update before it.
 
 ## Never flash
 
@@ -2445,3 +2586,5 @@ recovery rules) is in `research/ncodex-boot-chain-brainstorm.md`.
 - https://github.com/andreiw/shieldTV_loader
 - https://yifan.lu/2022/06/17/unbricking-shield-tv-2015-with-a-bootrom-exploit/
 - https://web.uri.edu/wp-content/uploads/sites/1991/ShieldDIY.pdf (USB port roles, `fastboot oem dtbname`)
+- https://github.com/OE4T/linux-tegra-4.9/tree/30a11c940a505f333192ea19935e95a4d9f27e98/nvidia/drivers/video/tegra/dc (NVIDIA's L4T display driver: `hda_dc.c`, `hdmi2.0.c`, `sor_regs.h`; B10)
+- https://www.phoronix.com/news/Tegra-X2-Xavier-HDMI-Audio (mainline's SOR HDMI audio, tested on Tegra186 and Tegra194; B10)

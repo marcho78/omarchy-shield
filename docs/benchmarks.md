@@ -72,7 +72,7 @@ Two corrections to the first write-up (NOTES.md B8, commit 0b5f5c0, the results 
 
 - **GPU compute:** no Geekbench GPU score, because it needs Vulkan or OpenCL. NVK, Mesa's Vulkan driver for NVIDIA, doesn't support Tegra (commit ae087db), and no OpenCL driver is set up.
 - **Ethernet:** the driver finds the chip, but no link has been tested yet, because there's no switch to plug into.
-- **Not measured yet:** video playback, audio, and the SSD on a USB 3 link.
+- **Not measured yet:** video playback, audio, the desktop at 3840x2160 on the 4K TV, and the SSD on a USB 3 link.
 
 ## How to repeat them
 

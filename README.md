@@ -27,7 +27,7 @@ The approach:
 
 ## Highlights
 
-- **Mainline Linux** on a board where it had only a bare device tree. HDMI, USB, Wi-Fi, Bluetooth and Ethernet have drivers running, and so do the GPU, the fan and the CPU's power management.
+- **Mainline Linux** on a board where it had only a bare device tree. HDMI with its audio, USB, Wi-Fi, Bluetooth and Ethernet have drivers running, and so do the GPU, the fan and the CPU's power management.
 - **The GPU draws the desktop.** OpenGL ES 3.2 runs through nouveau, with three kernel fixes and seven Mesa patches for Tegra.
 - **Stock speeds.** The CPU runs up to 2.0 GHz. The memory reaches 1600 MHz from the timing tables cboot trains at every boot, though for now it's set by hand.
 - **Bugs found and fixed along the way**, among them two in mainline's memory-clock driver and one in nouveau's cache handling. The cache fix alone raised a game's frame rate by 80%. The patches are in `patches/`.
@@ -39,7 +39,7 @@ The approach:
 | Area | State | Notes |
 |---|---|---|
 | Boot chain | Works | cboot → U-Boot → mainline Linux, with a test loop that needs no Android |
-| HDMI | Works | tegra-drm at 1920x1080 from boot |
+| HDMI | Works | tegra-drm from boot; 3840x2160 at 60 Hz (HDMI 2.0) on a 4K TV |
 | USB | Works | The SSD links at USB 2, most likely because of its cable |
 | Wi-Fi | Works | 2.4 and 5 GHz, on NetworkManager |
 | Ethernet | Driver works | The link hasn't been tested yet (no switch) |
@@ -48,7 +48,8 @@ The approach:
 | CPU, cooling | Works | Up to stock's 2.0 GHz, idle sleep, the fan, throttling |
 | Memory clock | Works, set by hand | 1600 MHz like stock after `tools/emc-rate.sh`; it boots at 800 |
 | Omarchy | Works | Hyprland, the login screen, the bar and the lock screen |
-| Audio, video playback | Not started | |
+| Audio | Driver works | Over HDMI: the TV receives stereo PCM and can pass it to a soundbar. No surround passthrough, or volume from the remote (HDMI-CEC), yet. |
+| Video playback | Works, on the CPU | Uber TV plays through Qt Multimedia, and Netflix in Chromium (Widevine L3). No hardware decoding; not measured yet. |
 
 ## Benchmarks
 
@@ -118,7 +119,7 @@ Read [docs/install.md](docs/install.md) first. It has what you need, the safety 
 
 ## Contributing
 
-Contributions are welcome: code, testing on your own SHIELD TV 2017, documentation, and problem reports. The open work is in the status table above: audio, video playback, Bluetooth pairing, the memory clock at boot. Sending the fixes upstream is open too. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to report a problem and how to make a change: safety first, reproducible steps, evidence for every number.
+Contributions are welcome: code, testing on your own SHIELD TV 2017, documentation, and problem reports. The open work is in the status table above: surround sound and the TV remote over HDMI-CEC, measuring video playback, Bluetooth pairing, the memory clock at boot. Sending the fixes upstream is open too. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to report a problem and how to make a change: safety first, reproducible steps, evidence for every number.
 
 ## Disclaimer
 

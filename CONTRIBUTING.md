@@ -4,7 +4,7 @@ Thanks for helping. This project runs Omarchy on one board, the NVIDIA SHIELD TV
 
 ## Where to start
 
-- **What isn't done yet:** the gaps in the README's status table: audio, video playback, Bluetooth pairing, Ethernet with a link, the SSD on a USB 3 link, and the memory clock at 1600 MHz from boot. Sending the kernel and Mesa fixes upstream is open too.
+- **What isn't done yet:** the gaps in the README's status table: surround sound and the TV remote (HDMI-CEC), measuring video playback, Bluetooth pairing, Ethernet with a link, the SSD on a USB 3 link, and the memory clock at 1600 MHz from boot. Sending the kernel and Mesa fixes upstream is open too.
 - **Testing:** run the steps in [docs/install.md](docs/install.md) on your own SHIELD TV 2017 and report anything that differs. Another board is the most useful test there is.
 
 ## Reporting a problem

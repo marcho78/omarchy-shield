@@ -277,7 +277,7 @@ default logins, once you confirm the user's password is one you chose:
     scripts/20-install-omarchy.sh --dry-run <the SHIELD's address>   # install.sh's plan only; it still runs on the SHIELD
     scripts/20-install-omarchy.sh <the SHIELD's address>             # 30-60 minutes
     scripts/21-switch-to-networkmanager.sh <the SHIELD's address>    # Wi-Fi, with a way back
-    scripts/22-lock-default-logins.sh <the SHIELD's address>         # the default root and alarm logins off
+    scripts/22-lock-default-logins.sh <the SHIELD's address>         # the default root and alarm logins off, alarm out of wheel
     ssh ... root@<address> systemctl reboot                          # into the login screen
 
 Omarchy runs on NetworkManager. `scripts/20` gives it the Wi-Fi networks
@@ -302,7 +302,7 @@ default after longer soaks and cold boots.
 ### Next (not scripted yet)
 
 1. Pair a Bluetooth keyboard.
-2. Audio.
+2. HDMI-CEC, for the TV remote and a soundbar's volume, and surround passthrough. HDMI audio itself works (NOTES.md B10).
 3. The memory clock at 1600 MHz from boot.
 4. The SSD on a USB 3 link (most likely a matter of its cable).
 5. Omarchy trimmed down for a media center.

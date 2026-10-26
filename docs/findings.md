@@ -20,7 +20,15 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 - **Fix, in two stages:**
   - While the simple framebuffer drove the console, the device tree kept that partition away from the PMC (06ec1f0, e5503b4).
   - Then HDMI was described as on the Jetson TX1 and stock darcy (DPAUX1, SOR1's supplies, DDC on I2C4, hot-plug), and tegra-drm, the real display driver, drives 1080p from boot (7cf0d01, 6521017).
+- **HDMI 2.0 works.** On a 4K LG TV, Omarchy's preferred-mode rule runs 3840x2160 at 60 Hz, over a 594 MHz link with scrambling. The first TV stopped at 1080p. The boot console stays at 1920x1080 (NOTES.md B10).
 - **A mainline bug:** reading `/sys/kernel/debug/powergate` oopses in Linux 7.2.11, because `powergate_show()` takes the PMC from the wrong argument. We stopped reading it (f399551) and haven't reported it upstream yet.
+
+## Audio (HDMI)
+
+- **There was no sound card.** The drivers were built all along, but mainline's `tegra210.dtsi` leaves the HDMI audio controller disabled, and our device tree never turned it on. `kernel/dts/darcy.dts` now does, as Jetson TX1 and Nano do. Only the device tree changed; the kernel is still build #21 (NOTES.md B10).
+- **Now:** the card is `NVIDIA SHIELD TV HDA`, with the output "LG TV". The TV reports stereo PCM up to 192 kHz, plus Dolby Digital, Dolby Digital Plus, DTS and TrueHD. PipeWire plays to it.
+- **Checked end to end while the TV stayed silent:** the samples stream at 48 kHz. The HDMI encoder receives their format, turns on audio clock regeneration and sends a correct audio infoframe, and its registers match NVIDIA's own driver. The silence was the TV, which sent its sound to the soundbar.
+- **Not done:** surround passthrough, the soundbar's volume from the remote over HDMI-CEC, and a fixed output volume for a soundbar.
 
 ## USB, network, Bluetooth
 
@@ -42,6 +50,7 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 - **The first cable powered the SSD but carried no data** (ed1a327). The SSD links at USB 2, 480 Mbit/s, most likely through its own cable (2c9e98a).
 - **pacman needs Landlock** in the kernel for its download sandbox (31961db).
 - **Updates go over SSH and USB** with nothing to press on the TV (`scripts/17`, 1726fc4). Modules are compared by hash, because the kernel's build stamp can stay the same (4d82b89).
+- **Memory:** with the desktop idle, about 1.3 GB of the 2.8 GB is available. Omarchy's shell, with Uber TV inside it, is the largest program at about 460 MB. Chromium holds about 1.2 GB while Netflix plays, and an Omarchy update left 117 MB available. Swap is zram (NOTES.md B11).
 
 ## Heat and CPU power
 
@@ -73,6 +82,11 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 - **The login screen refused every password.** Omarchy's SDDM theme logs in as the last user, which omarchy-arm records only in a first-boot step our install skips. `scripts/20` records it (54988ed).
 - **The bar and menus lost their colours.** Qt 6.12's own `Color` singleton hid the shell's (`patches/omarchy-arm/0002`, 54988ed).
 
+## Video and streaming
+
+- **The CPU decodes video.** Mainline has no Tegra210 hardware decoding that players use (NOTES.md, "Media-center expectations"). Uber TV plays through Qt Multimedia. Which formats and sizes keep up isn't measured yet.
+- **Netflix plays,** from Uber TV's launcher, in Chromium. Chromium fetches Google's Widevine for ARM64 Linux by itself, which is Widevine L3: decryption in software, so Netflix limits the resolution. Android's L1 doesn't carry over (NOTES.md B11).
+
 ## Memory clock (EMC)
 
 - **cboot leaves the memory at 800 MHz**; stock Android goes up to 1600. Mainline's driver needs trained timing tables. cboot trains them at every boot and puts them in its own device tree. `patches/u-boot/0002` passes that tree on, and `0003` converts the table for this board's RAM code. `tools/emc-table.py` checks the conversion byte for byte (2b6a360, 4c8e65b).
@@ -91,3 +105,4 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 
 - **A new desktop user's password is the user's own.** `scripts/20` asks for it. An existing user with a usable password keeps it.
 - **The default logins are locked.** `scripts/22` locks Arch Linux ARM's default root and alarm logins, after checking that root's SSH key keeps working (NOTES.md B9, 4c9d7a8).
+- **Password prompts ask for the desktop user's password.** Uber TV's password check and its phone remote's firewall rule run through polkit (`pkexec`). polkit asked for the first `wheel` member's password, which was alarm's, locked, so every password was refused. `scripts/22` now also takes alarm out of `wheel` (NOTES.md B11).

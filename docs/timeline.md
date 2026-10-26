@@ -1,6 +1,6 @@
 # Timeline
 
-The work ran from 2026-10-21 to 2026-10-23. The bring-up is 89 commits, a8fab0c to 2c9e98a. The commits after it add the raw data, the login changes and these docs. Times are the commits' own, in US Pacific time. `NOTES.md` has the day-by-day detail.
+The work ran from 2026-10-21 to 2026-10-23, with HDMI audio and fixes on 2026-10-26. The bring-up is 89 commits, a8fab0c to 2c9e98a. The commits after it add the raw data, the login changes, these docs and the later fixes. Times are the commits' own, in US Pacific time. `NOTES.md` has the day-by-day detail.
 
 ## Milestones
 
@@ -20,6 +20,7 @@ The work ran from 2026-10-21 to 2026-10-23. The bring-up is 89 commits, a8fab0c 
 | 11:20–13:57 | **Omarchy installed.** It needed a Tegra210 platform, a firewall-capable kernel, SDDM's last user and a Qt 6.12 colour fix. | ae087db → 54988ed |
 | 14:38–17:06 | Performance. At the same settings, SuperTuxKart goes from 17.7 to 37.2 FPS, and runs at 31.3 FPS full screen at 1080p. Two changes did it: nouveau's cache cleaning, fixed in two rounds, and the memory clock, raised from 800 to 1600 MHz with cboot's trained tables. Along the way, two refresh bugs in mainline's memory-clock driver were found and fixed. | f6abea2 → 74115dc |
 | 17:54 onward | Whole-system benchmarks. The SSD turns out to be on a USB 2 link. The raw outputs are saved, and the logins changed: a new desktop user picks its password, and the default logins are locked. | 0b5f5c0 onward |
+| Oct 26 | **HDMI audio.** The device tree turns the HDMI audio controller on. The TV sending its sound to a soundbar made it seem silent at first. Now on a 4K TV, HDMI 2.0 runs 3840x2160 at 60 Hz. Netflix plays in Chromium (Widevine L3). Uber TV's password prompt works once alarm leaves `wheel`. | after d1a6835 |
 
 ## Kernel builds
 
@@ -39,3 +40,5 @@ The number is the kernel's own build counter (`uname -v` shows `#21`). Builds th
 | #21 | n-codex's fixes to that tracking | 43a9559 |
 
 Earlier builds (the first boots, Wi-Fi, the GPU's fuse clock, the CPU's clocks) went in without a number in their commit messages.
+
+On 2026-10-26 the installed payload got a new device tree (HDMI audio) around #21's kernel, so `uname -v` still shows `#21`.

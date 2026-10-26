@@ -18,7 +18,9 @@ These are facts we work within.
   - Once, the menu went on by itself after 15–18 s, so `scripts/17` flashes at once.
 - **USB:** the laptop needs a USB-A male-to-male cable to the port far from HDMI; a phone cable won't do. The bootloader menu needs a USB keyboard or controller in the port near HDMI, as it has no Bluetooth.
 - **The GPU stack** is nouveau and Mesa, without NVIDIA's own driver. On GM20B that means no compression and 4 KiB GPU pages only. There's no GPU compute either: NVK, the Vulkan driver, doesn't support Tegra, and no OpenCL driver is set up.
-- **HDMI** runs at 1920x1080. The colour range, the drive current and 4K/HDMI 2.0 weren't tested. Linux doesn't manage the SOR power partition: the device tree keeps `pd_sor` from it, so the HDMI encoder stays powered as cboot left it.
+- **HDMI** ran at 1920x1080 on the first TV. A 4K TV runs 3840x2160 at 60 Hz over HDMI 2.0. The colour range and the drive current weren't tested. Linux doesn't manage the SOR power partition: the device tree keeps `pd_sor` from it, so the HDMI encoder, and the HDMI audio controller in the same partition, stay powered as cboot left them.
+- **Streaming DRM is Widevine L3.** Chromium's Widevine for ARM64 Linux decrypts in software, so services like Netflix limit the resolution. Android's L1 doesn't carry over (NOTES.md B11).
+- **Don't switch Omarchy's update channel on the SHIELD.** `omarchy-channel-set` copies Omarchy's x86 package configuration over pacman's, without Arch Linux ARM's repositories, and then upgrades everything (NOTES.md B11).
 - **The CPU's DFLL** runs low requests up to 15% fast. Mainline lacks stock's one-shot floor calibration and cold-temperature floor, reads its monitor once, and can't show the live PWM output. Timing safety is plausible, not proved (NOTES.md "CPU power management").
 - **The logins:** with root's password locked, there's no root login at the TV (the desktop user's sudo instead) and no emergency shell (NOTES.md B9). Don't restart Omarchy's shell while the screen is locked; that kills its lock screen (NOTES.md B5).
 - **No real network addresses.** The board stores no Wi-Fi or Bluetooth address, so both use the firmware's placeholder addresses. Two SHIELDs on one network could clash.
@@ -46,6 +48,9 @@ These are facts we work within.
 | Cache cleaning still took 41% of the CPU at 20.7 FPS | `0006` still cleaned every buffer userspace had ever mapped, whole | `0006` tracks written pages: 37.2 FPS (d4401c6, 43a9559) |
 | Hot memory would have been refreshed less often | Two bugs in mainline's EMC driver | `0007` (4c8e65b, d005f18) |
 | Two benchmark runs read about 10 FPS | The screen was locked, and Hyprland slows hidden windows | Runs only with the user at the TV (NOTES.md B7) |
+| No sound card | `tegra210.dtsi` leaves the HDMI audio controller disabled; the drivers were built all along | `kernel/dts/darcy.dts` turns it on, as Jetson TX1 and Nano do (NOTES.md B10) |
+| The TV stayed silent with everything working | The TV sent its sound to the soundbar | The TV's Sound Out setting. Check where the TV sends its sound before the driver (NOTES.md B10) |
+| Uber TV called every password incorrect | Its check (`pkexec`) asked polkit, which took `alarm`, the first `wheel` member, whose password `scripts/22` had locked | `scripts/22` takes `alarm` out of `wheel` |
 
 ## Claims we got wrong, and the corrections
 
@@ -62,3 +67,6 @@ These are facts we work within.
 | Kernel #20 revokes mappings with `ttm_bo_unmap_virtual()` (d4401c6) | That also freed I/O mappings; #21 uses `drm_vma_node_unmap()` (43a9559) |
 | The hub holds the SSD to USB 2 (0b5f5c0) | The hub is USB 3; the SSD's own link is USB 2 (2c9e98a) |
 | Memory writes at 19.6 GB/s (0b5f5c0, the results card) | 19,632 MiB/s, which is 20.6 GB/s (0ca6d06) |
+| HDMI runs at 1920x1080 (README, findings) | That was the first TV; a 4K TV runs 3840x2160 at 60 Hz (NOTES.md B10) |
+| Arch Linux ARM's Chromium has no Widevine, so Netflix might not play (said in chat, 2026-10-26) | Chromium fetches Google's ARM64 Widevine by itself, and Netflix plays at L3 (NOTES.md B11) |
+| The audio FIFO's flush bit, left set, kept the TV silent (a suspect while debugging) | NVIDIA's own driver sets it the same way; the TV was sending its sound to the soundbar (NOTES.md B10) |
