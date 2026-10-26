@@ -48,7 +48,7 @@ The approach:
 | CPU, cooling | Works | Up to stock's 2.0 GHz, idle sleep, the fan, throttling |
 | Memory clock | Works, set by hand | 1600 MHz like stock after `tools/emc-rate.sh`; it boots at 800 |
 | Omarchy | Works | Hyprland, the login screen, the bar and the lock screen |
-| Audio | Driver works | Over HDMI: the TV receives stereo PCM and can pass it to a soundbar. No surround passthrough, or volume from the remote (HDMI-CEC), yet. |
+| Audio | Works | Over HDMI, in stereo, heard through the TV's soundbar. No surround passthrough, or volume from the remote (HDMI-CEC), yet. |
 | Video playback | Works, on the CPU | Uber TV plays through Qt Multimedia, and Netflix in Chromium (Widevine L3). No hardware decoding; not measured yet. |
 
 ## Benchmarks

@@ -26,7 +26,7 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 ## Audio (HDMI)
 
 - **There was no sound card.** The drivers were built all along, but mainline's `tegra210.dtsi` leaves the HDMI audio controller disabled, and our device tree never turned it on. `kernel/dts/darcy.dts` now does, as Jetson TX1 and Nano do. Only the device tree changed; the kernel is still build #21 (NOTES.md B10).
-- **Now:** the card is `NVIDIA SHIELD TV HDA`, with the output "LG TV". The TV reports stereo PCM up to 192 kHz, plus Dolby Digital, Dolby Digital Plus, DTS and TrueHD. PipeWire plays to it.
+- **Now:** the card is `NVIDIA SHIELD TV HDA`, with the output "LG TV". The TV reports stereo PCM up to 192 kHz, plus Dolby Digital, Dolby Digital Plus, DTS and TrueHD. PipeWire plays to it, and the sound is heard through the TV's soundbar.
 - **Checked end to end while the TV stayed silent:** the samples stream at 48 kHz. The HDMI encoder receives their format, turns on audio clock regeneration and sends a correct audio infoframe, and its registers match NVIDIA's own driver. The silence was the TV, which sent its sound to the soundbar.
 - **Not done:** surround passthrough, the soundbar's volume from the remote over HDMI-CEC, and a fixed output volume for a soundbar.
 
@@ -105,4 +105,4 @@ What we learned about the SHIELD TV 2017 under mainline Linux, area by area. Eac
 
 - **A new desktop user's password is the user's own.** `scripts/20` asks for it. An existing user with a usable password keeps it.
 - **The default logins are locked.** `scripts/22` locks Arch Linux ARM's default root and alarm logins, after checking that root's SSH key keeps working (NOTES.md B9, 4c9d7a8).
-- **Password prompts ask for the desktop user's password.** Uber TV's password check and its phone remote's firewall rule run through polkit (`pkexec`). polkit asked for the first `wheel` member's password, which was alarm's, locked, so every password was refused. `scripts/22` now also takes alarm out of `wheel` (NOTES.md B11).
+- **Password prompts ask for the desktop user's password.** Uber TV's password check and its phone remote's firewall rule run through polkit (`pkexec`). polkit asked for the first `wheel` member's password, which was alarm's, locked, so every password was refused. `scripts/22` now also takes alarm out of `wheel`, and Uber TV accepts the desktop user's password (NOTES.md B11).

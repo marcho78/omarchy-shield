@@ -2475,7 +2475,7 @@ changed: `scripts/12-make-payload.sh --system` packed build #21's own
 - **The cause was the TV:** the user found that its Sound Out sent all sound
   to their soundbar. The EDID's CEC physical address is 2.0.0.0, so the
   SHIELD is on the TV's HDMI 2, and the TV forwards its sound like any
-  input's.
+  input's. The user then confirmed: the sound works, through the soundbar.
 
 **A different TV.** The one attached now reports "LG TV" (GSM, product
 0x0001), prefers 3840x2160 and has an HDMI 2.x block (600 MHz), where the
@@ -2539,7 +2539,9 @@ password check failed for user (alarm)`, then `pam_unix(polkit-1:auth):
 authentication failure ... user=alarm`. There was no lockout (`faillock`
 was empty). alarm came in wheel with Arch Linux ARM's image (our scripts
 don't add it). `gpasswd -d alarm wheel` leaves the desktop user as the only
-admin, and `scripts/22` now does that too.
+admin, and `scripts/22` now does that too. Retried: the prompt then
+authenticated the desktop user, and `pkexec` opened its root session, so
+Uber TV took the password.
 
 **Omarchy's channel switch isn't for ARM.** `omarchy-channel-set rc` was
 started from Omarchy's menu on the TV. Its `omarchy-refresh-pacman` copies
