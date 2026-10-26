@@ -7,6 +7,8 @@
 #     password doesn't stop a key, as sshd checks the account through PAM
 #     (UsePAM yes, checked first)
 #   - at the TV, the desktop user logs in, and sudo gives root
+#   - alarm leaves wheel, so polkit's password prompts (pkexec) ask for the
+#     desktop user's password, not alarm's locked one
 #   - systemd's emergency shell, which asks for root's password, won't open
 # A timer on the SHIELD unlocks root again after 2 minutes, unless a new SSH
 # login proves the key still gets in. By hand, passwd -u root undoes it.
@@ -50,9 +52,17 @@ on_shield true ||
     passwd -l root >/dev/null && passwd -S root | cut -d' ' -f2") == L ]] ||
   die "root isn't locked, or its unlock is still armed: run this again"
 
-log "alarm"
-on_shield "! id alarm >/dev/null 2>&1 || passwd -l alarm >/dev/null"
+log "alarm: its password locked, and out of wheel"
+# polkit counts every wheel member as an admin (50-default.rules), and its
+# prompt asks for the first one's password. With alarm in wheel, pkexec
+# (Uber TV's password check, its phone remote's firewall rule) asked for
+# alarm's locked password and rejected every answer.
+on_shield "if id alarm >/dev/null 2>&1; then
+    passwd -l alarm >/dev/null
+    if id -nG alarm | grep -qw wheel; then gpasswd -d alarm wheel >/dev/null; fi
+  fi"
 
 log "the logins now (L: locked, P: a password)"
 on_shield "for u in root alarm $user; do id \$u >/dev/null 2>&1 && passwd -S \$u | cut -d' ' -f1,2; done" |
   sed 's/^/    /' >&2
+log "wheel, the admins sudo and polkit accept: $(on_shield "getent group wheel | cut -d: -f4")"
